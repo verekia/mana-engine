@@ -44,6 +44,7 @@ export function createScene(canvas: HTMLCanvasElement): ManaScene {
       renderer.setSize(w, h, false)
       camera.aspect = w / h
       camera.updateProjectionMatrix()
+      renderer.render(scene, camera)
     }
   })
   observer.observe(canvas)

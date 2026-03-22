@@ -16,11 +16,11 @@ export default function Game() {
   }, [])
 
   return (
-    <div className="relative p-4">
+    <div className="relative h-full">
       <div className="absolute top-4 left-4 z-10 @max-md:left-0 @max-md:w-full @max-md:text-center">
         <HealthBar />
       </div>
-      <canvas ref={canvasRef} className="aspect-video w-full rounded-lg" />
+      <canvas ref={canvasRef} className="size-full" />
     </div>
   )
 }

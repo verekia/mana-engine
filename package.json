@@ -13,7 +13,8 @@
     "typecheck": "tsgo --noEmit",
     "test": "bun test",
     "all": "bun run lint && bun run format:check && bun run typecheck && bun run test && bun run build",
-    "dev": "bun run --filter 'example' dev",
+    "dev": "bun run --filter 'example' dev:game",
+    "dev:host": "bun run --filter 'example' dev:host",
     "build": "bun run --filter 'mana-engine' build && bun run --filter 'example' build",
     "start": "bun run --filter 'example' start"
   },
