@@ -1,29 +1,39 @@
-import * as THREE from 'three'
+import {
+  AmbientLight,
+  BoxGeometry,
+  Color,
+  DirectionalLight,
+  Mesh,
+  MeshStandardMaterial,
+  PerspectiveCamera,
+  Scene,
+  WebGLRenderer,
+} from 'three'
 
 export interface ManaScene {
   dispose(): void
 }
 
 export function createScene(canvas: HTMLCanvasElement): ManaScene {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+  const renderer = new WebGLRenderer({ canvas, antialias: true })
   renderer.setPixelRatio(window.devicePixelRatio)
 
-  const scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x111111)
+  const scene = new Scene()
+  scene.background = new Color(0x111111)
 
-  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100)
+  const camera = new PerspectiveCamera(50, 1, 0.1, 100)
   camera.position.set(0, 1, 3)
   camera.lookAt(0, 0, 0)
 
-  const geometry = new THREE.BoxGeometry()
-  const material = new THREE.MeshStandardMaterial({ color: 0x4488ff })
-  const cube = new THREE.Mesh(geometry, material)
+  const geometry = new BoxGeometry()
+  const material = new MeshStandardMaterial({ color: 0x4488ff })
+  const cube = new Mesh(geometry, material)
   scene.add(cube)
 
-  const light = new THREE.DirectionalLight(0xffffff, 2)
+  const light = new DirectionalLight(0xffffff, 2)
   light.position.set(2, 3, 4)
   scene.add(light)
-  scene.add(new THREE.AmbientLight(0xffffff, 0.3))
+  scene.add(new AmbientLight(0xffffff, 0.3))
 
   let animationId = 0
 
