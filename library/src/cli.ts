@@ -31,18 +31,15 @@ function resolvePackagePath(name: string): string {
   return dirname(req.resolve(`${name}/package.json`))
 }
 
-function ensureSymlinks(packageNames: string[]) {
-  const nodeModulesDir = resolve(process.cwd(), 'node_modules')
-  for (const name of packageNames) {
-    const link = resolve(nodeModulesDir, name)
-    if (!existsSync(link)) {
-      mkdirSync(dirname(link), { recursive: true })
-      symlinkSync(resolvePackagePath(name), link, 'dir')
-    }
+function ensureTailwindSymlink() {
+  const link = resolve(process.cwd(), 'node_modules', 'tailwindcss')
+  if (!existsSync(link)) {
+    mkdirSync(dirname(link), { recursive: true })
+    symlinkSync(resolvePackagePath('tailwindcss'), link, 'dir')
   }
 }
 
-function getViteAliases(): Record<string, string> {
+function getManaAliases(): Record<string, string> {
   return {
     react: resolvePackagePath('react'),
     'react-dom': resolvePackagePath('react-dom'),
@@ -57,7 +54,7 @@ async function runBuild() {
   const outDir = resolve(process.cwd(), config.outDir)
   const manaDir = resolve(process.cwd(), '.mana')
   mkdirSync(manaDir, { recursive: true })
-  ensureSymlinks(['react', 'react-dom', 'tailwindcss'])
+  ensureTailwindSymlink()
 
   const entryFile = resolve(manaDir, 'build-entry.tsx')
   writeFileSync(
@@ -82,7 +79,7 @@ async function runBuild() {
   )
 
   console.log(`Building game from ${config.gameDir}...`)
-  await build(createBuildConfig(gameDir, outDir, entryFile, getViteAliases()))
+  await build(createBuildConfig(gameDir, outDir, entryFile, getManaAliases()))
   console.log(`Game built to ${config.outDir}`)
 }
 
@@ -93,7 +90,7 @@ async function runDev() {
   const gameDir = resolve(process.cwd(), config.gameDir)
   const manaDir = resolve(process.cwd(), '.mana')
   mkdirSync(manaDir, { recursive: true })
-  ensureSymlinks(['react', 'react-dom', 'tailwindcss'])
+  ensureTailwindSymlink()
 
   writeFileSync(
     resolve(manaDir, 'dev-entry.tsx'),
@@ -129,7 +126,7 @@ async function runDev() {
 `,
   )
 
-  const server = await createServer(createDevConfig(gameDir, manaDir, getViteAliases()))
+  const server = await createServer(createDevConfig(gameDir, manaDir, getManaAliases()))
   await server.listen()
   server.printUrls()
 }
