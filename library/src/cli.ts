@@ -28,7 +28,18 @@ switch (command) {
 
 function resolvePackagePath(name: string): string {
   const req = createRequire(import.meta.url)
-  return dirname(req.resolve(`${name}/package.json`))
+  // Try package.json first, fall back to resolving the main entry and walking up
+  try {
+    return dirname(req.resolve(`${name}/package.json`))
+  } catch {
+    const resolved = req.resolve(name)
+    let dir = dirname(resolved)
+    while (dir !== dirname(dir)) {
+      if (existsSync(resolve(dir, 'package.json'))) return dir
+      dir = dirname(dir)
+    }
+    return dirname(resolved)
+  }
 }
 
 function ensureTailwindSymlink() {
@@ -43,6 +54,7 @@ function getManaAliases(): Record<string, string> {
   return {
     react: resolvePackagePath('react'),
     'react-dom': resolvePackagePath('react-dom'),
+    three: resolvePackagePath('three'),
   }
 }
 
