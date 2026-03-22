@@ -3,6 +3,7 @@ import { type ComponentType, useCallback, useEffect, useRef, useState } from 're
 import { createScene, type ManaScene } from '../scene.ts'
 
 import type { SceneData, SceneEntity } from '../scene-data.ts'
+import type { ManaScript } from '../script.ts'
 
 const COLORS = {
   bg: '#1a1a1a',
@@ -68,6 +69,7 @@ function Viewport({
             position: 'absolute',
             inset: 0,
             containerType: 'inline-size',
+            pointerEvents: 'none',
           }}
         >
           <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -134,16 +136,30 @@ function PanelHeader({ children }: { children: React.ReactNode }) {
   )
 }
 
-function ToolbarButton({ children, title }: { children: React.ReactNode; title?: string }) {
+function ToolbarButton({
+  children,
+  title,
+  onClick,
+  disabled,
+  active,
+}: {
+  children: React.ReactNode
+  title?: string
+  onClick?: () => void
+  disabled?: boolean
+  active?: boolean
+}) {
   return (
     <button
       title={title}
+      onClick={onClick}
+      disabled={disabled}
       style={{
-        background: 'none',
-        border: `1px solid ${COLORS.border}`,
+        background: active ? COLORS.accent : 'none',
+        border: `1px solid ${active ? COLORS.accent : COLORS.border}`,
         borderRadius: 4,
-        color: COLORS.text,
-        cursor: 'pointer',
+        color: active ? '#fff' : disabled ? COLORS.border : COLORS.text,
+        cursor: disabled ? 'default' : 'pointer',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -151,6 +167,7 @@ function ToolbarButton({ children, title }: { children: React.ReactNode; title?:
         height: 28,
         fontSize: 14,
         padding: 0,
+        opacity: disabled ? 0.4 : 1,
       }}
     >
       {children}
@@ -158,13 +175,13 @@ function ToolbarButton({ children, title }: { children: React.ReactNode; title?:
   )
 }
 
-function Toolbar() {
+function Toolbar({ playing, onPlay, onStop }: { playing: boolean; onPlay: () => void; onStop: () => void }) {
   return (
     <div
       style={{
         height: 40,
-        background: COLORS.toolbar,
-        borderBottom: `1px solid ${COLORS.border}`,
+        background: playing ? '#1a2a4a' : COLORS.toolbar,
+        borderBottom: `1px solid ${playing ? '#2a4a7a' : COLORS.border}`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -173,9 +190,12 @@ function Toolbar() {
         flexShrink: 0,
       }}
     >
-      <ToolbarButton title="Play">&#9654;</ToolbarButton>
-      <ToolbarButton title="Pause">&#9646;&#9646;</ToolbarButton>
-      <ToolbarButton title="Stop">&#9632;</ToolbarButton>
+      <ToolbarButton title="Play" onClick={onPlay} disabled={playing} active={playing}>
+        &#9654;
+      </ToolbarButton>
+      <ToolbarButton title="Stop" onClick={onStop} disabled={!playing}>
+        &#9632;
+      </ToolbarButton>
     </div>
   )
 }
@@ -585,6 +605,25 @@ function RightPanel({ entity, onUpdate }: { entity: SceneEntity | null; onUpdate
               </>
             )}
 
+            {entity.scripts && entity.scripts.length > 0 && (
+              <>
+                <SectionLabel>Scripts</SectionLabel>
+                {entity.scripts.map(s => (
+                  <div
+                    key={s}
+                    style={{
+                      padding: '3px 0',
+                      fontSize: 11,
+                      color: COLORS.text,
+                      fontFamily: 'monospace',
+                    }}
+                  >
+                    {s}
+                  </div>
+                ))}
+              </>
+            )}
+
             {entity.light && (
               <>
                 <SectionLabel>Light</SectionLabel>
@@ -653,13 +692,16 @@ function BottomPanel({ logs }: { logs: { id: number; msg: string }[] }) {
 }
 
 export default function Editor({
-  Game: _Game,
+  Game,
   uiComponents = {},
+  scripts: _scripts = {},
 }: {
   Game: ComponentType
   uiComponents?: Record<string, ComponentType>
+  scripts?: Record<string, ManaScript>
 }) {
   const [showUI, setShowUI] = useState(true)
+  const [playing, setPlaying] = useState(false)
   const [sceneList, setSceneList] = useState<string[]>([])
   const [activeScene, setActiveScene] = useState('')
   const [sceneData, setSceneData] = useState<SceneData | null>(null)
@@ -724,8 +766,9 @@ export default function Editor({
     [log],
   )
 
-  // Create Three.js scene when scene data is first loaded
+  // Create/dispose Three.js scene based on scene data and play state
   useEffect(() => {
+    if (playing) return
     const canvas = canvasRef.current
     if (!canvas || !sceneData) return
 
@@ -740,7 +783,7 @@ export default function Editor({
         sceneRef.current = null
       }
     }
-  }, [sceneData])
+  }, [sceneData, playing])
 
   // Cmd+S / Ctrl+S to save
   useEffect(() => {
@@ -757,6 +800,17 @@ export default function Editor({
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
+  }, [log])
+
+  const handlePlay = useCallback(() => {
+    setPlaying(true)
+    setSelectedId(null)
+    log('Play mode started')
+  }, [log])
+
+  const handleStop = useCallback(() => {
+    setPlaying(false)
+    log('Play mode stopped')
   }, [log])
 
   const selectedEntity = sceneData?.entities.find(e => e.id === selectedId) ?? null
@@ -786,7 +840,7 @@ export default function Editor({
         overflow: 'hidden',
       }}
     >
-      <Toolbar />
+      <Toolbar playing={playing} onPlay={handlePlay} onStop={handleStop} />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <LeftPanel
           sceneList={sceneList}
@@ -797,14 +851,27 @@ export default function Editor({
           onSelect={setSelectedId}
         />
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-          <ViewportBar showUI={showUI} onToggleUI={() => setShowUI(s => !s)} />
+          {!playing && <ViewportBar showUI={showUI} onToggleUI={() => setShowUI(s => !s)} />}
           <div style={{ flex: 1, overflow: 'hidden' }}>
-            <Viewport
-              canvasRef={canvasRef}
-              uiEntities={sceneData?.entities.filter(e => e.type === 'ui') ?? []}
-              uiComponents={uiComponents}
-              showUI={showUI}
-            />
+            {playing ? (
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  containerType: 'inline-size',
+                  position: 'relative',
+                }}
+              >
+                <Game />
+              </div>
+            ) : (
+              <Viewport
+                canvasRef={canvasRef}
+                uiEntities={sceneData?.entities.filter(e => e.type === 'ui') ?? []}
+                uiComponents={uiComponents}
+                showUI={showUI}
+              />
+            )}
           </div>
           <BottomPanel logs={logs} />
         </div>

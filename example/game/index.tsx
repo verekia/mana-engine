@@ -1,10 +1,11 @@
 import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { createScene, ManaContext, type SceneData } from 'mana-engine/game'
+import { createScene, ManaContext, type ManaScript, type SceneData } from 'mana-engine/game'
 
 import './game.css'
 import firstWorldData from './scenes/first-world.json'
 import mainMenuData from './scenes/main-menu.json'
+import rotate from './scripts/rotate'
 import HealthBar from './ui/HealthBar'
 import MainMenu from './ui/MainMenu'
 import MenuButton from './ui/MenuButton'
@@ -13,6 +14,10 @@ export const uiComponents: Record<string, ComponentType> = {
   HealthBar,
   MainMenu,
   MenuButton,
+}
+
+export const scripts: Record<string, ManaScript> = {
+  rotate,
 }
 
 const scenes: Record<string, SceneData> = {
@@ -28,7 +33,7 @@ export default function Game() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !sceneData) return
-    const scene = createScene(canvas, sceneData)
+    const scene = createScene(canvas, sceneData, scripts)
     return () => scene.dispose()
   }, [sceneData])
 

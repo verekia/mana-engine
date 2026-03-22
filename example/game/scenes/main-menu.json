@@ -2,28 +2,6 @@
   "background": "#1a1a2e",
   "entities": [
     {
-      "id": "camera",
-      "name": "Camera",
-      "type": "camera",
-      "transform": {
-        "position": [0, 0, 5]
-      },
-      "camera": {
-        "fov": 50,
-        "near": 0.1,
-        "far": 100
-      }
-    },
-    {
-      "id": "ambient-light",
-      "name": "Ambient Light",
-      "type": "ambient-light",
-      "light": {
-        "color": "#ffffff",
-        "intensity": 0.5
-      }
-    },
-    {
       "id": "main-menu",
       "name": "Main Menu",
       "type": "ui",

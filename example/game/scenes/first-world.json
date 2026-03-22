@@ -28,7 +28,8 @@
         "material": {
           "color": "#4488ff"
         }
-      }
+      },
+      "scripts": ["rotate"]
     },
     {
       "id": "directional-light",

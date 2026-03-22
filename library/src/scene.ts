@@ -15,6 +15,7 @@ import {
 } from 'three'
 
 import type { SceneData, SceneEntity, Transform } from './scene-data.ts'
+import type { ManaScript } from './script.ts'
 
 export interface ManaScene {
   dispose(): void
@@ -41,7 +42,13 @@ function createGeometry(type?: string) {
   }
 }
 
-export function createScene(canvas: HTMLCanvasElement, sceneData?: SceneData): ManaScene {
+const FIXED_DT = 1 / 60
+
+export function createScene(
+  canvas: HTMLCanvasElement,
+  sceneData?: SceneData,
+  scriptDefs?: Record<string, ManaScript>,
+): ManaScene {
   const renderer = new WebGLRenderer({ canvas, antialias: true })
   renderer.setPixelRatio(window.devicePixelRatio)
 
@@ -103,7 +110,32 @@ export function createScene(canvas: HTMLCanvasElement, sceneData?: SceneData): M
 
   const camera = cam
 
+  // Collect active scripts
+  const activeScripts: { script: ManaScript; entityObj: Object3D }[] = []
+
+  if (sceneData && scriptDefs) {
+    for (const entity of sceneData.entities) {
+      if (!entity.scripts) continue
+      const obj = entityObjects.get(entity.id)
+      if (!obj) continue
+      for (const name of entity.scripts) {
+        const script = scriptDefs[name]
+        if (script) {
+          activeScripts.push({ script, entityObj: obj })
+        }
+      }
+    }
+  }
+
+  // Init scripts
+  for (const { script, entityObj } of activeScripts) {
+    script.init?.({ entity: entityObj, scene, dt: 0, time: 0 })
+  }
+
   let animationId = 0
+  let lastTime = performance.now() / 1000
+  let elapsed = 0
+  let fixedAccumulator = 0
 
   const observer = new ResizeObserver(() => {
     const w = canvas.clientWidth
@@ -119,6 +151,26 @@ export function createScene(canvas: HTMLCanvasElement, sceneData?: SceneData): M
 
   function animate() {
     animationId = requestAnimationFrame(animate)
+
+    const now = performance.now() / 1000
+    const dt = Math.min(now - lastTime, 0.1)
+    lastTime = now
+    elapsed += dt
+
+    // Fixed update
+    fixedAccumulator += dt
+    while (fixedAccumulator >= FIXED_DT) {
+      for (const { script, entityObj } of activeScripts) {
+        script.fixedUpdate?.({ entity: entityObj, scene, dt: FIXED_DT, time: elapsed })
+      }
+      fixedAccumulator -= FIXED_DT
+    }
+
+    // Update
+    for (const { script, entityObj } of activeScripts) {
+      script.update?.({ entity: entityObj, scene, dt, time: elapsed })
+    }
+
     renderer.render(scene, camera)
   }
 
@@ -128,6 +180,9 @@ export function createScene(canvas: HTMLCanvasElement, sceneData?: SceneData): M
     dispose() {
       cancelAnimationFrame(animationId)
       observer.disconnect()
+      for (const { script } of activeScripts) {
+        script.dispose?.()
+      }
       renderer.dispose()
       for (const obj of entityObjects.values()) {
         if (obj instanceof Mesh) {

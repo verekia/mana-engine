@@ -35,6 +35,7 @@ export interface SceneEntity {
   mesh?: MeshData
   light?: LightData
   ui?: UiData
+  scripts?: string[]
 }
 
 export interface SceneData {
