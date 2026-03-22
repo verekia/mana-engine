@@ -1,1 +1,1 @@
-# mana-engine
+# Mana Engine
