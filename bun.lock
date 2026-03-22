@@ -17,6 +17,8 @@
         "mana-engine": "workspace:*",
       },
       "devDependencies": {
+        "@tailwindcss/vite": "4.2.2",
+        "tailwindcss": "4.2.2",
         "vite": "6.4.1",
       },
     },
