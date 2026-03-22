@@ -11,10 +11,14 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./game": {
+      "import": "./dist/game.js",
+      "types": "./dist/game.d.ts"
     }
   },
   "scripts": {
-    "build": "bun build src/index.ts src/cli.ts --outdir dist --format esm --splitting --packages=external && tsgo --emitDeclarationOnly",
+    "build": "bun build src/index.ts src/game.ts src/cli.ts --outdir dist --format esm --splitting --packages=external && tsgo --emitDeclarationOnly",
     "test": "bun test"
   },
   "dependencies": {

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-import { createScene } from 'mana-engine'
+import { createScene } from 'mana-engine/game'
 
 import './game.css'
 import HealthBar from './ui/HealthBar'
