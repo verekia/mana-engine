@@ -58,6 +58,14 @@
       "ui": {
         "component": "HealthBar"
       }
+    },
+    {
+      "id": "menu-button",
+      "name": "Menu Button",
+      "type": "ui",
+      "ui": {
+        "component": "MenuButton"
+      }
     }
   ]
 }

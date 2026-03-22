@@ -21,6 +21,12 @@ const COLORS = {
   accent: '#4488ff',
 }
 
+async function fetchSceneList(): Promise<string[]> {
+  const res = await fetch('/__mana/scenes')
+  if (!res.ok) return []
+  return res.json()
+}
+
 async function loadSceneData(name: string): Promise<SceneData> {
   const res = await fetch(`/__mana/scenes/${name}`)
   if (!res.ok) throw new Error(`Failed to load scene: ${name}`)
@@ -190,10 +196,16 @@ function entityTypeLabel(type: SceneEntity['type']): string {
 }
 
 function LeftPanel({
+  sceneList,
+  activeScene,
+  onSwitchScene,
   sceneData,
   selectedId,
   onSelect,
 }: {
+  sceneList: string[]
+  activeScene: string
+  onSwitchScene: (name: string) => void
   sceneData: SceneData | null
   selectedId: string | null
   onSelect: (id: string) => void
@@ -210,6 +222,29 @@ function LeftPanel({
         overflow: 'hidden',
       }}
     >
+      <PanelHeader>Scenes</PanelHeader>
+      <div style={{ padding: '6px 10px', borderBottom: `1px solid ${COLORS.border}` }}>
+        <select
+          value={activeScene}
+          onChange={e => onSwitchScene(e.target.value)}
+          style={{
+            width: '100%',
+            background: COLORS.input,
+            border: `1px solid ${COLORS.inputBorder}`,
+            borderRadius: 3,
+            color: COLORS.text,
+            fontSize: 11,
+            padding: '4px 6px',
+            outline: 'none',
+          }}
+        >
+          {sceneList.map(name => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </div>
       <PanelHeader>Hierarchy</PanelHeader>
       <div
         style={{
@@ -625,6 +660,8 @@ export default function Editor({
   uiComponents?: Record<string, ComponentType>
 }) {
   const [showUI, setShowUI] = useState(true)
+  const [sceneList, setSceneList] = useState<string[]>([])
+  const [activeScene, setActiveScene] = useState('')
   const [sceneData, setSceneData] = useState<SceneData | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [logs, setLogs] = useState<{ id: number; msg: string }[]>([{ id: 0, msg: 'Mana Engine editor ready' }])
@@ -632,33 +669,67 @@ export default function Editor({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sceneRef = useRef<ManaScene | null>(null)
   const sceneDataRef = useRef<SceneData | null>(null)
+  const activeSceneRef = useRef('')
 
-  // Keep ref in sync with state for the save handler
   sceneDataRef.current = sceneData
+  activeSceneRef.current = activeScene
 
   const log = useCallback((msg: string) => {
     const id = logIdRef.current++
     setLogs(prev => [...prev, { id, msg }])
   }, [])
 
-  // Load scene on mount
+  // Fetch scene list on mount, then load the first scene
   useEffect(() => {
-    loadSceneData('main')
-      .then(data => {
-        setSceneData(data)
-        log('Loaded scene: main')
-      })
-      .catch(err => {
-        log(`Error loading scene: ${err.message}`)
-      })
+    fetchSceneList().then(list => {
+      setSceneList(list)
+      if (list.length > 0) {
+        const first = list[0]
+        setActiveScene(first)
+        loadSceneData(first)
+          .then(data => {
+            setSceneData(data)
+            log(`Loaded scene: ${first}`)
+          })
+          .catch(err => log(`Error loading scene: ${err.message}`))
+      }
+    })
   }, [log])
 
-  // Create/recreate Three.js scene when scene data is first loaded
+  // Switch scene handler
+  const handleSwitchScene = useCallback(
+    (name: string) => {
+      setActiveScene(name)
+      setSelectedId(null)
+
+      // Dispose old Three.js scene
+      if (sceneRef.current) {
+        sceneRef.current.dispose()
+        sceneRef.current = null
+      }
+
+      loadSceneData(name)
+        .then(data => {
+          setSceneData(data)
+          log(`Loaded scene: ${name}`)
+
+          // Create new Three.js scene
+          const canvas = canvasRef.current
+          if (canvas) {
+            sceneRef.current = createScene(canvas, data)
+          }
+        })
+        .catch(err => log(`Error loading scene: ${err.message}`))
+    },
+    [log],
+  )
+
+  // Create Three.js scene when scene data is first loaded
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !sceneData) return
 
-    // Only create the scene once (on initial load)
+    // Only create if not already created (handleSwitchScene creates its own)
     if (sceneRef.current) return
 
     sceneRef.current = createScene(canvas, sceneData)
@@ -677,9 +748,10 @@ export default function Editor({
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
         const data = sceneDataRef.current
-        if (!data) return
-        saveSceneData('main', data)
-          .then(() => log('Scene saved'))
+        const name = activeSceneRef.current
+        if (!data || !name) return
+        saveSceneData(name, data)
+          .then(() => log(`Scene saved: ${name}`))
           .catch(err => log(`Error saving: ${err.message}`))
       }
     }
@@ -697,7 +769,6 @@ export default function Editor({
         entities: prev.entities.map(e => (e.id === updated.id ? updated : e)),
       }
     })
-    // Live-update the Three.js scene
     sceneRef.current?.updateEntity(updated.id, updated)
   }, [])
 
@@ -717,7 +788,14 @@ export default function Editor({
     >
       <Toolbar />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <LeftPanel sceneData={sceneData} selectedId={selectedId} onSelect={setSelectedId} />
+        <LeftPanel
+          sceneList={sceneList}
+          activeScene={activeScene}
+          onSwitchScene={handleSwitchScene}
+          sceneData={sceneData}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+        />
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           <ViewportBar showUI={showUI} onToggleUI={() => setShowUI(s => !s)} />
           <div style={{ flex: 1, overflow: 'hidden' }}>

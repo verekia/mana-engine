@@ -1,34 +1,54 @@
-import { type ComponentType, useEffect, useRef } from 'react'
+import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { createScene } from 'mana-engine/game'
+import { createScene, ManaContext, type SceneData } from 'mana-engine/game'
 
 import './game.css'
-import sceneData from './scenes/main.json'
+import firstWorldData from './scenes/first-world.json'
+import mainMenuData from './scenes/main-menu.json'
 import HealthBar from './ui/HealthBar'
+import MainMenu from './ui/MainMenu'
+import MenuButton from './ui/MenuButton'
 
 export const uiComponents: Record<string, ComponentType> = {
   HealthBar,
+  MainMenu,
+  MenuButton,
+}
+
+const scenes: Record<string, SceneData> = {
+  'main-menu': mainMenuData as SceneData,
+  'first-world': firstWorldData as SceneData,
 }
 
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [currentScene, setCurrentScene] = useState('main-menu')
+  const sceneData = scenes[currentScene]
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    if (!canvas || !sceneData) return
     const scene = createScene(canvas, sceneData)
     return () => scene.dispose()
+  }, [sceneData])
+
+  const loadScene = useCallback((name: string) => {
+    if (scenes[name]) setCurrentScene(name)
   }, [])
 
+  const contextValue = useMemo(() => ({ loadScene, currentScene }), [loadScene, currentScene])
+
   return (
-    <div className="relative h-full">
-      {sceneData.entities
-        .filter(e => e.type === 'ui')
-        .map(e => {
-          const Component = uiComponents[e.ui?.component ?? '']
-          return Component ? <Component key={e.id} /> : null
-        })}
-      <canvas ref={canvasRef} className="size-full" />
-    </div>
+    <ManaContext.Provider value={contextValue}>
+      <div className="relative h-full">
+        {sceneData?.entities
+          .filter(e => e.type === 'ui')
+          .map(e => {
+            const Component = uiComponents[e.ui?.component ?? '']
+            return Component ? <Component key={e.id} /> : null
+          })}
+        <canvas ref={canvasRef} className="size-full" />
+      </div>
+    </ManaContext.Provider>
   )
 }

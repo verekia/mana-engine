@@ -1,3 +1,5 @@
 export { createScene } from './scene.ts'
 export type { ManaScene } from './scene.ts'
 export type { SceneData, SceneEntity, Transform, UiData } from './scene-data.ts'
+export { ManaContext, useMana } from './scene-context.ts'
+export type { ManaContextValue } from './scene-context.ts'
