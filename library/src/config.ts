@@ -14,7 +14,7 @@ const defaults: ManaConfig = {
 export async function loadConfig(): Promise<ManaConfig> {
   const cwd = process.cwd()
 
-  for (const filename of ['mana.config.ts', 'mana.config.js']) {
+  for (const filename of ['mana.config.js', 'mana.config.mjs']) {
     const configPath = resolve(cwd, filename)
     if (existsSync(configPath)) {
       const mod = await import(configPath)
