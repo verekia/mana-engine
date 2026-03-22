@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "editor": "mana editor",
     "dev:game": "mana dev",
     "dev:host": "mana build && vite",
     "build": "mana build && vite build",

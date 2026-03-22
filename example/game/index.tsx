@@ -17,7 +17,7 @@ export default function Game() {
 
   return (
     <div className="relative h-full">
-      <div className="absolute top-4 left-4 z-10 @max-md:left-0 @max-md:w-full @max-md:text-center">
+      <div className="absolute top-4 left-0 z-10 flex w-full justify-center @md:left-4 @md:w-auto">
         <HealthBar />
       </div>
       <canvas ref={canvasRef} className="size-full" />

@@ -14,7 +14,7 @@ switch (command) {
     await runDev()
     break
   case 'editor':
-    console.log('Mana Engine editor coming soon.')
+    await runEditor()
     break
   default:
     console.log('Usage: mana <command>')
@@ -149,6 +149,58 @@ async function runDev() {
 
   const server = await createServer(
     createDevConfig(gameDir, manaDir, getManaAliases(), resolvePackagePath('tailwindcss')),
+  )
+  await server.listen()
+  server.printUrls()
+}
+
+async function runEditor() {
+  const { createServer } = await import('vite')
+  const { createEditorConfig } = await import('./create-vite-config.ts')
+  const config = await loadConfig()
+  const gameDir = resolve(process.cwd(), config.gameDir)
+  const manaDir = resolve(process.cwd(), '.mana')
+  mkdirSync(manaDir, { recursive: true })
+
+  // Resolve path to the editor source within the mana-engine package
+  const manaRoot = resolve(dirname(new URL(import.meta.url).pathname), '..')
+  const editorComponent = resolve(manaRoot, 'src/editor/Editor.tsx')
+
+  writeFileSync(
+    resolve(manaDir, 'editor-entry.tsx'),
+    [
+      `import { createRoot } from 'react-dom/client'`,
+      `import { createElement } from 'react'`,
+      `import Editor from '${editorComponent}'`,
+      `import Game from '${gameDir}/index.tsx'`,
+      ``,
+      `createRoot(document.getElementById('editor')!).render(createElement(Editor, { Game }))`,
+    ].join('\n'),
+  )
+
+  writeFileSync(
+    resolve(manaDir, 'index.html'),
+    `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mana Editor</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <div id="editor"></div>
+    <script type="module" src="./editor-entry.tsx"></script>
+  </body>
+</html>
+`,
+  )
+
+  const server = await createServer(
+    createEditorConfig(manaRoot, gameDir, manaDir, getManaAliases(), resolvePackagePath('tailwindcss')),
   )
   await server.listen()
   server.printUrls()

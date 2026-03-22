@@ -90,3 +90,24 @@ export function createDevConfig(
     },
   }
 }
+
+export function createEditorConfig(
+  manaRoot: string,
+  gameDir: string,
+  root: string,
+  aliases: Record<string, string>,
+  tailwindPath: string,
+): InlineConfig {
+  return {
+    root,
+    plugins: [tailwindResolvePlugin(tailwindPath), react(), tailwindcss()],
+    resolve: {
+      alias: aliases,
+    },
+    server: {
+      fs: {
+        allow: [manaRoot, gameDir, process.cwd()],
+      },
+    },
+  }
+}
