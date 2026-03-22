@@ -113,7 +113,7 @@ async function runDev() {
       `// Mirror Vite-injected styles from <head> into the shadow root`,
       `function mirrorStyles() {`,
       `  shadow.querySelectorAll('[data-vite-mirror]').forEach(el => el.remove())`,
-      `  for (const el of document.head.querySelectorAll('style')) {`,
+      `  for (const el of document.head.querySelectorAll('style[data-vite-dev-id]')) {`,
       `    const clone = el.cloneNode(true) as HTMLStyleElement`,
       `    clone.setAttribute('data-vite-mirror', '')`,
       `    shadow.insertBefore(clone, container)`,
@@ -135,8 +135,7 @@ async function runDev() {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mana Dev</title>
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { width: 100%; height: 100%; }
+      html, body { margin: 0; width: 100%; height: 100%; }
     </style>
   </head>
   <body>
@@ -188,8 +187,7 @@ async function runEditor() {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mana Editor</title>
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { width: 100%; height: 100%; overflow: hidden; }
+      html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
     </style>
   </head>
   <body>
