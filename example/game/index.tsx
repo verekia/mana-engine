@@ -1,9 +1,14 @@
-import { useEffect, useRef } from 'react'
+import { type ComponentType, useEffect, useRef } from 'react'
 
 import { createScene } from 'mana-engine/game'
 
 import './game.css'
+import sceneData from './scenes/main.json'
 import HealthBar from './ui/HealthBar'
+
+export const uiComponents: Record<string, ComponentType> = {
+  HealthBar,
+}
 
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -11,15 +16,18 @@ export default function Game() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const scene = createScene(canvas)
+    const scene = createScene(canvas, sceneData)
     return () => scene.dispose()
   }, [])
 
   return (
     <div className="relative h-full">
-      <div className="absolute top-4 left-0 z-10 flex w-full justify-center @md:left-4 @md:w-auto">
-        <HealthBar />
-      </div>
+      {sceneData.entities
+        .filter(e => e.type === 'ui')
+        .map(e => {
+          const Component = uiComponents[e.ui?.component ?? '']
+          return Component ? <Component key={e.id} /> : null
+        })}
       <canvas ref={canvasRef} className="size-full" />
     </div>
   )

@@ -172,9 +172,10 @@ async function runEditor() {
       `import { createRoot } from 'react-dom/client'`,
       `import { createElement } from 'react'`,
       `import Editor from '${editorComponent}'`,
-      `import Game from '${gameDir}/index.tsx'`,
+      `import Game, { uiComponents } from '${gameDir}/index.tsx'`,
+      `import '${gameDir}/game.css'`,
       ``,
-      `createRoot(document.getElementById('editor')!).render(createElement(Editor, { Game }))`,
+      `createRoot(document.getElementById('editor')!).render(createElement(Editor, { Game, uiComponents }))`,
     ].join('\n'),
   )
 

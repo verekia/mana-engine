@@ -1,0 +1,63 @@
+{
+  "background": "#111111",
+  "entities": [
+    {
+      "id": "camera",
+      "name": "Camera",
+      "type": "camera",
+      "transform": {
+        "position": [0, 1, 3]
+      },
+      "camera": {
+        "fov": 50,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "cube",
+      "name": "Cube",
+      "type": "mesh",
+      "transform": {
+        "position": [0.6, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      },
+      "mesh": {
+        "geometry": "box",
+        "material": {
+          "color": "#4488ff"
+        }
+      }
+    },
+    {
+      "id": "directional-light",
+      "name": "Directional Light",
+      "type": "directional-light",
+      "transform": {
+        "position": [2, 3, 4]
+      },
+      "light": {
+        "color": "#ffffff",
+        "intensity": 2
+      }
+    },
+    {
+      "id": "ambient-light",
+      "name": "Ambient Light",
+      "type": "ambient-light",
+      "light": {
+        "color": "#ffffff",
+        "intensity": 0.3
+      }
+    },
+    {
+      "id": "health-bar",
+      "name": "Health Bar",
+      "type": "ui",
+      "ui": {
+        "component": "HealthBar"
+      }
+    }
+  ]
+}

@@ -1,4 +1,8 @@
-import { type ComponentType, useState } from 'react'
+import { type ComponentType, useCallback, useEffect, useRef, useState } from 'react'
+
+import { createScene, type ManaScene } from '../scene.ts'
+
+import type { SceneData, SceneEntity } from '../scene-data.ts'
 
 const COLORS = {
   bg: '#1a1a1a',
@@ -11,28 +15,68 @@ const COLORS = {
   viewportBg: '#111',
   hover: '#383838',
   active: '#444',
+  selected: '#2a4a7a',
+  input: '#1e1e1e',
+  inputBorder: '#444',
+  accent: '#4488ff',
 }
 
-function Viewport({ Game, showUI }: { Game: ComponentType; showUI: boolean }) {
+async function loadSceneData(name: string): Promise<SceneData> {
+  const res = await fetch(`/__mana/scenes/${name}`)
+  if (!res.ok) throw new Error(`Failed to load scene: ${name}`)
+  return res.json()
+}
+
+async function saveSceneData(name: string, data: SceneData): Promise<void> {
+  await fetch(`/__mana/scenes/${name}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data, null, 2),
+  })
+}
+
+function Viewport({
+  canvasRef,
+  uiEntities,
+  uiComponents,
+  showUI,
+}: {
+  canvasRef: React.RefObject<HTMLCanvasElement | null>
+  uiEntities: SceneEntity[]
+  uiComponents: Record<string, ComponentType>
+  showUI: boolean
+}) {
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative', background: COLORS.viewportBg }}>
-      {!showUI && (
-        <style>{`[data-mana-viewport] > div > *:not(canvas) { display: none !important; }`}</style>
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        position: 'relative',
+        background: COLORS.viewportBg,
+      }}
+    >
+      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+      {showUI && uiEntities.length > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            containerType: 'inline-size',
+          }}
+        >
+          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            {uiEntities.map(entity => {
+              const Component = uiComponents[entity.ui?.component ?? '']
+              return Component ? <Component key={entity.id} /> : null
+            })}
+          </div>
+        </div>
       )}
-      <div data-mana-viewport="" style={{ width: '100%', height: '100%', containerType: 'inline-size' }}>
-        <Game />
-      </div>
     </div>
   )
 }
 
-function ViewportBar({
-  showUI,
-  onToggleUI,
-}: {
-  showUI: boolean
-  onToggleUI: () => void
-}) {
+function ViewportBar({ showUI, onToggleUI }: { showUI: boolean; onToggleUI: () => void }) {
   return (
     <div
       style={{
@@ -130,7 +174,30 @@ function Toolbar() {
   )
 }
 
-function LeftPanel() {
+function entityTypeLabel(type: SceneEntity['type']): string {
+  switch (type) {
+    case 'camera':
+      return 'Camera'
+    case 'mesh':
+      return 'Mesh'
+    case 'directional-light':
+      return 'Dir. Light'
+    case 'ambient-light':
+      return 'Amb. Light'
+    case 'ui':
+      return 'UI Component'
+  }
+}
+
+function LeftPanel({
+  sceneData,
+  selectedId,
+  onSelect,
+}: {
+  sceneData: SceneData | null
+  selectedId: string | null
+  onSelect: (id: string) => void
+}) {
   return (
     <div
       style={{
@@ -144,18 +211,190 @@ function LeftPanel() {
       }}
     >
       <PanelHeader>Hierarchy</PanelHeader>
-      <div style={{ padding: 10, fontSize: 12, color: COLORS.textMuted, flex: 1, overflow: 'auto' }}>
-        <div style={{ padding: '4px 8px', color: COLORS.text }}>Scene</div>
-        <div style={{ padding: '4px 8px 4px 24px' }}>Camera</div>
-        <div style={{ padding: '4px 8px 4px 24px' }}>Cube</div>
-        <div style={{ padding: '4px 8px 4px 24px' }}>Directional Light</div>
-        <div style={{ padding: '4px 8px 4px 24px' }}>Ambient Light</div>
+      <div
+        style={{
+          padding: 10,
+          fontSize: 12,
+          color: COLORS.textMuted,
+          flex: 1,
+          overflow: 'auto',
+        }}
+      >
+        {sceneData ? (
+          <>
+            <div style={{ padding: '4px 8px', color: COLORS.text, userSelect: 'none' }}>Scene</div>
+            {sceneData.entities.map(entity => (
+              <div
+                key={entity.id}
+                onClick={() => onSelect(entity.id)}
+                style={{
+                  padding: '4px 8px 4px 24px',
+                  cursor: 'pointer',
+                  borderRadius: 3,
+                  background: selectedId === entity.id ? COLORS.selected : 'transparent',
+                  color: selectedId === entity.id ? COLORS.text : COLORS.textMuted,
+                  userSelect: 'none',
+                }}
+              >
+                {entity.name}
+              </div>
+            ))}
+          </>
+        ) : (
+          <div style={{ color: COLORS.textMuted }}>Loading...</div>
+        )}
       </div>
     </div>
   )
 }
 
-function RightPanel() {
+function Vec3Input({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: [number, number, number]
+  onChange: (v: [number, number, number]) => void
+}) {
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ color: COLORS.textMuted, fontSize: 11, marginBottom: 4 }}>{label}</div>
+      <div style={{ display: 'flex', gap: 4 }}>
+        {(['X', 'Y', 'Z'] as const).map((axis, i) => (
+          <div key={axis} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
+            <span style={{ color: COLORS.textMuted, fontSize: 10 }}>{axis}</span>
+            <input
+              type="number"
+              step={0.1}
+              value={value[i]}
+              onChange={e => {
+                const next = [...value] as [number, number, number]
+                next[i] = Number.parseFloat(e.target.value) || 0
+                onChange(next)
+              }}
+              style={{
+                width: '100%',
+                background: COLORS.input,
+                border: `1px solid ${COLORS.inputBorder}`,
+                borderRadius: 3,
+                color: COLORS.text,
+                fontSize: 11,
+                padding: '3px 4px',
+                outline: 'none',
+              }}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function NumberInput({
+  label,
+  value,
+  step,
+  onChange,
+}: {
+  label: string
+  value: number
+  step?: number
+  onChange: (v: number) => void
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 6,
+      }}
+    >
+      <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{label}</span>
+      <input
+        type="number"
+        step={step ?? 0.1}
+        value={value}
+        onChange={e => onChange(Number.parseFloat(e.target.value) || 0)}
+        style={{
+          width: 80,
+          background: COLORS.input,
+          border: `1px solid ${COLORS.inputBorder}`,
+          borderRadius: 3,
+          color: COLORS.text,
+          fontSize: 11,
+          padding: '3px 4px',
+          outline: 'none',
+        }}
+      />
+    </div>
+  )
+}
+
+function ColorInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 6,
+      }}
+    >
+      <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <input
+          type="color"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          style={{
+            width: 24,
+            height: 20,
+            border: 'none',
+            borderRadius: 3,
+            cursor: 'pointer',
+            padding: 0,
+            background: 'none',
+          }}
+        />
+        <input
+          type="text"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          style={{
+            width: 64,
+            background: COLORS.input,
+            border: `1px solid ${COLORS.inputBorder}`,
+            borderRadius: 3,
+            color: COLORS.text,
+            fontSize: 11,
+            padding: '3px 4px',
+            outline: 'none',
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        color: COLORS.text,
+        fontWeight: 500,
+        fontSize: 12,
+        marginBottom: 8,
+        marginTop: 12,
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+function RightPanel({ entity, onUpdate }: { entity: SceneEntity | null; onUpdate: (entity: SceneEntity) => void }) {
   return (
     <div
       style={{
@@ -169,35 +408,184 @@ function RightPanel() {
       }}
     >
       <PanelHeader>Inspector</PanelHeader>
-      <div style={{ padding: 10, fontSize: 12, color: COLORS.textMuted, flex: 1, overflow: 'auto' }}>
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ color: COLORS.text, fontWeight: 500, marginBottom: 6 }}>Transform</div>
-          <PropertyRow label="Position" value="0, 0, 0" />
-          <PropertyRow label="Rotation" value="0, 0, 0" />
-          <PropertyRow label="Scale" value="1, 1, 1" />
-        </div>
+      <div
+        style={{
+          padding: 10,
+          fontSize: 12,
+          color: COLORS.textMuted,
+          flex: 1,
+          overflow: 'auto',
+        }}
+      >
+        {entity ? (
+          <>
+            <div
+              style={{
+                color: COLORS.text,
+                fontWeight: 600,
+                fontSize: 13,
+                marginBottom: 4,
+              }}
+            >
+              {entity.name}
+            </div>
+            <div style={{ color: COLORS.textMuted, fontSize: 10, marginBottom: 12 }}>
+              {entityTypeLabel(entity.type)}
+            </div>
+
+            {entity.transform && (
+              <>
+                <SectionLabel>Transform</SectionLabel>
+                {entity.transform.position && (
+                  <Vec3Input
+                    label="Position"
+                    value={entity.transform.position}
+                    onChange={v =>
+                      onUpdate({
+                        ...entity,
+                        transform: { ...entity.transform, position: v },
+                      })
+                    }
+                  />
+                )}
+                {entity.transform.rotation && (
+                  <Vec3Input
+                    label="Rotation"
+                    value={entity.transform.rotation}
+                    onChange={v =>
+                      onUpdate({
+                        ...entity,
+                        transform: { ...entity.transform, rotation: v },
+                      })
+                    }
+                  />
+                )}
+                {entity.transform.scale && (
+                  <Vec3Input
+                    label="Scale"
+                    value={entity.transform.scale}
+                    onChange={v =>
+                      onUpdate({
+                        ...entity,
+                        transform: { ...entity.transform, scale: v },
+                      })
+                    }
+                  />
+                )}
+              </>
+            )}
+
+            {entity.camera && (
+              <>
+                <SectionLabel>Camera</SectionLabel>
+                <NumberInput
+                  label="FOV"
+                  value={entity.camera.fov ?? 50}
+                  step={1}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      camera: { ...entity.camera, fov: v },
+                    })
+                  }
+                />
+                <NumberInput
+                  label="Near"
+                  value={entity.camera.near ?? 0.1}
+                  step={0.01}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      camera: { ...entity.camera, near: v },
+                    })
+                  }
+                />
+                <NumberInput
+                  label="Far"
+                  value={entity.camera.far ?? 100}
+                  step={1}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      camera: { ...entity.camera, far: v },
+                    })
+                  }
+                />
+              </>
+            )}
+
+            {entity.mesh && (
+              <>
+                <SectionLabel>Material</SectionLabel>
+                <ColorInput
+                  label="Color"
+                  value={entity.mesh.material?.color ?? '#4488ff'}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      mesh: {
+                        ...entity.mesh,
+                        material: { ...entity.mesh?.material, color: v },
+                      },
+                    })
+                  }
+                />
+              </>
+            )}
+
+            {entity.ui && (
+              <>
+                <SectionLabel>UI</SectionLabel>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 6,
+                  }}
+                >
+                  <span style={{ color: COLORS.textMuted, fontSize: 11 }}>Component</span>
+                  <span style={{ color: COLORS.text, fontSize: 11 }}>{entity.ui.component}</span>
+                </div>
+              </>
+            )}
+
+            {entity.light && (
+              <>
+                <SectionLabel>Light</SectionLabel>
+                <ColorInput
+                  label="Color"
+                  value={entity.light.color ?? '#ffffff'}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      light: { ...entity.light, color: v },
+                    })
+                  }
+                />
+                <NumberInput
+                  label="Intensity"
+                  value={entity.light.intensity ?? 1}
+                  step={0.1}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      light: { ...entity.light, intensity: v },
+                    })
+                  }
+                />
+              </>
+            )}
+          </>
+        ) : (
+          <div style={{ color: COLORS.textMuted, fontStyle: 'italic' }}>Select an entity to inspect</div>
+        )}
       </div>
     </div>
   )
 }
 
-function PropertyRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        padding: '3px 0',
-        fontSize: 11,
-      }}
-    >
-      <span style={{ color: COLORS.textMuted }}>{label}</span>
-      <span style={{ color: COLORS.text }}>{value}</span>
-    </div>
-  )
-}
-
-function BottomPanel() {
+function BottomPanel({ logs }: { logs: { id: number; msg: string }[] }) {
   return (
     <div
       style={{
@@ -221,14 +609,97 @@ function BottomPanel() {
           overflow: 'auto',
         }}
       >
-        <div>Mana Engine editor ready</div>
+        {logs.map(entry => (
+          <div key={entry.id}>{entry.msg}</div>
+        ))}
       </div>
     </div>
   )
 }
 
-export default function Editor({ Game }: { Game: ComponentType }) {
+export default function Editor({
+  Game: _Game,
+  uiComponents = {},
+}: {
+  Game: ComponentType
+  uiComponents?: Record<string, ComponentType>
+}) {
   const [showUI, setShowUI] = useState(true)
+  const [sceneData, setSceneData] = useState<SceneData | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [logs, setLogs] = useState<{ id: number; msg: string }[]>([{ id: 0, msg: 'Mana Engine editor ready' }])
+  const logIdRef = useRef(1)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const sceneRef = useRef<ManaScene | null>(null)
+  const sceneDataRef = useRef<SceneData | null>(null)
+
+  // Keep ref in sync with state for the save handler
+  sceneDataRef.current = sceneData
+
+  const log = useCallback((msg: string) => {
+    const id = logIdRef.current++
+    setLogs(prev => [...prev, { id, msg }])
+  }, [])
+
+  // Load scene on mount
+  useEffect(() => {
+    loadSceneData('main')
+      .then(data => {
+        setSceneData(data)
+        log('Loaded scene: main')
+      })
+      .catch(err => {
+        log(`Error loading scene: ${err.message}`)
+      })
+  }, [log])
+
+  // Create/recreate Three.js scene when scene data is first loaded
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !sceneData) return
+
+    // Only create the scene once (on initial load)
+    if (sceneRef.current) return
+
+    sceneRef.current = createScene(canvas, sceneData)
+
+    return () => {
+      if (sceneRef.current) {
+        sceneRef.current.dispose()
+        sceneRef.current = null
+      }
+    }
+  }, [sceneData])
+
+  // Cmd+S / Ctrl+S to save
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault()
+        const data = sceneDataRef.current
+        if (!data) return
+        saveSceneData('main', data)
+          .then(() => log('Scene saved'))
+          .catch(err => log(`Error saving: ${err.message}`))
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [log])
+
+  const selectedEntity = sceneData?.entities.find(e => e.id === selectedId) ?? null
+
+  const handleUpdateEntity = useCallback((updated: SceneEntity) => {
+    setSceneData(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        entities: prev.entities.map(e => (e.id === updated.id ? updated : e)),
+      }
+    })
+    // Live-update the Three.js scene
+    sceneRef.current?.updateEntity(updated.id, updated)
+  }, [])
 
   return (
     <div
@@ -246,15 +717,20 @@ export default function Editor({ Game }: { Game: ComponentType }) {
     >
       <Toolbar />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <LeftPanel />
+        <LeftPanel sceneData={sceneData} selectedId={selectedId} onSelect={setSelectedId} />
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-          <ViewportBar showUI={showUI} onToggleUI={() => setShowUI((s) => !s)} />
+          <ViewportBar showUI={showUI} onToggleUI={() => setShowUI(s => !s)} />
           <div style={{ flex: 1, overflow: 'hidden' }}>
-            <Viewport Game={Game} showUI={showUI} />
+            <Viewport
+              canvasRef={canvasRef}
+              uiEntities={sceneData?.entities.filter(e => e.type === 'ui') ?? []}
+              uiComponents={uiComponents}
+              showUI={showUI}
+            />
           </div>
-          <BottomPanel />
+          <BottomPanel logs={logs} />
         </div>
-        <RightPanel />
+        <RightPanel entity={selectedEntity} onUpdate={handleUpdateEntity} />
       </div>
     </div>
   )
