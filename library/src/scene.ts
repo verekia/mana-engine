@@ -37,7 +37,7 @@ export function createScene(canvas: HTMLCanvasElement): ManaScene {
 
   let animationId = 0
 
-  function resize() {
+  const observer = new ResizeObserver(() => {
     const w = canvas.clientWidth
     const h = canvas.clientHeight
     if (canvas.width !== w || canvas.height !== h) {
@@ -45,13 +45,13 @@ export function createScene(canvas: HTMLCanvasElement): ManaScene {
       camera.aspect = w / h
       camera.updateProjectionMatrix()
     }
-  }
+  })
+  observer.observe(canvas)
 
   function animate() {
     animationId = requestAnimationFrame(animate)
     cube.rotation.x += 0.01
     cube.rotation.y += 0.015
-    resize()
     renderer.render(scene, camera)
   }
 
@@ -60,6 +60,7 @@ export function createScene(canvas: HTMLCanvasElement): ManaScene {
   return {
     dispose() {
       cancelAnimationFrame(animationId)
+      observer.disconnect()
       renderer.dispose()
       geometry.dispose()
       material.dispose()

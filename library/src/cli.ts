@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
 
@@ -42,14 +42,6 @@ function resolvePackagePath(name: string): string {
   }
 }
 
-function ensureTailwindSymlink() {
-  const link = resolve(process.cwd(), 'node_modules', 'tailwindcss')
-  if (!existsSync(link)) {
-    mkdirSync(dirname(link), { recursive: true })
-    symlinkSync(resolvePackagePath('tailwindcss'), link, 'dir')
-  }
-}
-
 function getManaAliases(): Record<string, string> {
   return {
     react: resolvePackagePath('react'),
@@ -66,7 +58,6 @@ async function runBuild() {
   const outDir = resolve(process.cwd(), config.outDir)
   const manaDir = resolve(process.cwd(), '.mana')
   mkdirSync(manaDir, { recursive: true })
-  ensureTailwindSymlink()
 
   const entryFile = resolve(manaDir, 'build-entry.tsx')
   writeFileSync(
@@ -102,7 +93,6 @@ async function runDev() {
   const gameDir = resolve(process.cwd(), config.gameDir)
   const manaDir = resolve(process.cwd(), '.mana')
   mkdirSync(manaDir, { recursive: true })
-  ensureTailwindSymlink()
 
   writeFileSync(
     resolve(manaDir, 'dev-entry.tsx'),
@@ -111,8 +101,27 @@ async function runDev() {
       `import { createElement } from 'react'`,
       `import Game from '${gameDir}/index.tsx'`,
       ``,
-      `const container = document.getElementById('game')!`,
+      `const host = document.getElementById('game')!`,
+      `const shadow = host.attachShadow({ mode: 'open' })`,
+      ``,
+      `const container = document.createElement('div')`,
       `container.style.containerType = 'inline-size'`,
+      `container.style.width = '100%'`,
+      `container.style.height = '100%'`,
+      `shadow.appendChild(container)`,
+      ``,
+      `// Mirror Vite-injected styles from <head> into the shadow root`,
+      `function mirrorStyles() {`,
+      `  shadow.querySelectorAll('[data-vite-mirror]').forEach(el => el.remove())`,
+      `  for (const el of document.head.querySelectorAll('style')) {`,
+      `    const clone = el.cloneNode(true) as HTMLStyleElement`,
+      `    clone.setAttribute('data-vite-mirror', '')`,
+      `    shadow.insertBefore(clone, container)`,
+      `  }`,
+      `}`,
+      `new MutationObserver(mirrorStyles).observe(document.head, { childList: true, subtree: true, characterData: true })`,
+      `mirrorStyles()`,
+      ``,
       `createRoot(container).render(createElement(Game))`,
     ].join('\n'),
   )
@@ -131,7 +140,7 @@ async function runDev() {
     </style>
   </head>
   <body>
-    <div id="game" style="width: 100%; height: 100vh; container-type: inline-size"></div>
+    <div id="game" style="width: 100%; height: 100vh"></div>
     <script type="module" src="./dev-entry.tsx"></script>
   </body>
 </html>

@@ -47,9 +47,6 @@ export function createBuildConfig(
       },
       outDir,
       emptyOutDir: true,
-      rollupOptions: {
-        external: [],
-      },
     },
     resolve: {
       alias: aliases,
