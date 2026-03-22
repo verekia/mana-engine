@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 
-import { add } from './index'
+import { mountGame } from './index'
 
-test('add', () => {
-  expect(add(2, 3)).toBe(5)
+test('mountGame is exported', () => {
+  expect(typeof mountGame).toBe('function')
 })

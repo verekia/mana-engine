@@ -1,6 +1,9 @@
 {
   "name": "mana-engine",
   "version": "0.0.1",
+  "bin": {
+    "mana": "./bin/mana.js"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -11,7 +14,20 @@
     }
   },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --format esm && tsgo --emitDeclarationOnly",
+    "build": "bun build src/index.ts src/cli.ts --outdir dist --format esm --splitting --packages=external && tsgo --emitDeclarationOnly",
     "test": "bun test"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.1.0",
+    "@vitejs/plugin-react": "^4.5.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "tailwindcss": "^4.1.0",
+    "vite": "^6.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0"
   }
 }

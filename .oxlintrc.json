@@ -40,12 +40,13 @@
     "jsx-a11y/aria-role": "off",
     "unicorn/no-useless-spread": "warn",
     "unicorn/no-array-sort": "warn",
-    "unicorn/consistent-function-scoping": "warn"
+    "unicorn/consistent-function-scoping": "warn",
+    "import/no-unassigned-import": "off"
   },
   "settings": {
     "react": {
       "version": "19.0"
     }
   },
-  "ignorePatterns": ["node_modules", "dist", "out", ".next"]
+  "ignorePatterns": ["node_modules", "dist", "out", ".next", ".mana"]
 }

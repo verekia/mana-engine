@@ -1,1 +1,2 @@
-export const add = (a: number, b: number): number => a + b
+export { mountGame } from './mount.ts'
+export type { GameBundle } from './mount.ts'

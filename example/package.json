@@ -4,14 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "mana build && vite",
+    "build": "mana build && vite build",
     "start": "vite preview"
   },
   "dependencies": {
     "mana-engine": "workspace:*"
   },
   "devDependencies": {
-    "vite": "8.0.1"
+    "vite": "^6.3.0"
   }
 }
