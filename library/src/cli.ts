@@ -82,7 +82,7 @@ async function runBuild() {
   )
 
   console.log(`Building game from ${config.gameDir}...`)
-  await build(createBuildConfig(gameDir, outDir, entryFile, getManaAliases()))
+  await build(createBuildConfig(gameDir, outDir, entryFile, getManaAliases(), resolvePackagePath('tailwindcss')))
   console.log(`Game built to ${config.outDir}`)
 }
 
@@ -147,7 +147,9 @@ async function runDev() {
 `,
   )
 
-  const server = await createServer(createDevConfig(gameDir, manaDir, getManaAliases()))
+  const server = await createServer(
+    createDevConfig(gameDir, manaDir, getManaAliases(), resolvePackagePath('tailwindcss')),
+  )
   await server.listen()
   server.printUrls()
 }

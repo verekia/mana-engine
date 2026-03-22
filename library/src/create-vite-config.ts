@@ -3,6 +3,22 @@ import react from '@vitejs/plugin-react'
 
 import type { InlineConfig, Plugin } from 'vite'
 
+// The @tailwindcss/vite plugin uses enhanced-resolve (not Vite's resolver) to
+// resolve CSS @import paths. In bun workspaces, tailwindcss lives inside
+// node_modules/.bun/ which enhanced-resolve can't find. This plugin rewrites
+// the bare @import to an absolute path before the tailwind plugin sees it.
+function tailwindResolvePlugin(tailwindPath: string): Plugin {
+  return {
+    name: 'mana-tailwind-resolve',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!id.endsWith('.css')) return
+      if (!code.includes('tailwindcss')) return
+      return code.replace(/@import\s+['"]tailwindcss['"]/g, `@import '${tailwindPath}/index.css'`)
+    },
+  }
+}
+
 function cssInlinePlugin(): Plugin {
   return {
     name: 'mana-css-inline',
@@ -36,9 +52,10 @@ export function createBuildConfig(
   outDir: string,
   entryFile: string,
   aliases: Record<string, string>,
+  tailwindPath: string,
 ): InlineConfig {
   return {
-    plugins: [react(), tailwindcss(), cssInlinePlugin()],
+    plugins: [tailwindResolvePlugin(tailwindPath), react(), tailwindcss(), cssInlinePlugin()],
     build: {
       lib: {
         entry: entryFile,
@@ -54,10 +71,15 @@ export function createBuildConfig(
   }
 }
 
-export function createDevConfig(gameDir: string, root: string, aliases: Record<string, string>): InlineConfig {
+export function createDevConfig(
+  gameDir: string,
+  root: string,
+  aliases: Record<string, string>,
+  tailwindPath: string,
+): InlineConfig {
   return {
     root,
-    plugins: [react(), tailwindcss()],
+    plugins: [tailwindResolvePlugin(tailwindPath), react(), tailwindcss()],
     resolve: {
       alias: aliases,
     },
