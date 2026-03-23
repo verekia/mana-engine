@@ -1,4 +1,71 @@
+import { useRef } from 'react'
+
 import { COLORS } from './colors.ts'
+
+function DragNumberInput({
+  value,
+  step,
+  onChange,
+  style,
+}: {
+  value: number
+  step?: number
+  onChange: (v: number) => void
+  style?: React.CSSProperties
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
+
+  const baseStep = step ?? 0.1
+
+  return (
+    <input
+      ref={inputRef}
+      type="number"
+      step={baseStep}
+      value={value}
+      onChange={e => onChange(Number.parseFloat(e.target.value) || 0)}
+      onMouseDown={e => {
+        if (document.activeElement === inputRef.current) return
+        e.preventDefault()
+        const startY = e.clientY
+        const startValue = value
+        document.body.style.cursor = 'ns-resize'
+
+        const handleMouseMove = (ev: MouseEvent) => {
+          const dy = startY - ev.clientY
+          let multiplier = 1
+          if (ev.shiftKey) multiplier = 10
+          else if (ev.altKey) multiplier = 0.1
+          const newValue = startValue + dy * baseStep * multiplier
+          onChangeRef.current(Math.round(newValue * 1000) / 1000)
+        }
+
+        const handleMouseUp = () => {
+          document.body.style.cursor = ''
+          document.removeEventListener('mousemove', handleMouseMove)
+          document.removeEventListener('mouseup', handleMouseUp)
+        }
+
+        document.addEventListener('mousemove', handleMouseMove)
+        document.addEventListener('mouseup', handleMouseUp)
+      }}
+      style={{
+        width: 80,
+        background: COLORS.input,
+        border: `1px solid ${COLORS.inputBorder}`,
+        borderRadius: 3,
+        color: COLORS.text,
+        fontSize: 11,
+        padding: '3px 4px',
+        outline: 'none',
+        cursor: 'ns-resize',
+        ...style,
+      }}
+    />
+  )
+}
 
 export function PanelHeader({ children }: { children: React.ReactNode }) {
   return (
@@ -36,25 +103,15 @@ export function Vec3Input({
         {(['X', 'Y', 'Z'] as const).map((axis, i) => (
           <div key={axis} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
             <span style={{ color: COLORS.textMuted, fontSize: 10 }}>{axis}</span>
-            <input
-              type="number"
-              step={0.1}
+            <DragNumberInput
               value={value[i]}
-              onChange={e => {
+              step={0.1}
+              onChange={v => {
                 const next = [...value] as [number, number, number]
-                next[i] = Number.parseFloat(e.target.value) || 0
+                next[i] = v
                 onChange(next)
               }}
-              style={{
-                width: '100%',
-                background: COLORS.input,
-                border: `1px solid ${COLORS.inputBorder}`,
-                borderRadius: 3,
-                color: COLORS.text,
-                fontSize: 11,
-                padding: '3px 4px',
-                outline: 'none',
-              }}
+              style={{ width: '100%' }}
             />
           </div>
         ))}
@@ -84,22 +141,7 @@ export function NumberInput({
       }}
     >
       <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{label}</span>
-      <input
-        type="number"
-        step={step ?? 0.1}
-        value={value}
-        onChange={e => onChange(Number.parseFloat(e.target.value) || 0)}
-        style={{
-          width: 80,
-          background: COLORS.input,
-          border: `1px solid ${COLORS.inputBorder}`,
-          borderRadius: 3,
-          color: COLORS.text,
-          fontSize: 11,
-          padding: '3px 4px',
-          outline: 'none',
-        }}
-      />
+      <DragNumberInput value={value} step={step} onChange={onChange} />
     </div>
   )
 }
