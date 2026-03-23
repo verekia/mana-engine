@@ -227,18 +227,20 @@ function createEntityObject(
       obj = group
       const modelSrc = entity.model?.src
       if (modelSrc) {
-        import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
-          const loader = new GLTFLoader()
-          loader.load(
-            modelSrc,
-            gltf => {
-              group.add(gltf.scene)
-              applyShadowProps(group, entity)
-            },
-            undefined,
-            err => console.warn(`[mana] Failed to load model "${modelSrc}":`, err),
-          )
-        })
+        import('three/examples/jsm/loaders/GLTFLoader.js')
+          .then(({ GLTFLoader }) => {
+            const loader = new GLTFLoader()
+            loader.load(
+              modelSrc,
+              gltf => {
+                group.add(gltf.scene)
+                applyShadowProps(group, entity)
+              },
+              undefined,
+              err => console.warn(`[mana] Failed to load model "${modelSrc}":`, err),
+            )
+          })
+          .catch(err => console.warn('[mana] Failed to load GLTFLoader:', err))
       }
       break
     }
@@ -305,6 +307,26 @@ function createEntityObject(
   }
 
   return obj
+}
+
+function snapshotTransform(obj: Object3D): Transform {
+  return {
+    position: [
+      Math.round(obj.position.x * 1000) / 1000,
+      Math.round(obj.position.y * 1000) / 1000,
+      Math.round(obj.position.z * 1000) / 1000,
+    ],
+    rotation: [
+      Math.round(obj.rotation.x * 1000) / 1000,
+      Math.round(obj.rotation.y * 1000) / 1000,
+      Math.round(obj.rotation.z * 1000) / 1000,
+    ],
+    scale: [
+      Math.round(obj.scale.x * 1000) / 1000,
+      Math.round(obj.scale.y * 1000) / 1000,
+      Math.round(obj.scale.z * 1000) / 1000,
+    ],
+  }
 }
 
 const FIXED_DT = 1 / 60
@@ -417,56 +439,20 @@ export async function createScene(
 
     tc.addEventListener('mouseUp', () => {
       if (attachedEntityId && tc.object) {
-        const obj = tc.object
-        const t: Transform = {
-          position: [
-            Math.round(obj.position.x * 1000) / 1000,
-            Math.round(obj.position.y * 1000) / 1000,
-            Math.round(obj.position.z * 1000) / 1000,
-          ],
-          rotation: [
-            Math.round(obj.rotation.x * 1000) / 1000,
-            Math.round(obj.rotation.y * 1000) / 1000,
-            Math.round(obj.rotation.z * 1000) / 1000,
-          ],
-          scale: [
-            Math.round(obj.scale.x * 1000) / 1000,
-            Math.round(obj.scale.y * 1000) / 1000,
-            Math.round(obj.scale.z * 1000) / 1000,
-          ],
-        }
-        options?.onTransformEnd?.(attachedEntityId, t)
+        options?.onTransformEnd?.(attachedEntityId, snapshotTransform(tc.object))
       }
     })
 
     tc.addEventListener('objectChange', () => {
       if (attachedEntityId && tc.object) {
-        const obj = tc.object
-        const t: Transform = {
-          position: [
-            Math.round(obj.position.x * 1000) / 1000,
-            Math.round(obj.position.y * 1000) / 1000,
-            Math.round(obj.position.z * 1000) / 1000,
-          ],
-          rotation: [
-            Math.round(obj.rotation.x * 1000) / 1000,
-            Math.round(obj.rotation.y * 1000) / 1000,
-            Math.round(obj.rotation.z * 1000) / 1000,
-          ],
-          scale: [
-            Math.round(obj.scale.x * 1000) / 1000,
-            Math.round(obj.scale.y * 1000) / 1000,
-            Math.round(obj.scale.z * 1000) / 1000,
-          ],
-        }
         // Sync debug wireframe to follow the gizmo
         const wf = debugWireframes.get(attachedEntityId)
         if (wf) {
-          wf.position.copy(obj.position)
-          wf.rotation.copy(obj.rotation)
-          wf.scale.copy(obj.scale)
+          wf.position.copy(tc.object.position)
+          wf.rotation.copy(tc.object.rotation)
+          wf.scale.copy(tc.object.scale)
         }
-        options?.onTransformChange?.(attachedEntityId, t)
+        options?.onTransformChange?.(attachedEntityId, snapshotTransform(tc.object))
       }
     })
 
@@ -501,10 +487,15 @@ export async function createScene(
     camera = gameCam
   }
 
+  // Reusable objects for raycasting (avoid per-click allocations)
+  const raycaster = new Raycaster()
+  const ndcVec = new Vector2()
+  const selectionColor = new Color(0x4488ff)
+
   // Outline post-processing (editor mode only)
   let renderPipeline: RenderPipeline | null = null
   const selectedObjects: Object3D[] = []
-  // biome-ignore lint: OutlineNode type is complex
+  // OutlineNode type is complex, not worth typing inline
   let outlinePass: any = null
 
   if (enableOrbitControls) {
@@ -773,7 +764,6 @@ export async function createScene(
       }
       // Tint helpers blue when selected, reset when deselected
       const selectedSet = new Set(ids)
-      const selectionColor = new Color(0x4488ff)
       for (const [id, helper] of gizmoHelpers) {
         const isSelected = selectedSet.has(id)
         helper.traverse(child => {
@@ -796,8 +786,7 @@ export async function createScene(
       }
     },
     raycast(ndcX: number, ndcY: number): string | null {
-      const raycaster = new Raycaster()
-      raycaster.setFromCamera(new Vector2(ndcX, ndcY), camera)
+      raycaster.setFromCamera(ndcVec.set(ndcX, ndcY), camera)
       // Use a tight threshold so helpers are only selected when clicking near their lines
       raycaster.params.Line.threshold = 0.15
 

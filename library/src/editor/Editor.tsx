@@ -11,8 +11,7 @@ import { fetchSceneList, loadSceneData, saveSceneData } from './scene-api.ts'
 import { Toolbar } from './Toolbar.tsx'
 import { Viewport, ViewportBar } from './Viewport.tsx'
 
-import type { Transform } from '../scene-data.ts'
-import type { SceneData, SceneEntity } from '../scene-data.ts'
+import type { SceneData, SceneEntity, Transform } from '../scene-data.ts'
 import type { ManaScript } from '../script.ts'
 
 export default function Editor({
