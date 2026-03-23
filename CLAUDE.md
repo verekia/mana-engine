@@ -89,4 +89,4 @@ The game's `index.tsx` must export:
 
 ## Note
 
-Whenever important changes are done in this rapidly evolving project, update CLAUDE.md and README.md with relevant information.
+Whenever important changes are done in this rapidly evolving project, update CLAUDE.md and README.md with relevant information. Any new feature added to the engine must be documented in both CLAUDE.md (architecture/implementation details) and README.md (user-facing feature list). If a planned feature from the README is implemented, move it from the "Planned Features" section into the appropriate feature section.
