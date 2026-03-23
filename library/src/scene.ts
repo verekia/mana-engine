@@ -30,6 +30,7 @@ export interface ManaScene {
 export interface CreateSceneOptions {
   scripts?: Record<string, ManaScript>
   debugPhysics?: boolean
+  orbitControls?: boolean
 }
 
 function applyTransform(obj: Object3D, transform?: Transform) {
@@ -91,6 +92,7 @@ export async function createScene(
 ): Promise<ManaScene> {
   const scriptDefs = options?.scripts
   const debugPhysics = options?.debugPhysics ?? false
+  const enableOrbitControls = options?.orbitControls ?? false
 
   const renderer = new WebGLRenderer({ canvas, antialias: true })
   renderer.setPixelRatio(window.devicePixelRatio)
@@ -166,6 +168,13 @@ export async function createScene(
   }
 
   const camera = cam
+
+  // Orbit controls (edit mode only)
+  let controls: { update(): void; dispose(): void } | null = null
+  if (enableOrbitControls) {
+    const { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js')
+    controls = new OrbitControls(camera, canvas)
+  }
 
   // Physics setup
   type RapierModule = typeof import('@dimforge/rapier3d-compat')
@@ -310,6 +319,7 @@ export async function createScene(
       script.update?.({ entity: entityObj, scene, dt, time: elapsed, rigidBody: rb })
     }
 
+    controls?.update()
     renderer.render(scene, camera)
   }
 
@@ -319,6 +329,7 @@ export async function createScene(
     dispose() {
       cancelAnimationFrame(animationId)
       observer.disconnect()
+      controls?.dispose()
       for (const { script } of activeScripts) {
         script.dispose?.()
       }

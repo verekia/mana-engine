@@ -857,7 +857,7 @@ export default function Editor({
           // Create new Three.js scene
           const canvas = canvasRef.current
           if (canvas) {
-            sceneRef.current = await createScene(canvas, data, { debugPhysics: true })
+            sceneRef.current = await createScene(canvas, data, { debugPhysics: true, orbitControls: true })
           }
         })
         .catch(err => log(`Error loading scene: ${err.message}`))
@@ -875,7 +875,7 @@ export default function Editor({
     if (sceneRef.current) return
 
     let disposed = false
-    createScene(canvas, sceneData, { debugPhysics: true }).then(s => {
+    createScene(canvas, sceneData, { debugPhysics: true, orbitControls: true }).then(s => {
       if (disposed) {
         s.dispose()
         return
