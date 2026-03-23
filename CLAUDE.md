@@ -65,6 +65,8 @@ The game's `index.tsx` must export:
 
 ## Commands
 
+Always run `bun install` first to ensure dependencies (including CLI tools like `oxfmt`, `oxlint`, `tsgo`) are installed. All commands below are defined in the root `package.json` and must be run from the repository root. Always run `bun run format` before committing, and run `bun run all` to validate everything passes before pushing.
+
 - `bun run all` — lint + format check + typecheck + test + build (the full CI pipeline)
 - `bun run dev:game` — starts the game in dev mode
 - `bun run dev:host` — builds the production game, then starts the host in dev mode
