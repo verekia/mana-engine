@@ -1,9 +1,13 @@
 import type { ManaScript } from 'mana-engine/game'
 
 export default {
-  update({ rigidBody }) {
+  params: {
+    speed: { type: 'number', default: 2 },
+  },
+  update({ rigidBody, params }) {
     if (rigidBody) {
-      rigidBody.setAngvel({ x: 0, y: 2, z: 0 }, true)
+      const speed = params.speed as number
+      rigidBody.setAngvel({ x: 0, y: speed, z: 0 }, true)
     }
   },
 } satisfies ManaScript

@@ -37,6 +37,11 @@ export interface ColliderData {
   halfHeight?: number
 }
 
+export interface ScriptEntry {
+  name: string
+  params?: Record<string, number | string | boolean>
+}
+
 export interface SceneEntity {
   id: string
   name: string
@@ -46,7 +51,7 @@ export interface SceneEntity {
   mesh?: MeshData
   light?: LightData
   ui?: UiData
-  scripts?: string[]
+  scripts?: ScriptEntry[]
   rigidBody?: RigidBodyData
   collider?: ColliderData
 }

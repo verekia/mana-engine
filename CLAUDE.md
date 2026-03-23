@@ -25,7 +25,11 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 
 - Scripts are TypeScript files in `game/scripts/` implementing `ManaScript`
 - Lifecycle methods: `init(ctx)`, `update(ctx)`, `fixedUpdate(ctx)`, `dispose()`
-- `ScriptContext` provides: `entity` (Object3D), `scene` (Scene), `dt` (delta seconds), `time` (elapsed seconds)
+- `ScriptContext` provides: `entity` (Object3D), `scene` (Scene), `dt` (delta seconds), `time` (elapsed seconds), `params` (configured values)
+- Scripts can declare `params: Record<string, ScriptParamDef>` to expose editable parameters in the editor
+- `ScriptParamDef` has `type` (`'number' | 'string' | 'boolean'`) and `default` value
+- In scene JSON, scripts are `ScriptEntry[]`: `[{ "name": "rotate", "params": { "speed": 3 } }]`
+- Params are merged at runtime: script defaults are overridden by scene JSON values, accessible via `ctx.params`
 - `fixedUpdate` runs at a fixed 60Hz timestep with accumulator
 - Scripts are registered in `game/index.tsx` as `export const scripts: Record<string, ManaScript>`
 - Scripts only run during gameplay (dev/prod/editor play mode), NOT in editor edit mode

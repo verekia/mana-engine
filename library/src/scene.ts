@@ -349,7 +349,12 @@ export async function createScene(
 
   // Script setup
   // biome-ignore lint: rapier types are dynamically imported
-  const activeScripts: { script: ManaScript; entityObj: Object3D; rb?: any }[] = []
+  const activeScripts: {
+    script: ManaScript
+    entityObj: Object3D
+    rb?: any
+    params: Record<string, number | string | boolean>
+  }[] = []
 
   if (sceneData && scriptDefs) {
     for (const entity of sceneData.entities) {
@@ -357,17 +362,27 @@ export async function createScene(
       const obj = entityObjects.get(entity.id)
       if (!obj) continue
       const rb = rigidBodyMap.get(entity.id)
-      for (const name of entity.scripts) {
-        const script = scriptDefs[name]
+      for (const entry of entity.scripts) {
+        const script = scriptDefs[entry.name]
         if (script) {
-          activeScripts.push({ script, entityObj: obj, rb })
+          // Merge defaults from script definition with instance params from scene JSON
+          const params: Record<string, number | string | boolean> = {}
+          if (script.params) {
+            for (const [key, def] of Object.entries(script.params)) {
+              params[key] = def.default
+            }
+          }
+          if (entry.params) {
+            Object.assign(params, entry.params)
+          }
+          activeScripts.push({ script, entityObj: obj, rb, params })
         }
       }
     }
   }
 
-  for (const { script, entityObj, rb } of activeScripts) {
-    script.init?.({ entity: entityObj, scene, dt: 0, time: 0, rigidBody: rb })
+  for (const { script, entityObj, rb, params } of activeScripts) {
+    script.init?.({ entity: entityObj, scene, dt: 0, time: 0, rigidBody: rb, params })
   }
 
   let animationId = 0
@@ -409,8 +424,8 @@ export async function createScene(
       // Step physics (only in game mode, not edit mode)
       if (scriptDefs) world?.step()
 
-      for (const { script, entityObj, rb } of activeScripts) {
-        script.fixedUpdate?.({ entity: entityObj, scene, dt: FIXED_DT, time: elapsed, rigidBody: rb })
+      for (const { script, entityObj, rb, params } of activeScripts) {
+        script.fixedUpdate?.({ entity: entityObj, scene, dt: FIXED_DT, time: elapsed, rigidBody: rb, params })
       }
       fixedAccumulator -= FIXED_DT
     }
@@ -426,8 +441,8 @@ export async function createScene(
     }
 
     // Update scripts
-    for (const { script, entityObj, rb } of activeScripts) {
-      script.update?.({ entity: entityObj, scene, dt, time: elapsed, rigidBody: rb })
+    for (const { script, entityObj, rb, params } of activeScripts) {
+      script.update?.({ entity: entityObj, scene, dt, time: elapsed, rigidBody: rb, params })
     }
 
     controls?.update()

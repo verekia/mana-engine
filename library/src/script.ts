@@ -1,5 +1,10 @@
 import type { Object3D, Scene } from 'three'
 
+export interface ScriptParamDef {
+  type: 'number' | 'string' | 'boolean'
+  default: number | string | boolean
+}
+
 export interface ScriptContext {
   /** The Three.js object this script is attached to */
   entity: Object3D
@@ -12,9 +17,12 @@ export interface ScriptContext {
   /** The Rapier rigid body for this entity (if it has one) */
   // biome-ignore lint: rapier types are dynamically imported
   rigidBody?: any
+  /** Script parameters configured in the editor */
+  params: Record<string, number | string | boolean>
 }
 
 export interface ManaScript {
+  params?: Record<string, ScriptParamDef>
   init?(ctx: ScriptContext): void
   update?(ctx: ScriptContext): void
   fixedUpdate?(ctx: ScriptContext): void

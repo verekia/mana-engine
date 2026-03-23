@@ -950,11 +950,12 @@ function AddComponentButton({
   }
 
   const attachedScripts = entity.scripts ?? []
+  const attachedNames = attachedScripts.map(s => s.name)
   for (const name of availableScripts) {
-    if (!attachedScripts.includes(name)) {
+    if (!attachedNames.includes(name)) {
       options.push({
         label: `Script: ${name}`,
-        action: () => onUpdate({ ...entity, scripts: [...attachedScripts, name] }),
+        action: () => onUpdate({ ...entity, scripts: [...attachedScripts, { name }] }),
       })
     }
   }
@@ -1033,6 +1034,7 @@ function InspectorName({ entity, onRename }: { entity: SceneEntity; onRename: (i
   useEffect(() => {
     setValue(entity.name)
     setEditing(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only on entity switch, not name edits
   }, [entity.id])
 
   return editing ? (
@@ -1087,12 +1089,14 @@ function RightPanel({
   onRename,
   availableScripts,
   availableUiComponents,
+  scriptDefs,
 }: {
   entity: SceneEntity | null
   onUpdate: (entity: SceneEntity) => void
   onRename: (id: string, name: string) => void
   availableScripts: string[]
   availableUiComponents: string[]
+  scriptDefs: Record<string, ManaScript>
 }) {
   return (
     <div
@@ -1254,40 +1258,132 @@ function RightPanel({
             {entity.scripts && entity.scripts.length > 0 && (
               <>
                 <SectionLabel>Scripts</SectionLabel>
-                {entity.scripts.map(s => (
-                  <div
-                    key={s}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '3px 0',
-                      fontSize: 11,
-                      color: COLORS.text,
-                      fontFamily: 'monospace',
-                    }}
-                  >
-                    {s}
-                    <button
-                      onClick={() =>
-                        onUpdate({
-                          ...entity,
-                          scripts: entity.scripts?.filter(x => x !== s),
-                        })
-                      }
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: COLORS.textMuted,
-                        cursor: 'pointer',
-                        fontSize: 11,
-                        padding: '0 4px',
-                      }}
-                    >
-                      x
-                    </button>
-                  </div>
-                ))}
+                {entity.scripts.map(entry => {
+                  const def = scriptDefs[entry.name]
+                  return (
+                    <div key={entry.name} style={{ marginBottom: 8 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '3px 0',
+                          fontSize: 11,
+                          color: COLORS.text,
+                          fontFamily: 'monospace',
+                        }}
+                      >
+                        {entry.name}
+                        <button
+                          onClick={() =>
+                            onUpdate({
+                              ...entity,
+                              scripts: entity.scripts?.filter(x => x.name !== entry.name),
+                            })
+                          }
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: COLORS.textMuted,
+                            cursor: 'pointer',
+                            fontSize: 11,
+                            padding: '0 4px',
+                          }}
+                        >
+                          x
+                        </button>
+                      </div>
+                      {def?.params &&
+                        Object.entries(def.params).map(([key, paramDef]) => {
+                          const value = entry.params?.[key] ?? paramDef.default
+                          if (paramDef.type === 'number') {
+                            return (
+                              <NumberInput
+                                key={key}
+                                label={key}
+                                value={value as number}
+                                step={0.1}
+                                onChange={v =>
+                                  onUpdate({
+                                    ...entity,
+                                    scripts: entity.scripts?.map(s =>
+                                      s.name === entry.name ? { ...s, params: { ...s.params, [key]: v } } : s,
+                                    ),
+                                  })
+                                }
+                              />
+                            )
+                          }
+                          if (paramDef.type === 'boolean') {
+                            return (
+                              <div
+                                key={key}
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  marginBottom: 6,
+                                }}
+                              >
+                                <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{key}</span>
+                                <input
+                                  type="checkbox"
+                                  checked={value as boolean}
+                                  onChange={e =>
+                                    onUpdate({
+                                      ...entity,
+                                      scripts: entity.scripts?.map(s =>
+                                        s.name === entry.name
+                                          ? { ...s, params: { ...s.params, [key]: e.target.checked } }
+                                          : s,
+                                      ),
+                                    })
+                                  }
+                                />
+                              </div>
+                            )
+                          }
+                          return (
+                            <div
+                              key={key}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                marginBottom: 6,
+                              }}
+                            >
+                              <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{key}</span>
+                              <input
+                                type="text"
+                                value={value as string}
+                                onChange={e =>
+                                  onUpdate({
+                                    ...entity,
+                                    scripts: entity.scripts?.map(s =>
+                                      s.name === entry.name
+                                        ? { ...s, params: { ...s.params, [key]: e.target.value } }
+                                        : s,
+                                    ),
+                                  })
+                                }
+                                style={{
+                                  width: 80,
+                                  background: COLORS.input,
+                                  border: `1px solid ${COLORS.inputBorder}`,
+                                  borderRadius: 3,
+                                  color: COLORS.text,
+                                  fontSize: 11,
+                                  padding: '3px 4px',
+                                  outline: 'none',
+                                }}
+                              />
+                            </div>
+                          )
+                        })}
+                    </div>
+                  )
+                })}
               </>
             )}
 
@@ -1656,23 +1752,20 @@ export default function Editor({
     setSelectedId(prev => (prev === id ? null : prev))
   }, [])
 
-  const handleRenameEntity = useCallback(
-    (id: string, name: string) => {
-      setSceneData(prev => {
-        if (!prev) return prev
-        const updated = {
-          ...prev,
-          entities: prev.entities.map(e => (e.id === id ? { ...e, name } : e)),
-        }
-        const sceneName = activeSceneRef.current
-        if (sceneName) {
-          saveSceneData(sceneName, updated).then(() => setSavedSceneJson(JSON.stringify(updated)))
-        }
-        return updated
-      })
-    },
-    [log],
-  )
+  const handleRenameEntity = useCallback((id: string, name: string) => {
+    setSceneData(prev => {
+      if (!prev) return prev
+      const updated = {
+        ...prev,
+        entities: prev.entities.map(e => (e.id === id ? { ...e, name } : e)),
+      }
+      const sceneName = activeSceneRef.current
+      if (sceneName) {
+        saveSceneData(sceneName, updated).then(() => setSavedSceneJson(JSON.stringify(updated)))
+      }
+      return updated
+    })
+  }, [])
 
   const handleAddEntity = useCallback((entity: SceneEntity) => {
     setSceneData(prev => {
@@ -1773,7 +1866,14 @@ export default function Editor({
           </div>
           <BottomPanel logs={logs} />
         </div>
-        <RightPanel entity={selectedEntity} onUpdate={handleUpdateEntity} onRename={handleRenameEntity} availableScripts={Object.keys(scripts)} availableUiComponents={Object.keys(uiComponents)} />
+        <RightPanel
+          entity={selectedEntity}
+          onUpdate={handleUpdateEntity}
+          onRename={handleRenameEntity}
+          availableScripts={Object.keys(scripts)}
+          availableUiComponents={Object.keys(uiComponents)}
+          scriptDefs={scripts}
+        />
       </div>
     </div>
   )
