@@ -1567,6 +1567,16 @@ export default function Editor({
   showGizmosRef.current = showGizmos
 
   const dirty = sceneData ? JSON.stringify(sceneData) !== savedSceneJson : false
+  const dirtyRef = useRef(false)
+  dirtyRef.current = dirty
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (dirtyRef.current) e.preventDefault()
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [])
 
   const log = useCallback((msg: string) => {
     const id = logIdRef.current++
