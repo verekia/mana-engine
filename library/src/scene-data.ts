@@ -10,16 +10,31 @@ export interface CameraData {
   far?: number
 }
 
+export interface MaterialData {
+  color?: string
+  roughness?: number
+  metalness?: number
+  emissive?: string
+  map?: string
+  normalMap?: string
+  roughnessMap?: string
+  metalnessMap?: string
+  emissiveMap?: string
+}
+
 export interface MeshData {
   geometry?: 'box' | 'sphere' | 'plane' | 'cylinder' | 'capsule'
-  material?: {
-    color?: string
-  }
+  material?: MaterialData
+}
+
+export interface ModelData {
+  src: string
 }
 
 export interface LightData {
   color?: string
   intensity?: number
+  castShadow?: boolean
 }
 
 export interface UiData {
@@ -45,15 +60,18 @@ export interface ScriptEntry {
 export interface SceneEntity {
   id: string
   name: string
-  type: 'camera' | 'mesh' | 'directional-light' | 'ambient-light' | 'point-light' | 'ui'
+  type: 'camera' | 'mesh' | 'directional-light' | 'ambient-light' | 'point-light' | 'ui' | 'model'
   transform?: Transform
   camera?: CameraData
   mesh?: MeshData
+  model?: ModelData
   light?: LightData
   ui?: UiData
   scripts?: ScriptEntry[]
   rigidBody?: RigidBodyData
   collider?: ColliderData
+  castShadow?: boolean
+  receiveShadow?: boolean
 }
 
 export interface SceneData {

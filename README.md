@@ -7,19 +7,22 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 ### Scene System
 
 - **JSON-based scenes** — Scenes defined as JSON files in `game/scenes/` with a background color and an entities array
-- **6 entity types** — `camera`, `mesh`, `directional-light`, `ambient-light`, `point-light`, `ui`
+- **7 entity types** — `camera`, `mesh`, `model`, `directional-light`, `ambient-light`, `point-light`, `ui`
 - **Multi-scene support** — Switch between scenes at runtime with `useMana().loadScene()`
 
 ### Meshes & Materials
 
 - **5 geometry types** — `box`, `sphere`, `plane`, `cylinder`, `capsule`
-- **PBR material** — MeshStandardMaterial with configurable color
+- **PBR material** — MeshStandardMaterial with configurable color, roughness, metalness, and emissive color
+- **Texture maps** — Albedo (`map`), normal, roughness, metalness, and emissive maps via file paths
+- **GLTF/GLB model loading** — Import 3D models as `model` entities with full PBR material support
 
-### Lighting
+### Lighting & Shadows
 
-- **Directional light** — Sun-like light with color and intensity
-- **Point light** — Localized light source with color and intensity
+- **Directional light** — Sun-like light with color, intensity, and optional shadow casting
+- **Point light** — Localized light source with color, intensity, and optional shadow casting
 - **Ambient light** — Global illumination with color and intensity
+- **Shadow mapping** — `castShadow`/`receiveShadow` on meshes, models, and lights with configurable shadow map resolution
 
 ### Script System
 
@@ -192,9 +195,6 @@ Bun workspaces, Vite, React 19, Three.js, Tailwind CSS v4, oxlint, oxfmt, tsgo
 
 Features not yet implemented that would enhance the engine:
 
-- **Texture support** — Albedo, normal, roughness, metalness, emissive maps on materials
-- **GLTF/GLB model loading** — Import 3D models as entities
-- **Shadow mapping** — `castShadow`/`receiveShadow` on meshes and lights
 - **Audio system** — Positional and global audio playback with volume/loop controls
 - **Animation system** — Keyframe-based animations, skeletal animation, and animation clips
 - **Particle system** — Configurable emitters for effects like fire, smoke, and sparks

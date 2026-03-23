@@ -10,6 +10,7 @@ import {
   DirectionalLight,
   DirectionalLightHelper,
   EdgesGeometry,
+  Group,
   LineBasicMaterial,
   LineSegments,
   Mesh,
@@ -23,13 +24,14 @@ import {
   RenderPipeline,
   Scene,
   SphereGeometry,
+  TextureLoader,
   Vector2,
   WebGPURenderer,
 } from 'three/webgpu'
 
 import { Input } from './input.ts'
 
-import type { ColliderData, SceneData, SceneEntity, Transform } from './scene-data.ts'
+import type { ColliderData, MaterialData, SceneData, SceneEntity, Transform } from './scene-data.ts'
 import type { ManaScript } from './script.ts'
 
 export type RapierModule = typeof import('@dimforge/rapier3d-compat')
@@ -126,6 +128,53 @@ function createColliderWireframe(collider: ColliderData): LineSegments {
   return new LineSegments(geometry, material)
 }
 
+const textureLoader = new TextureLoader()
+
+function applyMaterialData(material: MeshStandardMaterial, mat?: MaterialData) {
+  material.color.set(mat?.color ?? '#4488ff')
+  if (!mat) return
+  if (mat.roughness !== undefined) material.roughness = mat.roughness
+  if (mat.metalness !== undefined) material.metalness = mat.metalness
+  if (mat.emissive) material.emissive.set(mat.emissive)
+  if (mat.map) material.map = textureLoader.load(mat.map)
+  if (mat.normalMap) material.normalMap = textureLoader.load(mat.normalMap)
+  if (mat.roughnessMap) material.roughnessMap = textureLoader.load(mat.roughnessMap)
+  if (mat.metalnessMap) material.metalnessMap = textureLoader.load(mat.metalnessMap)
+  if (mat.emissiveMap) material.emissiveMap = textureLoader.load(mat.emissiveMap)
+}
+
+function disposeMaterial(material: MeshStandardMaterial) {
+  material.map?.dispose()
+  material.normalMap?.dispose()
+  material.roughnessMap?.dispose()
+  material.metalnessMap?.dispose()
+  material.emissiveMap?.dispose()
+  material.dispose()
+}
+
+function disposeEntityObject(obj: Object3D) {
+  if (obj instanceof Mesh) {
+    obj.geometry.dispose()
+    if (obj.material instanceof MeshStandardMaterial) disposeMaterial(obj.material)
+  } else if (obj instanceof Group) {
+    obj.traverse(child => {
+      if (child instanceof Mesh) {
+        child.geometry.dispose()
+        if (child.material instanceof MeshStandardMaterial) disposeMaterial(child.material)
+      }
+    })
+  }
+}
+
+function applyShadowProps(obj: Object3D, entity: SceneEntity) {
+  obj.traverse(child => {
+    if (child instanceof Mesh) {
+      if (entity.castShadow !== undefined) child.castShadow = entity.castShadow
+      if (entity.receiveShadow !== undefined) child.receiveShadow = entity.receiveShadow
+    }
+  })
+}
+
 interface EntityMaps {
   entityObjects: Map<string, Object3D>
   debugWireframes: Map<string, LineSegments>
@@ -162,18 +211,51 @@ function createEntityObject(
     }
     case 'mesh': {
       const geometry = createGeometry(entity.mesh?.geometry)
-      const material = new MeshStandardMaterial({
-        color: entity.mesh?.material?.color ?? '#4488ff',
-      })
+      const material = new MeshStandardMaterial()
+      applyMaterialData(material, entity.mesh?.material)
       const mesh = new Mesh(geometry, material)
       applyTransform(mesh, entity.transform)
+      applyShadowProps(mesh, entity)
       threeScene.add(mesh)
       obj = mesh
+      break
+    }
+    case 'model': {
+      const group = new Group()
+      applyTransform(group, entity.transform)
+      threeScene.add(group)
+      obj = group
+      const modelSrc = entity.model?.src
+      if (modelSrc) {
+        import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
+          const loader = new GLTFLoader()
+          loader.load(
+            modelSrc,
+            gltf => {
+              group.add(gltf.scene)
+              applyShadowProps(group, entity)
+            },
+            undefined,
+            err => console.warn(`[mana] Failed to load model "${modelSrc}":`, err),
+          )
+        })
+      }
       break
     }
     case 'directional-light': {
       const light = new DirectionalLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 1)
       applyTransform(light, entity.transform)
+      if (entity.light?.castShadow) {
+        light.castShadow = true
+        light.shadow.mapSize.width = 2048
+        light.shadow.mapSize.height = 2048
+        light.shadow.camera.near = 0.5
+        light.shadow.camera.far = 50
+        light.shadow.camera.left = -10
+        light.shadow.camera.right = 10
+        light.shadow.camera.top = 10
+        light.shadow.camera.bottom = -10
+      }
       threeScene.add(light)
       obj = light
       const dlHelper = new DirectionalLightHelper(light, 1)
@@ -185,6 +267,11 @@ function createEntityObject(
     case 'point-light': {
       const light = new PointLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 1)
       applyTransform(light, entity.transform)
+      if (entity.light?.castShadow) {
+        light.castShadow = true
+        light.shadow.mapSize.width = 1024
+        light.shadow.mapSize.height = 1024
+      }
       threeScene.add(light)
       obj = light
       const plHelper = new PointLightHelper(light, 0.5)
@@ -228,6 +315,7 @@ async function getOrCreateRenderer(canvas: HTMLCanvasElement): Promise<WebGPURen
   if (!renderer) {
     renderer = new WebGPURenderer({ canvas, antialias: true })
     renderer.setPixelRatio(window.devicePixelRatio)
+    renderer.shadowMap.enabled = true
     await renderer.init()
     rendererCache.set(canvas, renderer)
   }
@@ -656,12 +744,7 @@ export async function createScene(
         scene.remove(helper)
       }
       for (const obj of entityObjects.values()) {
-        if (obj instanceof Mesh) {
-          obj.geometry.dispose()
-          if (obj.material instanceof MeshStandardMaterial) {
-            obj.material.dispose()
-          }
-        }
+        disposeEntityObject(obj)
       }
     },
     setGizmos(enabled: boolean) {
@@ -720,6 +803,9 @@ export async function createScene(
         if (obj instanceof Mesh) {
           targets.push(obj)
           objectToEntity.set(obj, id)
+        } else if (obj instanceof Group) {
+          targets.push(obj)
+          obj.traverse(child => objectToEntity.set(child, id))
         }
       }
       for (const [id, helper] of gizmoHelpers) {
@@ -759,10 +845,7 @@ export async function createScene(
       const obj = entityObjects.get(id)
       if (obj) {
         scene.remove(obj)
-        if (obj instanceof Mesh) {
-          obj.geometry.dispose()
-          if (obj.material instanceof MeshStandardMaterial) obj.material.dispose()
-        }
+        disposeEntityObject(obj)
         entityObjects.delete(id)
       }
       const wireframe = debugWireframes.get(id)
@@ -788,8 +871,9 @@ export async function createScene(
         wireframe.position.copy(obj.position)
         wireframe.rotation.copy(obj.rotation)
       }
-      if (entity.type === 'mesh' && obj instanceof Mesh && entity.mesh?.material?.color) {
-        ;(obj.material as MeshStandardMaterial).color.set(entity.mesh.material.color)
+      if (entity.type === 'mesh' && obj instanceof Mesh) {
+        applyMaterialData(obj.material as MeshStandardMaterial, entity.mesh?.material)
+        applyShadowProps(obj, entity)
       }
       if (
         (entity.type === 'directional-light' || entity.type === 'ambient-light' || entity.type === 'point-light') &&
@@ -797,6 +881,12 @@ export async function createScene(
       ) {
         if (entity.light?.color) obj.color.set(entity.light.color)
         if (entity.light?.intensity !== undefined) obj.intensity = entity.light.intensity
+        if (entity.light?.castShadow !== undefined && (obj instanceof DirectionalLight || obj instanceof PointLight)) {
+          obj.castShadow = entity.light.castShadow
+        }
+      }
+      if (entity.type === 'model' && obj instanceof Group) {
+        applyShadowProps(obj, entity)
       }
     },
     getEditorCamera(): EditorCameraState | null {

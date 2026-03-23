@@ -11,6 +11,8 @@ function entityTypeIcon(type: SceneEntity['type']): string {
       return '\u{1F3A5}'
     case 'mesh':
       return '\u{25A6}'
+    case 'model':
+      return '\u{1F4E6}'
     case 'directional-light':
       return '\u{2600}'
     case 'ambient-light':
@@ -85,6 +87,17 @@ const ADD_OBJECT_OPTIONS: { label: string; category: string; create: () => Scene
       type: 'mesh',
       transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
       mesh: { geometry: 'capsule', material: { color: '#888888' } },
+    }),
+  },
+  {
+    label: 'GLTF Model',
+    category: 'General',
+    create: () => ({
+      id: generateId(),
+      name: 'Model',
+      type: 'model',
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      model: { src: '' },
     }),
   },
   {

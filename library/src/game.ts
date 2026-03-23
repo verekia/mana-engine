@@ -9,6 +9,9 @@ export type {
 } from './scene.ts'
 export type {
   ColliderData,
+  MaterialData,
+  MeshData,
+  ModelData,
   RigidBodyData,
   SceneData,
   SceneEntity,
