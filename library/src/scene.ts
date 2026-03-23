@@ -232,6 +232,7 @@ export async function createScene(
       }
 
       bodyDesc.setTranslation(obj.position.x, obj.position.y, obj.position.z)
+      bodyDesc.setRotation({ x: obj.quaternion.x, y: obj.quaternion.y, z: obj.quaternion.z, w: obj.quaternion.w })
 
       const rigidBody = world.createRigidBody(bodyDesc)
 

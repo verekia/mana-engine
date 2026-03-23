@@ -201,7 +201,17 @@ function ToolbarButton({
   )
 }
 
-function Toolbar({ playing, onPlay, onStop }: { playing: boolean; onPlay: () => void; onStop: () => void }) {
+function Toolbar({
+  playing,
+  onPlay,
+  onStop,
+  dirty,
+}: {
+  playing: boolean
+  onPlay: () => void
+  onStop: () => void
+  dirty: boolean
+}) {
   return (
     <div
       style={{
@@ -214,6 +224,7 @@ function Toolbar({ playing, onPlay, onStop }: { playing: boolean; onPlay: () => 
         gap: 4,
         padding: '0 12px',
         flexShrink: 0,
+        position: 'relative',
       }}
     >
       <ToolbarButton title="Play" onClick={onPlay} disabled={playing} active={playing}>
@@ -222,6 +233,17 @@ function Toolbar({ playing, onPlay, onStop }: { playing: boolean; onPlay: () => 
       <ToolbarButton title="Stop" onClick={onStop} disabled={!playing}>
         &#9632;
       </ToolbarButton>
+      <div
+        style={{
+          position: 'absolute',
+          right: 12,
+          fontSize: 11,
+          fontWeight: 600,
+          color: dirty ? '#e8a034' : '#4a4',
+        }}
+      >
+        {dirty ? 'Unsaved' : 'Saved'}
+      </div>
     </div>
   )
 }
@@ -459,6 +481,51 @@ function ColorInput({ label, value, onChange }: { label: string; value: string; 
   )
 }
 
+function SelectInput({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  value: string
+  options: string[]
+  onChange: (v: string) => void
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 6,
+      }}
+    >
+      <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{label}</span>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        style={{
+          width: 100,
+          background: COLORS.input,
+          border: `1px solid ${COLORS.inputBorder}`,
+          borderRadius: 3,
+          color: COLORS.text,
+          fontSize: 11,
+          padding: '3px 4px',
+          outline: 'none',
+        }}
+      >
+        {options.map(opt => (
+          <option key={opt} value={opt}>
+            {opt}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div
@@ -597,7 +664,18 @@ function RightPanel({ entity, onUpdate }: { entity: SceneEntity | null; onUpdate
 
             {entity.mesh && (
               <>
-                <SectionLabel>Material</SectionLabel>
+                <SectionLabel>Mesh</SectionLabel>
+                <SelectInput
+                  label="Geometry"
+                  value={entity.mesh.geometry ?? 'box'}
+                  options={['box', 'sphere', 'plane', 'cylinder']}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      mesh: { ...entity.mesh, geometry: v as 'box' | 'sphere' | 'plane' | 'cylinder' },
+                    })
+                  }
+                />
                 <ColorInput
                   label="Color"
                   value={entity.mesh.material?.color ?? '#4488ff'}
@@ -653,72 +731,74 @@ function RightPanel({ entity, onUpdate }: { entity: SceneEntity | null; onUpdate
             {entity.rigidBody && (
               <>
                 <SectionLabel>Rigid Body</SectionLabel>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 6,
-                  }}
-                >
-                  <span style={{ color: COLORS.textMuted, fontSize: 11 }}>Type</span>
-                  <span style={{ color: COLORS.text, fontSize: 11 }}>{entity.rigidBody.type}</span>
-                </div>
+                <SelectInput
+                  label="Type"
+                  value={entity.rigidBody.type}
+                  options={['dynamic', 'fixed', 'kinematic']}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      rigidBody: { ...entity.rigidBody, type: v as 'dynamic' | 'fixed' | 'kinematic' },
+                    })
+                  }
+                />
               </>
             )}
 
             {entity.collider && (
               <>
                 <SectionLabel>Collider</SectionLabel>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 6,
-                  }}
-                >
-                  <span style={{ color: COLORS.textMuted, fontSize: 11 }}>Shape</span>
-                  <span style={{ color: COLORS.text, fontSize: 11 }}>{entity.collider.shape}</span>
-                </div>
-                {entity.collider.halfExtents && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: 6,
+                <SelectInput
+                  label="Shape"
+                  value={entity.collider.shape}
+                  options={['box', 'sphere', 'capsule', 'cylinder']}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      collider: { ...entity.collider, shape: v as 'box' | 'sphere' | 'capsule' | 'cylinder' },
+                    })
+                  }
+                />
+                {(entity.collider.shape === 'box' || !entity.collider.shape) && (
+                  <Vec3Input
+                    label="Half Extents"
+                    value={entity.collider.halfExtents ?? [0.5, 0.5, 0.5]}
+                    onChange={v => {
+                      const shape = entity.collider?.shape ?? 'box'
+                      onUpdate({
+                        ...entity,
+                        collider: { shape, ...entity.collider, halfExtents: v },
+                      })
                     }}
-                  >
-                    <span style={{ color: COLORS.textMuted, fontSize: 11 }}>Half Extents</span>
-                    <span style={{ color: COLORS.text, fontSize: 11 }}>{entity.collider.halfExtents.join(', ')}</span>
-                  </div>
+                  />
                 )}
-                {entity.collider.radius !== undefined && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: 6,
+                {entity.collider.shape !== 'box' && (
+                  <NumberInput
+                    label="Radius"
+                    value={entity.collider.radius ?? 0.5}
+                    step={0.1}
+                    onChange={v => {
+                      const shape = entity.collider?.shape ?? 'box'
+                      onUpdate({
+                        ...entity,
+                        collider: { shape, ...entity.collider, radius: v },
+                      })
                     }}
-                  >
-                    <span style={{ color: COLORS.textMuted, fontSize: 11 }}>Radius</span>
-                    <span style={{ color: COLORS.text, fontSize: 11 }}>{entity.collider.radius}</span>
-                  </div>
+                  />
                 )}
-                {entity.collider.halfHeight !== undefined && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: 6,
+                {(entity.collider.shape === 'capsule' || entity.collider.shape === 'cylinder') && (
+                  <NumberInput
+                    label="Half Height"
+                    value={entity.collider.halfHeight ?? 0.5}
+                    step={0.1}
+                    onChange={v => {
+                      const shape = entity.collider?.shape ?? 'box'
+                      onUpdate({
+                        ...entity,
+                        collider: { shape, ...entity.collider, halfHeight: v },
+                      })
                     }}
-                  >
-                    <span style={{ color: COLORS.textMuted, fontSize: 11 }}>Half Height</span>
-                    <span style={{ color: COLORS.text, fontSize: 11 }}>{entity.collider.halfHeight}</span>
-                  </div>
+                  />
                 )}
               </>
             )}
@@ -813,9 +893,13 @@ export default function Editor({
   const sceneDataRef = useRef<SceneData | null>(null)
   const activeSceneRef = useRef('')
   const prePlaySceneRef = useRef('')
+  const prePlaySceneDataRef = useRef<SceneData | null>(null)
+  const [savedSceneJson, setSavedSceneJson] = useState('')
 
   sceneDataRef.current = sceneData
   activeSceneRef.current = activeScene
+
+  const dirty = sceneData ? JSON.stringify(sceneData) !== savedSceneJson : false
 
   const log = useCallback((msg: string) => {
     const id = logIdRef.current++
@@ -833,6 +917,7 @@ export default function Editor({
         loadSceneData(initial)
           .then(data => {
             setSceneData(data)
+            setSavedSceneJson(JSON.stringify(data))
             log(`Loaded scene: ${initial}`)
           })
           .catch(err => log(`Error loading scene: ${err.message}`))
@@ -856,6 +941,7 @@ export default function Editor({
       loadSceneData(name)
         .then(async data => {
           setSceneData(data)
+          setSavedSceneJson(JSON.stringify(data))
           log(`Loaded scene: ${name}`)
 
           // Create new Three.js scene
@@ -922,7 +1008,10 @@ export default function Editor({
         const name = activeSceneRef.current
         if (!data || !name) return
         saveSceneData(name, data)
-          .then(() => log(`Scene saved: ${name}`))
+          .then(() => {
+            setSavedSceneJson(JSON.stringify(data))
+            log(`Scene saved: ${name}`)
+          })
           .catch(err => log(`Error saving: ${err.message}`))
       }
     }
@@ -934,24 +1023,23 @@ export default function Editor({
     const data = sceneDataRef.current
     if (!data) return
     prePlaySceneRef.current = activeSceneRef.current
+    prePlaySceneDataRef.current = data
     setPlaying(true)
     setSelectedId(null)
     await recreateScene(data, true)
     log('Play mode started')
   }, [log, recreateScene])
 
-  const handleStop = useCallback(() => {
+  const handleStop = useCallback(async () => {
     setPlaying(false)
     const name = prePlaySceneRef.current || activeSceneRef.current
-    // Reload scene from disk to reset positions
-    loadSceneData(name)
-      .then(async data => {
-        setSceneData(data)
-        setActiveScene(name)
-        await recreateScene(data, false)
-        log('Play mode stopped')
-      })
-      .catch(err => log(`Error reloading scene: ${err.message}`))
+    const data = prePlaySceneDataRef.current
+    if (data) {
+      setSceneData(data)
+      setActiveScene(name)
+      await recreateScene(data, false)
+    }
+    log('Play mode stopped')
   }, [log, recreateScene])
 
   // Scene switching during play mode (via useMana().loadScene)
@@ -960,6 +1048,7 @@ export default function Editor({
       loadSceneData(name)
         .then(async data => {
           setSceneData(data)
+          setSavedSceneJson(JSON.stringify(data))
           setActiveScene(name)
           await recreateScene(data, true)
           log(`Switched to scene: ${name}`)
@@ -1005,7 +1094,7 @@ export default function Editor({
         overflow: 'hidden',
       }}
     >
-      <Toolbar playing={playing} onPlay={handlePlay} onStop={handleStop} />
+      <Toolbar playing={playing} onPlay={handlePlay} onStop={handleStop} dirty={dirty} />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <LeftPanel
           sceneList={sceneList}
