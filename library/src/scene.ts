@@ -131,8 +131,8 @@ function createColliderWireframe(collider: ColliderData): LineSegments {
 const textureLoader = new TextureLoader()
 
 function applyMaterialData(material: MeshStandardMaterial, mat?: MaterialData) {
+  material.color.set(mat?.color ?? '#4488ff')
   if (!mat) return
-  if (mat.color) material.color.set(mat.color)
   if (mat.roughness !== undefined) material.roughness = mat.roughness
   if (mat.metalness !== undefined) material.metalness = mat.metalness
   if (mat.emissive) material.emissive.set(mat.emissive)
@@ -143,17 +143,36 @@ function applyMaterialData(material: MeshStandardMaterial, mat?: MaterialData) {
   if (mat.emissiveMap) material.emissiveMap = textureLoader.load(mat.emissiveMap)
 }
 
-function applyShadowProps(obj: Object3D, entity: SceneEntity) {
-  if (entity.castShadow !== undefined) obj.castShadow = entity.castShadow
-  if (entity.receiveShadow !== undefined) obj.receiveShadow = entity.receiveShadow
-  if (obj instanceof Group || obj instanceof Mesh) {
+function disposeMaterial(material: MeshStandardMaterial) {
+  material.map?.dispose()
+  material.normalMap?.dispose()
+  material.roughnessMap?.dispose()
+  material.metalnessMap?.dispose()
+  material.emissiveMap?.dispose()
+  material.dispose()
+}
+
+function disposeEntityObject(obj: Object3D) {
+  if (obj instanceof Mesh) {
+    obj.geometry.dispose()
+    if (obj.material instanceof MeshStandardMaterial) disposeMaterial(obj.material)
+  } else if (obj instanceof Group) {
     obj.traverse(child => {
       if (child instanceof Mesh) {
-        if (entity.castShadow !== undefined) child.castShadow = entity.castShadow
-        if (entity.receiveShadow !== undefined) child.receiveShadow = entity.receiveShadow
+        child.geometry.dispose()
+        if (child.material instanceof MeshStandardMaterial) disposeMaterial(child.material)
       }
     })
   }
+}
+
+function applyShadowProps(obj: Object3D, entity: SceneEntity) {
+  obj.traverse(child => {
+    if (child instanceof Mesh) {
+      if (entity.castShadow !== undefined) child.castShadow = entity.castShadow
+      if (entity.receiveShadow !== undefined) child.receiveShadow = entity.receiveShadow
+    }
+  })
 }
 
 interface EntityMaps {
@@ -192,9 +211,7 @@ function createEntityObject(
     }
     case 'mesh': {
       const geometry = createGeometry(entity.mesh?.geometry)
-      const material = new MeshStandardMaterial({
-        color: entity.mesh?.material?.color ?? '#4488ff',
-      })
+      const material = new MeshStandardMaterial()
       applyMaterialData(material, entity.mesh?.material)
       const mesh = new Mesh(geometry, material)
       applyTransform(mesh, entity.transform)
@@ -206,7 +223,6 @@ function createEntityObject(
     case 'model': {
       const group = new Group()
       applyTransform(group, entity.transform)
-      applyShadowProps(group, entity)
       threeScene.add(group)
       obj = group
       const modelSrc = entity.model?.src
@@ -728,26 +744,7 @@ export async function createScene(
         scene.remove(helper)
       }
       for (const obj of entityObjects.values()) {
-        if (obj instanceof Mesh) {
-          obj.geometry.dispose()
-          if (obj.material instanceof MeshStandardMaterial) {
-            obj.material.map?.dispose()
-            obj.material.normalMap?.dispose()
-            obj.material.roughnessMap?.dispose()
-            obj.material.metalnessMap?.dispose()
-            obj.material.emissiveMap?.dispose()
-            obj.material.dispose()
-          }
-        } else if (obj instanceof Group) {
-          obj.traverse(child => {
-            if (child instanceof Mesh) {
-              child.geometry.dispose()
-              if (child.material instanceof MeshStandardMaterial) {
-                child.material.dispose()
-              }
-            }
-          })
-        }
+        disposeEntityObject(obj)
       }
     },
     setGizmos(enabled: boolean) {
@@ -848,17 +845,7 @@ export async function createScene(
       const obj = entityObjects.get(id)
       if (obj) {
         scene.remove(obj)
-        if (obj instanceof Mesh) {
-          obj.geometry.dispose()
-          if (obj.material instanceof MeshStandardMaterial) obj.material.dispose()
-        } else if (obj instanceof Group) {
-          obj.traverse(child => {
-            if (child instanceof Mesh) {
-              child.geometry.dispose()
-              if (child.material instanceof MeshStandardMaterial) child.material.dispose()
-            }
-          })
-        }
+        disposeEntityObject(obj)
         entityObjects.delete(id)
       }
       const wireframe = debugWireframes.get(id)
@@ -885,12 +872,7 @@ export async function createScene(
         wireframe.rotation.copy(obj.rotation)
       }
       if (entity.type === 'mesh' && obj instanceof Mesh) {
-        const mat = obj.material as MeshStandardMaterial
-        const matData = entity.mesh?.material
-        if (matData?.color) mat.color.set(matData.color)
-        if (matData?.roughness !== undefined) mat.roughness = matData.roughness
-        if (matData?.metalness !== undefined) mat.metalness = matData.metalness
-        if (matData?.emissive) mat.emissive.set(matData.emissive)
+        applyMaterialData(obj.material as MeshStandardMaterial, entity.mesh?.material)
         applyShadowProps(obj, entity)
       }
       if (

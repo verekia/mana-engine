@@ -12,8 +12,16 @@ import {
   Vec3Input,
 } from './widgets.tsx'
 
-import type { MeshData, SceneEntity } from '../scene-data.ts'
+import type { MaterialData, MeshData, SceneEntity } from '../scene-data.ts'
 import type { ManaScript } from '../script.ts'
+
+const TEXTURE_MAP_FIELDS: { label: string; key: keyof MaterialData }[] = [
+  { label: 'Albedo Map', key: 'map' },
+  { label: 'Normal Map', key: 'normalMap' },
+  { label: 'Roughness Map', key: 'roughnessMap' },
+  { label: 'Metalness Map', key: 'metalnessMap' },
+  { label: 'Emissive Map', key: 'emissiveMap' },
+]
 
 function entityTypeLabel(type: SceneEntity['type']): string {
   switch (type) {
@@ -394,71 +402,22 @@ export function RightPanel({
                     })
                   }
                 />
-                <TextInput
-                  label="Albedo Map"
-                  value={entity.mesh.material?.map ?? ''}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      mesh: {
-                        ...entity.mesh,
-                        material: { ...entity.mesh?.material, map: v || undefined },
-                      },
-                    })
-                  }
-                />
-                <TextInput
-                  label="Normal Map"
-                  value={entity.mesh.material?.normalMap ?? ''}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      mesh: {
-                        ...entity.mesh,
-                        material: { ...entity.mesh?.material, normalMap: v || undefined },
-                      },
-                    })
-                  }
-                />
-                <TextInput
-                  label="Roughness Map"
-                  value={entity.mesh.material?.roughnessMap ?? ''}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      mesh: {
-                        ...entity.mesh,
-                        material: { ...entity.mesh?.material, roughnessMap: v || undefined },
-                      },
-                    })
-                  }
-                />
-                <TextInput
-                  label="Metalness Map"
-                  value={entity.mesh.material?.metalnessMap ?? ''}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      mesh: {
-                        ...entity.mesh,
-                        material: { ...entity.mesh?.material, metalnessMap: v || undefined },
-                      },
-                    })
-                  }
-                />
-                <TextInput
-                  label="Emissive Map"
-                  value={entity.mesh.material?.emissiveMap ?? ''}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      mesh: {
-                        ...entity.mesh,
-                        material: { ...entity.mesh?.material, emissiveMap: v || undefined },
-                      },
-                    })
-                  }
-                />
+                {TEXTURE_MAP_FIELDS.map(({ label, key }) => (
+                  <TextInput
+                    key={key}
+                    label={label}
+                    value={(entity.mesh?.material?.[key] as string) ?? ''}
+                    onChange={v =>
+                      onUpdate({
+                        ...entity,
+                        mesh: {
+                          ...entity.mesh,
+                          material: { ...entity.mesh?.material, [key]: v || undefined },
+                        },
+                      })
+                    }
+                  />
+                ))}
               </>
             )}
 

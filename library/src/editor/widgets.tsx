@@ -245,7 +245,17 @@ export function SelectInput({
   )
 }
 
-export function TextInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+export function TextInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+}) {
   return (
     <div
       style={{
@@ -259,7 +269,7 @@ export function TextInput({ label, value, onChange }: { label: string; value: st
       <input
         type="text"
         value={value}
-        placeholder="path/to/file"
+        placeholder={placeholder}
         onChange={e => onChange(e.target.value)}
         style={{
           width: 120,
