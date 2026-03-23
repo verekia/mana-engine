@@ -49,12 +49,16 @@ function Viewport({
   uiComponents,
   showUI,
   playing,
+  onCanvasClick,
+  onSelectEntity,
 }: {
   canvasRef: React.RefObject<HTMLCanvasElement | null>
   uiEntities: SceneEntity[]
   uiComponents: Record<string, ComponentType>
   showUI: boolean
   playing: boolean
+  onCanvasClick?: (e: React.MouseEvent<HTMLCanvasElement>) => void
+  onSelectEntity?: (id: string) => void
 }) {
   return (
     <div
@@ -65,7 +69,11 @@ function Viewport({
         background: COLORS.viewportBg,
       }}
     >
-      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+      <canvas
+        ref={canvasRef}
+        onClick={!playing ? onCanvasClick : undefined}
+        style={{ width: '100%', height: '100%', display: 'block' }}
+      />
       {showUI && uiEntities.length > 0 && (
         <div
           style={{
@@ -78,7 +86,21 @@ function Viewport({
           <div style={{ position: 'relative', width: '100%', height: '100%' }}>
             {uiEntities.map(entity => {
               const Component = uiComponents[entity.ui?.component ?? '']
-              return Component ? <Component key={entity.id} /> : null
+              if (!Component) return null
+              return playing ? (
+                <Component key={entity.id} />
+              ) : (
+                <div
+                  key={entity.id}
+                  onClick={e => {
+                    e.stopPropagation()
+                    onSelectEntity?.(entity.id)
+                  }}
+                  style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                >
+                  <Component />
+                </div>
+              )
             })}
           </div>
         </div>
@@ -1069,6 +1091,15 @@ export default function Editor({
     [playing, handlePlaySceneSwitch, noopLoadScene, activeScene],
   )
 
+  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = e.currentTarget
+    const rect = canvas.getBoundingClientRect()
+    const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1
+    const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1
+    const hitId = sceneRef.current?.raycast(ndcX, ndcY) ?? null
+    setSelectedId(hitId)
+  }, [])
+
   const selectedEntity = sceneData?.entities.find(e => e.id === selectedId) ?? null
 
   const handleUpdateEntity = useCallback((updated: SceneEntity) => {
@@ -1136,6 +1167,8 @@ export default function Editor({
                 uiComponents={uiComponents}
                 showUI={showUI}
                 playing={playing}
+                onCanvasClick={handleCanvasClick}
+                onSelectEntity={setSelectedId}
               />
             </ManaContext.Provider>
           </div>

@@ -15,8 +15,10 @@ import {
   type Object3D,
   PerspectiveCamera,
   PlaneGeometry,
+  Raycaster,
   Scene,
   SphereGeometry,
+  Vector2,
   WebGLRenderer,
 } from 'three'
 
@@ -27,6 +29,8 @@ export interface ManaScene {
   dispose(): void
   updateEntity(id: string, entity: SceneEntity): void
   setGizmos(enabled: boolean): void
+  /** Raycast from normalized coordinates (-1 to 1). Returns the entity ID hit, or null. */
+  raycast(ndcX: number, ndcY: number): string | null
 }
 
 export interface CreateSceneOptions {
@@ -114,7 +118,7 @@ export async function createScene(
 
   const entityObjects = new Map<string, Object3D>()
   const debugWireframes = new Map<string, LineSegments>()
-  const gizmoHelpers: Object3D[] = []
+  const gizmoHelpers = new Map<string, Object3D>()
 
   let gameCam: PerspectiveCamera | null = null
 
@@ -181,14 +185,14 @@ export async function createScene(
         const helper = new CameraHelper(gameCam)
         helper.visible = debugPhysics
         scene.add(helper)
-        gizmoHelpers.push(helper)
+        gizmoHelpers.set(entity.id, helper)
       }
       if (entity.type === 'directional-light') {
         const obj = entityObjects.get(entity.id) as DirectionalLight
         const helper = new DirectionalLightHelper(obj, 1)
         helper.visible = debugPhysics
         scene.add(helper)
-        gizmoHelpers.push(helper)
+        gizmoHelpers.set(entity.id, helper)
       }
     }
   }
@@ -388,7 +392,7 @@ export async function createScene(
         ;(wireframe.material as LineBasicMaterial).dispose()
         scene.remove(wireframe)
       }
-      for (const helper of gizmoHelpers) {
+      for (const helper of gizmoHelpers.values()) {
         scene.remove(helper)
       }
       for (const obj of entityObjects.values()) {
@@ -404,9 +408,37 @@ export async function createScene(
       for (const wireframe of debugWireframes.values()) {
         wireframe.visible = enabled
       }
-      for (const helper of gizmoHelpers) {
+      for (const helper of gizmoHelpers.values()) {
         helper.visible = enabled
       }
+    },
+    raycast(ndcX: number, ndcY: number): string | null {
+      const raycaster = new Raycaster()
+      raycaster.setFromCamera(new Vector2(ndcX, ndcY), camera)
+
+      // Collect all clickable targets: meshes, helpers, wireframes
+      const targets: Object3D[] = []
+      const objectToEntity = new Map<Object3D, string>()
+
+      for (const [id, obj] of entityObjects) {
+        if (obj instanceof Mesh) {
+          targets.push(obj)
+          objectToEntity.set(obj, id)
+        }
+      }
+      for (const [id, helper] of gizmoHelpers) {
+        targets.push(helper)
+        // Map all descendants so child line segments match
+        helper.traverse(child => objectToEntity.set(child, id))
+      }
+      for (const [id, wireframe] of debugWireframes) {
+        targets.push(wireframe)
+        objectToEntity.set(wireframe, id)
+      }
+
+      const hits = raycaster.intersectObjects(targets, true)
+      if (hits.length === 0) return null
+      return objectToEntity.get(hits[0].object) ?? null
     },
     updateEntity(id: string, entity: SceneEntity) {
       const obj = entityObjects.get(id)
