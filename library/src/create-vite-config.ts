@@ -117,6 +117,11 @@ function sceneApiPlugin(scenesDir: string): Plugin {
         const match = req.url.match(/^\/__mana\/scenes\/([^/]+)$/)
         if (!match) return next()
         const sceneName = match[1]
+        if (!/^[a-zA-Z0-9_-]+$/.test(sceneName)) {
+          res.writeHead(400)
+          res.end('Invalid scene name')
+          return
+        }
         const filePath = resolve(scenesDir, `${sceneName}.json`)
 
         if (req.method === 'GET') {

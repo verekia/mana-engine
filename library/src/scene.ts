@@ -30,6 +30,9 @@ import {
 import type { ColliderData, SceneData, SceneEntity, Transform } from './scene-data.ts'
 import type { ManaScript } from './script.ts'
 
+export type RapierModule = typeof import('@dimforge/rapier3d-compat')
+export type RapierRigidBody = InstanceType<RapierModule['RigidBody']>
+
 export interface EditorCameraState {
   position: [number, number, number]
   target: [number, number, number]
@@ -109,6 +112,100 @@ function createColliderWireframe(collider: ColliderData): LineSegments {
   return new LineSegments(geometry, material)
 }
 
+interface EntityMaps {
+  entityObjects: Map<string, Object3D>
+  debugWireframes: Map<string, LineSegments>
+  gizmoHelpers: Map<string, Object3D>
+}
+
+/** Creates a Three.js object from a scene entity and registers it in the entity maps. */
+function createEntityObject(
+  entity: SceneEntity,
+  threeScene: Scene,
+  maps: EntityMaps,
+  options: { enableOrbitControls: boolean; showGizmos: boolean },
+): Object3D | null {
+  let obj: Object3D | null = null
+
+  switch (entity.type) {
+    case 'camera': {
+      const cam = new PerspectiveCamera(
+        entity.camera?.fov ?? 50,
+        1,
+        entity.camera?.near ?? 0.1,
+        entity.camera?.far ?? 100,
+      )
+      applyTransform(cam, entity.transform)
+      cam.lookAt(0, 0, 0)
+      if (options.enableOrbitControls) threeScene.add(cam)
+      obj = cam
+      // Camera helper
+      const camHelper = new CameraHelper(cam)
+      camHelper.visible = options.showGizmos
+      threeScene.add(camHelper)
+      maps.gizmoHelpers.set(entity.id, camHelper)
+      break
+    }
+    case 'mesh': {
+      const geometry = createGeometry(entity.mesh?.geometry)
+      const material = new MeshStandardMaterial({
+        color: entity.mesh?.material?.color ?? '#4488ff',
+      })
+      const mesh = new Mesh(geometry, material)
+      applyTransform(mesh, entity.transform)
+      threeScene.add(mesh)
+      obj = mesh
+      break
+    }
+    case 'directional-light': {
+      const light = new DirectionalLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 1)
+      applyTransform(light, entity.transform)
+      threeScene.add(light)
+      obj = light
+      const dlHelper = new DirectionalLightHelper(light, 1)
+      dlHelper.visible = options.showGizmos
+      threeScene.add(dlHelper)
+      maps.gizmoHelpers.set(entity.id, dlHelper)
+      break
+    }
+    case 'point-light': {
+      const light = new PointLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 1)
+      applyTransform(light, entity.transform)
+      threeScene.add(light)
+      obj = light
+      const plHelper = new PointLightHelper(light, 0.5)
+      plHelper.visible = options.showGizmos
+      threeScene.add(plHelper)
+      maps.gizmoHelpers.set(entity.id, plHelper)
+      break
+    }
+    case 'ambient-light': {
+      const light = new AmbientLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 0.3)
+      threeScene.add(light)
+      obj = light
+      break
+    }
+  }
+
+  if (obj) {
+    maps.entityObjects.set(entity.id, obj)
+  }
+
+  // Collider wireframe
+  if (entity.collider) {
+    const wireframe = createColliderWireframe(entity.collider)
+    if (obj) {
+      wireframe.position.copy(obj.position)
+      wireframe.rotation.copy(obj.rotation)
+    }
+    wireframe.visible = options.showGizmos
+    threeScene.add(wireframe)
+    maps.debugWireframes.set(entity.id, wireframe)
+  }
+
+  return obj
+}
+
 const FIXED_DT = 1 / 60
 const rendererCache = new WeakMap<HTMLCanvasElement, WebGPURenderer>()
 
@@ -140,94 +237,15 @@ export async function createScene(
   const entityObjects = new Map<string, Object3D>()
   const debugWireframes = new Map<string, LineSegments>()
   const gizmoHelpers = new Map<string, Object3D>()
+  const maps: EntityMaps = { entityObjects, debugWireframes, gizmoHelpers }
 
   let gameCam: PerspectiveCamera | null = null
 
   if (sceneData) {
     for (const entity of sceneData.entities) {
-      switch (entity.type) {
-        case 'camera': {
-          gameCam = new PerspectiveCamera(
-            entity.camera?.fov ?? 50,
-            1,
-            entity.camera?.near ?? 0.1,
-            entity.camera?.far ?? 100,
-          )
-          applyTransform(gameCam, entity.transform)
-          gameCam.lookAt(0, 0, 0)
-          // In edit mode, add the game camera to the scene so it's visible
-          if (enableOrbitControls) {
-            scene.add(gameCam)
-          }
-          entityObjects.set(entity.id, gameCam)
-          break
-        }
-        case 'mesh': {
-          const geometry = createGeometry(entity.mesh?.geometry)
-          const material = new MeshStandardMaterial({
-            color: entity.mesh?.material?.color ?? '#4488ff',
-          })
-          const mesh = new Mesh(geometry, material)
-          applyTransform(mesh, entity.transform)
-          scene.add(mesh)
-          entityObjects.set(entity.id, mesh)
-          break
-        }
-        case 'directional-light': {
-          const light = new DirectionalLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 1)
-          applyTransform(light, entity.transform)
-          scene.add(light)
-          entityObjects.set(entity.id, light)
-          break
-        }
-        case 'ambient-light': {
-          const light = new AmbientLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 0.3)
-          scene.add(light)
-          entityObjects.set(entity.id, light)
-          break
-        }
-        case 'point-light': {
-          const light = new PointLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 1)
-          applyTransform(light, entity.transform)
-          scene.add(light)
-          entityObjects.set(entity.id, light)
-          break
-        }
-      }
-
-      // Debug collider wireframes (created for all colliders, visibility toggled)
-      if (entity.collider) {
-        const wireframe = createColliderWireframe(entity.collider)
-        const obj = entityObjects.get(entity.id)
-        if (obj) {
-          wireframe.position.copy(obj.position)
-          wireframe.rotation.copy(obj.rotation)
-        }
-        wireframe.visible = debugPhysics
-        scene.add(wireframe)
-        debugWireframes.set(entity.id, wireframe)
-      }
-
-      // Gizmo helpers for cameras and lights
-      if (entity.type === 'camera' && gameCam) {
-        const helper = new CameraHelper(gameCam)
-        helper.visible = debugPhysics
-        scene.add(helper)
-        gizmoHelpers.set(entity.id, helper)
-      }
-      if (entity.type === 'directional-light') {
-        const obj = entityObjects.get(entity.id) as DirectionalLight
-        const helper = new DirectionalLightHelper(obj, 1)
-        helper.visible = debugPhysics
-        scene.add(helper)
-        gizmoHelpers.set(entity.id, helper)
-      }
-      if (entity.type === 'point-light') {
-        const obj = entityObjects.get(entity.id) as PointLight
-        const helper = new PointLightHelper(obj, 0.5)
-        helper.visible = debugPhysics
-        scene.add(helper)
-        gizmoHelpers.set(entity.id, helper)
+      const obj = createEntityObject(entity, scene, maps, { enableOrbitControls, showGizmos: debugPhysics })
+      if (entity.type === 'camera' && obj instanceof PerspectiveCamera) {
+        gameCam = obj
       }
     }
   }
@@ -303,19 +321,17 @@ export async function createScene(
   }
 
   // Physics setup
-  type RapierModule = typeof import('@dimforge/rapier3d-compat')
   let RAPIER: RapierModule | null = null
   let world: InstanceType<RapierModule['World']> | null = null
   const physicsEntities: {
-    rigidBody: InstanceType<RapierModule['RigidBody']>
+    rigidBody: RapierRigidBody
     entityObj: Object3D
   }[] = []
-  // biome-ignore lint: rapier types are dynamically imported
-  const rigidBodyMap = new Map<string, any>()
+  const rigidBodyMap = new Map<string, RapierRigidBody>()
 
   const hasPhysics = sceneData?.entities.some(e => e.rigidBody) ?? false
 
-  if (hasPhysics && sceneData) {
+  if (hasPhysics && sceneData && !enableOrbitControls) {
     RAPIER = await import('@dimforge/rapier3d-compat')
     await RAPIER.init()
 
@@ -372,11 +388,10 @@ export async function createScene(
   }
 
   // Script setup
-  // biome-ignore lint: rapier types are dynamically imported
   const activeScripts: {
     script: ManaScript
     entityObj: Object3D
-    rb?: any
+    rb?: RapierRigidBody
     params: Record<string, number | string | boolean>
   }[] = []
 
@@ -388,19 +403,21 @@ export async function createScene(
       const rb = rigidBodyMap.get(entity.id)
       for (const entry of entity.scripts) {
         const script = scriptDefs[entry.name]
-        if (script) {
-          // Merge defaults from script definition with instance params from scene JSON
-          const params: Record<string, number | string | boolean> = {}
-          if (script.params) {
-            for (const [key, def] of Object.entries(script.params)) {
-              params[key] = def.default
-            }
-          }
-          if (entry.params) {
-            Object.assign(params, entry.params)
-          }
-          activeScripts.push({ script, entityObj: obj, rb, params })
+        if (!script) {
+          console.warn(`[mana] Script "${entry.name}" not found, skipping (entity: "${entity.name}")`)
+          continue
         }
+        // Merge defaults from script definition with instance params from scene JSON
+        const params: Record<string, number | string | boolean> = {}
+        if (script.params) {
+          for (const [key, def] of Object.entries(script.params)) {
+            params[key] = def.default
+          }
+        }
+        if (entry.params) {
+          Object.assign(params, entry.params)
+        }
+        activeScripts.push({ script, entityObj: obj, rb, params })
       }
     }
   }
@@ -445,8 +462,8 @@ export async function createScene(
     // Fixed update
     fixedAccumulator += dt
     while (fixedAccumulator >= FIXED_DT) {
-      // Step physics (only in game mode, not edit mode)
-      if (scriptDefs) world?.step()
+      // Step physics when we have a physics world (regardless of scripts)
+      world?.step()
 
       for (const { script, entityObj, rb, params } of activeScripts) {
         script.fixedUpdate?.({ entity: entityObj, scene, dt: FIXED_DT, time: elapsed, rigidBody: rb, params })
@@ -454,8 +471,8 @@ export async function createScene(
       fixedAccumulator -= FIXED_DT
     }
 
-    // Sync physics transforms to Three.js (only in game mode)
-    if (scriptDefs) {
+    // Sync physics transforms to Three.js
+    if (world) {
       for (const { rigidBody, entityObj } of physicsEntities) {
         const pos = rigidBody.translation()
         const rot = rigidBody.rotation()
@@ -574,80 +591,7 @@ export async function createScene(
       return objectToEntity.get(hits[0].object) ?? null
     },
     addEntity(entity: SceneEntity) {
-      let obj: Object3D | null = null
-      switch (entity.type) {
-        case 'camera': {
-          const cam = new PerspectiveCamera(
-            entity.camera?.fov ?? 50,
-            1,
-            entity.camera?.near ?? 0.1,
-            entity.camera?.far ?? 100,
-          )
-          applyTransform(cam, entity.transform)
-          cam.lookAt(0, 0, 0)
-          if (enableOrbitControls) scene.add(cam)
-          obj = cam
-          // Camera helper
-          const camHelper = new CameraHelper(cam)
-          camHelper.visible = debugPhysics
-          scene.add(camHelper)
-          gizmoHelpers.set(entity.id, camHelper)
-          break
-        }
-        case 'mesh': {
-          const geometry = createGeometry(entity.mesh?.geometry)
-          const material = new MeshStandardMaterial({
-            color: entity.mesh?.material?.color ?? '#4488ff',
-          })
-          const mesh = new Mesh(geometry, material)
-          applyTransform(mesh, entity.transform)
-          scene.add(mesh)
-          obj = mesh
-          break
-        }
-        case 'directional-light': {
-          const light = new DirectionalLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 1)
-          applyTransform(light, entity.transform)
-          scene.add(light)
-          obj = light
-          const dlHelper = new DirectionalLightHelper(light, 1)
-          dlHelper.visible = debugPhysics
-          scene.add(dlHelper)
-          gizmoHelpers.set(entity.id, dlHelper)
-          break
-        }
-        case 'point-light': {
-          const light = new PointLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 1)
-          applyTransform(light, entity.transform)
-          scene.add(light)
-          obj = light
-          const plHelper = new PointLightHelper(light, 0.5)
-          plHelper.visible = debugPhysics
-          scene.add(plHelper)
-          gizmoHelpers.set(entity.id, plHelper)
-          break
-        }
-        case 'ambient-light': {
-          const light = new AmbientLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 0.3)
-          scene.add(light)
-          obj = light
-          break
-        }
-      }
-      if (obj) {
-        entityObjects.set(entity.id, obj)
-      }
-      // Collider wireframe
-      if (entity.collider) {
-        const wireframe = createColliderWireframe(entity.collider)
-        if (obj) {
-          wireframe.position.copy(obj.position)
-          wireframe.rotation.copy(obj.rotation)
-        }
-        wireframe.visible = debugPhysics
-        scene.add(wireframe)
-        debugWireframes.set(entity.id, wireframe)
-      }
+      createEntityObject(entity, scene, maps, { enableOrbitControls, showGizmos: debugPhysics })
     },
     removeEntity(id: string) {
       const obj = entityObjects.get(id)

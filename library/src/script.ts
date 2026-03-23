@@ -1,5 +1,7 @@
 import type { Object3D, Scene } from 'three'
 
+import type { RapierRigidBody } from './scene.ts'
+
 export interface ScriptParamDef {
   type: 'number' | 'string' | 'boolean'
   default: number | string | boolean
@@ -15,8 +17,7 @@ export interface ScriptContext {
   /** Total elapsed time in seconds since scene started */
   time: number
   /** The Rapier rigid body for this entity (if it has one) */
-  // biome-ignore lint: rapier types are dynamically imported
-  rigidBody?: any
+  rigidBody?: RapierRigidBody
   /** Script parameters configured in the editor */
   params: Record<string, number | string | boolean>
 }

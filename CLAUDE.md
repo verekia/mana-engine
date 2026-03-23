@@ -16,7 +16,7 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 
 - Scenes are JSON files in `game/scenes/` (e.g., `main-menu.json`, `first-world.json`)
 - Each scene has a `background` color and an `entities` array
-- Entity types: `camera`, `mesh`, `directional-light`, `ambient-light`, `ui`
+- Entity types: `camera`, `mesh`, `directional-light`, `ambient-light`, `point-light`, `ui`
 - UI entities reference React components by name via `"ui": { "component": "ComponentName" }`
 - Entities can have `"scripts": ["scriptName"]` to attach behavior scripts
 - The game component imports all scene JSONs into a `scenes` map and manages scene switching via `ManaContext`
@@ -25,7 +25,7 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 
 - Scripts are TypeScript files in `game/scripts/` implementing `ManaScript`
 - Lifecycle methods: `init(ctx)`, `update(ctx)`, `fixedUpdate(ctx)`, `dispose()`
-- `ScriptContext` provides: `entity` (Object3D), `scene` (Scene), `dt` (delta seconds), `time` (elapsed seconds), `params` (configured values)
+- `ScriptContext` provides: `entity` (Object3D), `scene` (Scene), `dt` (delta seconds), `time` (elapsed seconds), `rigidBody?` (RapierRigidBody), `params` (configured values)
 - Scripts can declare `params: Record<string, ScriptParamDef>` to expose editable parameters in the editor
 - `ScriptParamDef` has `type` (`'number' | 'string' | 'boolean'`) and `default` value
 - In scene JSON, scripts are `ScriptEntry[]`: `[{ "name": "rotate", "params": { "speed": 3 } }]`
@@ -37,7 +37,9 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 ## Editor
 
 - `mana editor` launches a full editor with hierarchy, inspector, viewport, and console panels
+- Editor source is split into modular components: `Editor.tsx` (main), `Toolbar.tsx`, `Viewport.tsx`, `LeftPanel.tsx`, `RightPanel.tsx`, `BottomPanel.tsx`, `widgets.tsx`, `colors.ts`, `scene-api.ts`
 - Editor reads/writes scene JSON files via a Vite middleware API (`/__mana/scenes/:name`)
+- Scene names are validated to only contain `[a-zA-Z0-9_-]` characters (prevents path traversal)
 - Scene selector dropdown to switch between scenes
 - Hierarchy panel shows entities from the active scene; click to select
 - Inspector panel shows editable properties (transform, camera, material, light, UI component, scripts)
@@ -71,6 +73,12 @@ The game's `index.tsx` must export:
 - `bun run format` — oxfmt (write), `bun run format:check` (check only)
 - `bun run typecheck` — tsgo
 - `bun run test` — bun test
+
+## Rapier Types
+
+- `RapierModule` and `RapierRigidBody` type aliases are exported from `scene.ts` and `game.ts`
+- These centralize the dynamically-imported Rapier types so scripts and the engine can use them without `any`
+- Physics runs independently of scripts — if entities have `rigidBody` components, physics steps even without scripts attached
 
 ## Stack
 
