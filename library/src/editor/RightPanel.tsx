@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react'
 
 import { COLORS } from './colors.ts'
-import { ColorInput, NumberInput, PanelHeader, SectionLabel, SelectInput, Vec3Input } from './widgets.tsx'
+import {
+  CheckboxInput,
+  ColorInput,
+  NumberInput,
+  PanelHeader,
+  SectionLabel,
+  SelectInput,
+  TextInput,
+  Vec3Input,
+} from './widgets.tsx'
 
 import type { MeshData, SceneEntity } from '../scene-data.ts'
 import type { ManaScript } from '../script.ts'
@@ -12,6 +21,8 @@ function entityTypeLabel(type: SceneEntity['type']): string {
       return 'Camera'
     case 'mesh':
       return 'Mesh'
+    case 'model':
+      return 'Model'
     case 'directional-light':
       return 'Dir. Light'
     case 'ambient-light':
@@ -328,6 +339,7 @@ export function RightPanel({
                     })
                   }
                 />
+                <SectionLabel>Material</SectionLabel>
                 <ColorInput
                   label="Color"
                   value={entity.mesh.material?.color ?? '#4488ff'}
@@ -338,6 +350,128 @@ export function RightPanel({
                         ...entity.mesh,
                         material: { ...entity.mesh?.material, color: v },
                       },
+                    })
+                  }
+                />
+                <NumberInput
+                  label="Roughness"
+                  value={entity.mesh.material?.roughness ?? 1}
+                  step={0.05}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      mesh: {
+                        ...entity.mesh,
+                        material: { ...entity.mesh?.material, roughness: v },
+                      },
+                    })
+                  }
+                />
+                <NumberInput
+                  label="Metalness"
+                  value={entity.mesh.material?.metalness ?? 0}
+                  step={0.05}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      mesh: {
+                        ...entity.mesh,
+                        material: { ...entity.mesh?.material, metalness: v },
+                      },
+                    })
+                  }
+                />
+                <ColorInput
+                  label="Emissive"
+                  value={entity.mesh.material?.emissive ?? '#000000'}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      mesh: {
+                        ...entity.mesh,
+                        material: { ...entity.mesh?.material, emissive: v },
+                      },
+                    })
+                  }
+                />
+                <TextInput
+                  label="Albedo Map"
+                  value={entity.mesh.material?.map ?? ''}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      mesh: {
+                        ...entity.mesh,
+                        material: { ...entity.mesh?.material, map: v || undefined },
+                      },
+                    })
+                  }
+                />
+                <TextInput
+                  label="Normal Map"
+                  value={entity.mesh.material?.normalMap ?? ''}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      mesh: {
+                        ...entity.mesh,
+                        material: { ...entity.mesh?.material, normalMap: v || undefined },
+                      },
+                    })
+                  }
+                />
+                <TextInput
+                  label="Roughness Map"
+                  value={entity.mesh.material?.roughnessMap ?? ''}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      mesh: {
+                        ...entity.mesh,
+                        material: { ...entity.mesh?.material, roughnessMap: v || undefined },
+                      },
+                    })
+                  }
+                />
+                <TextInput
+                  label="Metalness Map"
+                  value={entity.mesh.material?.metalnessMap ?? ''}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      mesh: {
+                        ...entity.mesh,
+                        material: { ...entity.mesh?.material, metalnessMap: v || undefined },
+                      },
+                    })
+                  }
+                />
+                <TextInput
+                  label="Emissive Map"
+                  value={entity.mesh.material?.emissiveMap ?? ''}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      mesh: {
+                        ...entity.mesh,
+                        material: { ...entity.mesh?.material, emissiveMap: v || undefined },
+                      },
+                    })
+                  }
+                />
+              </>
+            )}
+
+            {entity.model && (
+              <>
+                <SectionLabel>Model</SectionLabel>
+                <TextInput
+                  label="Source"
+                  value={entity.model.src ?? ''}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      model: { ...entity.model, src: v },
                     })
                   }
                 />
@@ -591,6 +725,34 @@ export function RightPanel({
                       light: { ...entity.light, intensity: v },
                     })
                   }
+                />
+                {(entity.type === 'directional-light' || entity.type === 'point-light') && (
+                  <CheckboxInput
+                    label="Cast Shadow"
+                    value={entity.light.castShadow ?? false}
+                    onChange={v =>
+                      onUpdate({
+                        ...entity,
+                        light: { ...entity.light, castShadow: v },
+                      })
+                    }
+                  />
+                )}
+              </>
+            )}
+
+            {(entity.type === 'mesh' || entity.type === 'model') && (
+              <>
+                <SectionLabel>Shadows</SectionLabel>
+                <CheckboxInput
+                  label="Cast Shadow"
+                  value={entity.castShadow ?? false}
+                  onChange={v => onUpdate({ ...entity, castShadow: v })}
+                />
+                <CheckboxInput
+                  label="Receive Shadow"
+                  value={entity.receiveShadow ?? false}
+                  onChange={v => onUpdate({ ...entity, receiveShadow: v })}
                 />
               </>
             )}

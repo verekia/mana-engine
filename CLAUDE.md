@@ -16,10 +16,40 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 
 - Scenes are JSON files in `game/scenes/` (e.g., `main-menu.json`, `first-world.json`)
 - Each scene has a `background` color and an `entities` array
-- Entity types: `camera`, `mesh`, `directional-light`, `ambient-light`, `point-light`, `ui`
+- Entity types: `camera`, `mesh`, `model`, `directional-light`, `ambient-light`, `point-light`, `ui`
 - UI entities reference React components by name via `"ui": { "component": "ComponentName" }`
 - Entities can have `"scripts": ["scriptName"]` to attach behavior scripts
 - The game component imports all scene JSONs into a `scenes` map and manages scene switching via `ManaContext`
+
+## Materials & Textures
+
+- `MaterialData` in `scene-data.ts` defines PBR material properties: `color`, `roughness`, `metalness`, `emissive` (color), and texture maps
+- Texture map fields: `map` (albedo), `normalMap`, `roughnessMap`, `metalnessMap`, `emissiveMap` — all are string paths to image files
+- Textures are loaded via Three.js `TextureLoader` at entity creation time
+- In the editor, texture paths are editable text inputs; scalar values (roughness, metalness) are draggable number inputs
+- `applyMaterialData()` helper applies all material properties to a `MeshStandardMaterial`
+- Texture disposal is handled in `dispose()` and `removeEntity()` to prevent memory leaks
+
+## GLTF/GLB Model Loading
+
+- Entity type `'model'` loads 3D models via Three.js `GLTFLoader`
+- `ModelData` has a single `src` field (path to `.gltf` or `.glb` file)
+- Models are loaded asynchronously after the entity `Group` is added to the scene
+- The loaded GLTF scene is added as a child of the entity `Group`
+- Shadow properties (`castShadow`/`receiveShadow`) are applied recursively to all child meshes
+- Editor "Add Entity" menu includes a "GLTF Model" preset
+- Model entity icon in hierarchy: package emoji
+- Raycast selection works on model entities by traversing child meshes
+
+## Shadow Mapping
+
+- Shadow mapping is enabled globally on the `WebGPURenderer` (`renderer.shadowMap.enabled = true`)
+- Mesh and model entities have `castShadow` and `receiveShadow` boolean properties on `SceneEntity`
+- Directional and point lights have `castShadow` on `LightData`
+- Directional light shadows use 2048x2048 shadow maps with configurable camera bounds (-10 to 10, near 0.5, far 50)
+- Point light shadows use 1024x1024 shadow maps
+- Shadow properties are applied recursively on Group/model entities via `applyShadowProps()`
+- Editor inspector shows checkbox inputs for shadow properties on mesh, model, and light entities
 
 ## Script System
 

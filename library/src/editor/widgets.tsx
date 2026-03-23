@@ -245,6 +245,61 @@ export function SelectInput({
   )
 }
 
+export function TextInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 6,
+      }}
+    >
+      <span style={{ color: COLORS.textMuted, fontSize: 11, flexShrink: 0 }}>{label}</span>
+      <input
+        type="text"
+        value={value}
+        placeholder="path/to/file"
+        onChange={e => onChange(e.target.value)}
+        style={{
+          width: 120,
+          background: COLORS.input,
+          border: `1px solid ${COLORS.inputBorder}`,
+          borderRadius: 3,
+          color: COLORS.text,
+          fontSize: 11,
+          padding: '3px 4px',
+          outline: 'none',
+        }}
+      />
+    </div>
+  )
+}
+
+export function CheckboxInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 6,
+      }}
+    >
+      <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{label}</span>
+      <input type="checkbox" checked={value} onChange={e => onChange(e.target.checked)} />
+    </div>
+  )
+}
+
 export function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div
