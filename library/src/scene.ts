@@ -545,12 +545,12 @@ export async function createScene(
     }
   }
 
-  // Placeholder input for init calls (input begins tracking on first frame)
-  const dummyInput = input ?? new Input(canvas)
-  const ownsDummyInput = !input
+  // Create input when scripts are active (play mode). Guaranteed non-null when activeScripts > 0.
+  const scriptInput = activeScripts.length > 0 ? (input ?? new Input(canvas)) : null
 
   for (const { script, entityObj, rb, params } of activeScripts) {
-    script.init?.({ entity: entityObj, scene, dt: 0, time: 0, rigidBody: rb, input: dummyInput, params })
+    if (!scriptInput) break
+    script.init?.({ entity: entityObj, scene, dt: 0, time: 0, rigidBody: rb, input: scriptInput, params })
   }
 
   let animationId = 0
@@ -586,7 +586,7 @@ export async function createScene(
     lastTime = now
     elapsed += dt
 
-    input?.beginFrame()
+    scriptInput?.beginFrame()
 
     // Fixed update
     fixedAccumulator += dt
@@ -594,16 +594,18 @@ export async function createScene(
       // Step physics when we have a physics world (regardless of scripts)
       world?.step()
 
-      for (const { script, entityObj, rb, params } of activeScripts) {
-        script.fixedUpdate?.({
-          entity: entityObj,
-          scene,
-          dt: FIXED_DT,
-          time: elapsed,
-          rigidBody: rb,
-          input: dummyInput,
-          params,
-        })
+      if (scriptInput) {
+        for (const { script, entityObj, rb, params } of activeScripts) {
+          script.fixedUpdate?.({
+            entity: entityObj,
+            scene,
+            dt: FIXED_DT,
+            time: elapsed,
+            rigidBody: rb,
+            input: scriptInput,
+            params,
+          })
+        }
       }
       fixedAccumulator -= FIXED_DT
     }
@@ -619,11 +621,13 @@ export async function createScene(
     }
 
     // Update scripts
-    for (const { script, entityObj, rb, params } of activeScripts) {
-      script.update?.({ entity: entityObj, scene, dt, time: elapsed, rigidBody: rb, input: dummyInput, params })
+    if (scriptInput) {
+      for (const { script, entityObj, rb, params } of activeScripts) {
+        script.update?.({ entity: entityObj, scene, dt, time: elapsed, rigidBody: rb, input: scriptInput, params })
+      }
     }
 
-    input?.endFrame()
+    scriptInput?.endFrame()
 
     controls?.update()
     render()
@@ -638,8 +642,7 @@ export async function createScene(
       transformControls?.dispose()
       controls?.dispose()
       renderPipeline?.dispose()
-      input?.dispose()
-      if (ownsDummyInput) dummyInput.dispose()
+      scriptInput?.dispose()
       for (const { script } of activeScripts) {
         script.dispose?.()
       }

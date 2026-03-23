@@ -28,6 +28,8 @@ export default function Editor({
   const [showGizmos, setShowGizmos] = useState(() => localStorage.getItem('mana:showGizmos') !== 'false')
   const [playing, setPlaying] = useState(false)
   const [transformMode, setTransformMode] = useState<TransformMode>('translate')
+  const transformModeRef = useRef<TransformMode>('translate')
+  transformModeRef.current = transformMode
   const historyRef = useRef(new UndoHistory())
   const [, forceUpdate] = useState(0)
   const transformStartRef = useRef<{ id: string; transform: Transform } | null>(null)
@@ -178,6 +180,7 @@ export default function Editor({
               onTransformChange: handleTransformChange,
               onTransformEnd: handleTransformEnd,
             })
+            sceneRef.current?.setTransformMode(transformModeRef.current)
           }
         })
         .catch(err => log(`Error loading scene: ${err.message}`))
@@ -203,6 +206,10 @@ export default function Editor({
         onTransformChange: !isPlaying ? handleTransformChange : undefined,
         onTransformEnd: !isPlaying ? handleTransformEnd : undefined,
       })
+      // Re-apply transform mode to newly created scene
+      if (!isPlaying) {
+        sceneRef.current?.setTransformMode(transformModeRef.current)
+      }
     },
     [scripts, showGizmos, handleTransformStart, handleTransformChange, handleTransformEnd],
   )
@@ -228,6 +235,7 @@ export default function Editor({
           return
         }
         sceneRef.current = s
+        s.setTransformMode(transformModeRef.current)
       })
     }
 
@@ -460,8 +468,17 @@ export default function Editor({
     sceneRef.current?.setTransformMode(transformMode)
   }, [transformMode])
 
+  // Debounced undo for inspector property edits — collapses rapid changes into one undo entry
+  const updateUndoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const updateUndoBeforeRef = useRef<SceneEntity | null>(null)
+
   const handleUpdateEntity = useCallback((updated: SceneEntity) => {
-    const prev = sceneDataRef.current?.entities.find(e => e.id === updated.id)
+    // Capture the "before" state only on the first change in a batch
+    if (!updateUndoBeforeRef.current || updateUndoBeforeRef.current.id !== updated.id) {
+      const prev = sceneDataRef.current?.entities.find(e => e.id === updated.id)
+      updateUndoBeforeRef.current = prev ? { ...prev } : null
+    }
+
     setSceneData(sd => {
       if (!sd) return sd
       return {
@@ -471,28 +488,35 @@ export default function Editor({
     })
     sceneRef.current?.updateEntity(updated.id, updated)
 
-    if (prev) {
-      const oldEntity = { ...prev }
-      const newEntity = { ...updated }
-      historyRef.current.push({
-        description: `Update ${updated.name}`,
-        undo: () => {
-          setSceneData(sd => {
-            if (!sd) return sd
-            return { ...sd, entities: sd.entities.map(e => (e.id === oldEntity.id ? oldEntity : e)) }
-          })
-          sceneRef.current?.updateEntity(oldEntity.id, oldEntity)
-        },
-        redo: () => {
-          setSceneData(sd => {
-            if (!sd) return sd
-            return { ...sd, entities: sd.entities.map(e => (e.id === newEntity.id ? newEntity : e)) }
-          })
-          sceneRef.current?.updateEntity(newEntity.id, newEntity)
-        },
-      })
-      forceUpdate(n => n + 1)
-    }
+    // Reset the debounce timer
+    if (updateUndoTimer.current) clearTimeout(updateUndoTimer.current)
+    const capturedBefore = updateUndoBeforeRef.current
+    updateUndoTimer.current = setTimeout(() => {
+      if (capturedBefore) {
+        const oldEntity = { ...capturedBefore }
+        const newEntity = { ...updated }
+        historyRef.current.push({
+          description: `Update ${updated.name}`,
+          undo: () => {
+            setSceneData(sd => {
+              if (!sd) return sd
+              return { ...sd, entities: sd.entities.map(e => (e.id === oldEntity.id ? oldEntity : e)) }
+            })
+            sceneRef.current?.updateEntity(oldEntity.id, oldEntity)
+          },
+          redo: () => {
+            setSceneData(sd => {
+              if (!sd) return sd
+              return { ...sd, entities: sd.entities.map(e => (e.id === newEntity.id ? newEntity : e)) }
+            })
+            sceneRef.current?.updateEntity(newEntity.id, newEntity)
+          },
+        })
+        forceUpdate(n => n + 1)
+      }
+      updateUndoBeforeRef.current = null
+      updateUndoTimer.current = null
+    }, 500)
   }, [])
 
   return (
