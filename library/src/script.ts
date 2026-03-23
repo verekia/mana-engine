@@ -1,5 +1,6 @@
 import type { Object3D, Scene } from 'three'
 
+import type { Input } from './input.ts'
 import type { RapierRigidBody } from './scene.ts'
 
 export interface ScriptParamDef {
@@ -18,6 +19,8 @@ export interface ScriptContext {
   time: number
   /** The Rapier rigid body for this entity (if it has one) */
   rigidBody?: RapierRigidBody
+  /** Input state for keyboard, mouse, and axes */
+  input: Input
   /** Script parameters configured in the editor */
   params: Record<string, number | string | boolean>
 }

@@ -25,7 +25,7 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 
 - Scripts are TypeScript files in `game/scripts/` implementing `ManaScript`
 - Lifecycle methods: `init(ctx)`, `update(ctx)`, `fixedUpdate(ctx)`, `dispose()`
-- `ScriptContext` provides: `entity` (Object3D), `scene` (Scene), `dt` (delta seconds), `time` (elapsed seconds), `rigidBody?` (RapierRigidBody), `params` (configured values)
+- `ScriptContext` provides: `entity` (Object3D), `scene` (Scene), `dt` (delta seconds), `time` (elapsed seconds), `rigidBody?` (RapierRigidBody), `input` (Input), `params` (configured values)
 - Scripts can declare `params: Record<string, ScriptParamDef>` to expose editable parameters in the editor
 - `ScriptParamDef` has `type` (`'number' | 'string' | 'boolean'`) and `default` value
 - In scene JSON, scripts are `ScriptEntry[]`: `[{ "name": "rotate", "params": { "speed": 3 } }]`
@@ -34,10 +34,21 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 - Scripts are registered in `game/index.tsx` as `export const scripts: Record<string, ManaScript>`
 - Scripts only run during gameplay (dev/prod/editor play mode), NOT in editor edit mode
 
+## Input System
+
+- `Input` class in `input.ts` tracks keyboard, mouse, and axis state per frame
+- Created automatically for play mode (scripts); not created in editor edit mode
+- Keyboard: `input.isKeyDown(code)`, `input.isKeyPressed(code)`, `input.isKeyReleased(code)` — uses `KeyboardEvent.code` (e.g. `'KeyW'`, `'Space'`)
+- Mouse: `input.isMouseDown(button)`, `input.isMousePressed(button)`, `input.isMouseReleased(button)`, `input.mouseX/Y`, `input.mouseDeltaX/Y`, `input.scrollDelta`
+- Axes: `input.getAxis('horizontal')` (A/D or Left/Right → -1/+1), `input.getAxis('vertical')` (W/S or Up/Down → -1/+1)
+- `beginFrame()` computes mouse deltas, `endFrame()` clears per-frame pressed/released sets
+- Accessible via `ctx.input` in script lifecycle methods
+- Exported from `mana-engine/game` as `Input` class and included in `ScriptContext` type
+
 ## Editor
 
 - `mana editor` launches a full editor with hierarchy, inspector, viewport, and console panels
-- Editor source is split into modular components: `Editor.tsx` (main), `Toolbar.tsx`, `Viewport.tsx`, `LeftPanel.tsx`, `RightPanel.tsx`, `BottomPanel.tsx`, `widgets.tsx`, `colors.ts`, `scene-api.ts`
+- Editor source is split into modular components: `Editor.tsx` (main), `Toolbar.tsx`, `Viewport.tsx`, `LeftPanel.tsx`, `RightPanel.tsx`, `BottomPanel.tsx`, `widgets.tsx`, `colors.ts`, `scene-api.ts`, `history.ts`
 - Editor reads/writes scene JSON files via a Vite middleware API (`/__mana/scenes/:name`)
 - Scene names are validated to only contain `[a-zA-Z0-9_-]` characters (prevents path traversal)
 - Scene selector dropdown to switch between scenes
@@ -47,6 +58,16 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 - Play/Stop toolbar buttons toggle play mode:
   - Edit mode: editor manages its own canvas, scripts don't run, UI overlay has `pointerEvents: none`
   - Play mode: mounts the actual Game component in the viewport with full interactivity
+- Transform gizmos: TransformControls from Three.js for translate/rotate/scale manipulation in the viewport
+  - W key = translate, E key = rotate, R key = scale
+  - Gizmo attaches to selected entity automatically
+  - OrbitControls disabled while dragging gizmo to prevent camera conflicts
+  - Gizmo drag fires `onTransformStart`, `onTransformChange`, `onTransformEnd` callbacks
+- Undo/redo: `UndoHistory` class in `history.ts` with stack-based action history
+  - Cmd+Z / Ctrl+Z to undo, Cmd+Shift+Z / Ctrl+Shift+Z to redo
+  - Toolbar buttons for undo/redo with enabled/disabled state
+  - Tracks: transform changes (gizmo drag), entity add/delete, rename, property updates
+  - History is cleared when switching scenes
 - The editor entry imports `Game`, `uiComponents`, and `scripts` from the game's `index.tsx`
 
 ## Game Component Contract
