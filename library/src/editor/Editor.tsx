@@ -1,15 +1,17 @@
 import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ManaContext } from '../scene-context.ts'
-import { createScene, type EditorCameraState, type ManaScene } from '../scene.ts'
+import { createScene, type EditorCameraState, type ManaScene, type TransformMode } from '../scene.ts'
 import { BottomPanel } from './BottomPanel.tsx'
 import { COLORS } from './colors.ts'
+import { UndoHistory } from './history.ts'
 import { LeftPanel } from './LeftPanel.tsx'
 import { RightPanel } from './RightPanel.tsx'
 import { fetchSceneList, loadSceneData, saveSceneData } from './scene-api.ts'
 import { Toolbar } from './Toolbar.tsx'
 import { Viewport, ViewportBar } from './Viewport.tsx'
 
+import type { Transform } from '../scene-data.ts'
 import type { SceneData, SceneEntity } from '../scene-data.ts'
 import type { ManaScript } from '../script.ts'
 
@@ -25,6 +27,12 @@ export default function Editor({
   const [showUI, setShowUI] = useState(() => localStorage.getItem('mana:showUI') !== 'false')
   const [showGizmos, setShowGizmos] = useState(() => localStorage.getItem('mana:showGizmos') !== 'false')
   const [playing, setPlaying] = useState(false)
+  const [transformMode, setTransformMode] = useState<TransformMode>('translate')
+  const transformModeRef = useRef<TransformMode>('translate')
+  transformModeRef.current = transformMode
+  const historyRef = useRef(new UndoHistory())
+  const [, forceUpdate] = useState(0)
+  const transformStartRef = useRef<{ id: string; transform: Transform } | null>(null)
   const [sceneList, setSceneList] = useState<string[]>([])
   const [activeScene, setActiveScene] = useState(() => localStorage.getItem('mana:activeScene') ?? '')
   const [sceneData, setSceneData] = useState<SceneData | null>(null)
@@ -83,12 +91,72 @@ export default function Editor({
     })
   }, [log])
 
+  // Transform gizmo callbacks
+  const handleTransformStart = useCallback((id: string) => {
+    const entity = sceneDataRef.current?.entities.find(e => e.id === id)
+    if (entity) {
+      transformStartRef.current = { id, transform: { ...entity.transform } }
+    }
+  }, [])
+
+  const handleTransformChange = useCallback((id: string, transform: Transform) => {
+    // Update scene data in real time so inspector stays in sync
+    setSceneData(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        entities: prev.entities.map(e => (e.id === id ? { ...e, transform } : e)),
+      }
+    })
+  }, [])
+
+  const handleTransformEnd = useCallback((id: string, transform: Transform) => {
+    const oldTransform = transformStartRef.current?.transform
+    if (!oldTransform || transformStartRef.current?.id !== id) return
+    const capturedOld = { ...oldTransform }
+    const capturedNew = { ...transform }
+
+    historyRef.current.push({
+      description: 'Transform entity',
+      undo: () => {
+        setSceneData(prev => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            entities: prev.entities.map(e => (e.id === id ? { ...e, transform: capturedOld } : e)),
+          }
+        })
+        const entity = sceneDataRef.current?.entities.find(e => e.id === id)
+        if (entity) {
+          sceneRef.current?.updateEntity(id, { ...entity, transform: capturedOld })
+        }
+      },
+      redo: () => {
+        setSceneData(prev => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            entities: prev.entities.map(e => (e.id === id ? { ...e, transform: capturedNew } : e)),
+          }
+        })
+        const entity = sceneDataRef.current?.entities.find(e => e.id === id)
+        if (entity) {
+          sceneRef.current?.updateEntity(id, { ...entity, transform: capturedNew })
+        }
+      },
+    })
+    forceUpdate(n => n + 1)
+    transformStartRef.current = null
+  }, [])
+
   // Switch scene handler
   const handleSwitchScene = useCallback(
     (name: string) => {
       setActiveScene(name)
       localStorage.setItem('mana:activeScene', name)
       setSelectedId(null)
+      historyRef.current.clear()
+      forceUpdate(n => n + 1)
 
       // Dispose old Three.js scene
       if (sceneRef.current) {
@@ -105,12 +173,19 @@ export default function Editor({
           // Create new Three.js scene
           const canvas = canvasRef.current
           if (canvas) {
-            sceneRef.current = await createScene(canvas, data, { debugPhysics: true, orbitControls: true })
+            sceneRef.current = await createScene(canvas, data, {
+              debugPhysics: true,
+              orbitControls: true,
+              onTransformStart: handleTransformStart,
+              onTransformChange: handleTransformChange,
+              onTransformEnd: handleTransformEnd,
+            })
+            sceneRef.current?.setTransformMode(transformModeRef.current)
           }
         })
         .catch(err => log(`Error loading scene: ${err.message}`))
     },
-    [log],
+    [log, handleTransformStart, handleTransformChange, handleTransformEnd],
   )
 
   // Helper to create the editor scene (edit or play mode)
@@ -127,9 +202,16 @@ export default function Editor({
         debugPhysics: !isPlaying && showGizmos,
         orbitControls: !isPlaying,
         editorCamera: !isPlaying ? editorCamera : undefined,
+        onTransformStart: !isPlaying ? handleTransformStart : undefined,
+        onTransformChange: !isPlaying ? handleTransformChange : undefined,
+        onTransformEnd: !isPlaying ? handleTransformEnd : undefined,
       })
+      // Re-apply transform mode to newly created scene
+      if (!isPlaying) {
+        sceneRef.current?.setTransformMode(transformModeRef.current)
+      }
     },
-    [scripts, showGizmos],
+    [scripts, showGizmos, handleTransformStart, handleTransformChange, handleTransformEnd],
   )
 
   // Create Three.js scene when scene data is first available (once)
@@ -141,12 +223,19 @@ export default function Editor({
       const canvas = canvasRef.current
       const data = sceneDataRef.current
       if (!canvas || !data || sceneRef.current) return
-      createScene(canvas, data, { debugPhysics: showGizmosRef.current, orbitControls: true }).then(s => {
+      createScene(canvas, data, {
+        debugPhysics: showGizmosRef.current,
+        orbitControls: true,
+        onTransformStart: handleTransformStart,
+        onTransformChange: handleTransformChange,
+        onTransformEnd: handleTransformEnd,
+      }).then(s => {
         if (disposed) {
           s.dispose()
           return
         }
         sceneRef.current = s
+        s.setTransformMode(transformModeRef.current)
       })
     }
 
@@ -168,12 +257,14 @@ export default function Editor({
         sceneRef.current = null
       }
     }
-  }, [])
+  }, [handleTransformStart, handleTransformChange, handleTransformEnd])
 
-  // Cmd+S / Ctrl+S to save
+  // Keyboard shortcuts: Cmd+S (save), Cmd+Z (undo), Cmd+Shift+Z (redo), W/E/R (transform mode)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      const mod = e.metaKey || e.ctrlKey
+
+      if (mod && e.key === 's') {
         e.preventDefault()
         const data = sceneDataRef.current
         const name = activeSceneRef.current
@@ -184,7 +275,27 @@ export default function Editor({
             log(`Scene saved: ${name}`)
           })
           .catch(err => log(`Error saving: ${err.message}`))
+        return
       }
+
+      if (mod && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        if (historyRef.current.undo()) forceUpdate(n => n + 1)
+        return
+      }
+
+      if (mod && e.key === 'z' && e.shiftKey) {
+        e.preventDefault()
+        if (historyRef.current.redo()) forceUpdate(n => n + 1)
+        return
+      }
+
+      // Transform mode shortcuts (only when not typing in an input)
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.key === 'w' && !mod) setTransformMode('translate')
+      if (e.key === 'e' && !mod) setTransformMode('rotate')
+      if (e.key === 'r' && !mod) setTransformMode('scale')
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -245,27 +356,65 @@ export default function Editor({
   )
 
   const handleDeleteEntity = useCallback((id: string) => {
+    const deleted = sceneDataRef.current?.entities.find(e => e.id === id)
     setSceneData(prev => {
       if (!prev) return prev
       return { ...prev, entities: prev.entities.filter(e => e.id !== id) }
     })
     sceneRef.current?.removeEntity(id)
     setSelectedId(prev => (prev === id ? null : prev))
+
+    if (deleted) {
+      historyRef.current.push({
+        description: `Delete ${deleted.name}`,
+        undo: () => {
+          setSceneData(prev => {
+            if (!prev) return prev
+            return { ...prev, entities: [...prev.entities, deleted] }
+          })
+          sceneRef.current?.addEntity(deleted)
+        },
+        redo: () => {
+          setSceneData(prev => {
+            if (!prev) return prev
+            return { ...prev, entities: prev.entities.filter(e => e.id !== id) }
+          })
+          sceneRef.current?.removeEntity(id)
+          setSelectedId(prev => (prev === id ? null : prev))
+        },
+      })
+      forceUpdate(n => n + 1)
+    }
   }, [])
 
   const handleRenameEntity = useCallback((id: string, name: string) => {
+    const oldName = sceneDataRef.current?.entities.find(e => e.id === id)?.name
     setSceneData(prev => {
       if (!prev) return prev
-      const updated = {
+      return {
         ...prev,
         entities: prev.entities.map(e => (e.id === id ? { ...e, name } : e)),
       }
-      const sceneName = activeSceneRef.current
-      if (sceneName) {
-        saveSceneData(sceneName, updated).then(() => setSavedSceneJson(JSON.stringify(updated)))
-      }
-      return updated
     })
+
+    if (oldName && oldName !== name) {
+      historyRef.current.push({
+        description: `Rename ${oldName} to ${name}`,
+        undo: () => {
+          setSceneData(prev => {
+            if (!prev) return prev
+            return { ...prev, entities: prev.entities.map(e => (e.id === id ? { ...e, name: oldName } : e)) }
+          })
+        },
+        redo: () => {
+          setSceneData(prev => {
+            if (!prev) return prev
+            return { ...prev, entities: prev.entities.map(e => (e.id === id ? { ...e, name } : e)) }
+          })
+        },
+      })
+      forceUpdate(n => n + 1)
+    }
   }, [])
 
   const handleAddEntity = useCallback((entity: SceneEntity) => {
@@ -275,6 +424,27 @@ export default function Editor({
     })
     sceneRef.current?.addEntity(entity)
     setSelectedId(entity.id)
+
+    historyRef.current.push({
+      description: `Add ${entity.name}`,
+      undo: () => {
+        setSceneData(prev => {
+          if (!prev) return prev
+          return { ...prev, entities: prev.entities.filter(e => e.id !== entity.id) }
+        })
+        sceneRef.current?.removeEntity(entity.id)
+        setSelectedId(prev => (prev === entity.id ? null : prev))
+      },
+      redo: () => {
+        setSceneData(prev => {
+          if (!prev) return prev
+          return { ...prev, entities: [...prev.entities, entity] }
+        })
+        sceneRef.current?.addEntity(entity)
+        setSelectedId(entity.id)
+      },
+    })
+    forceUpdate(n => n + 1)
   }, [])
 
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -290,17 +460,63 @@ export default function Editor({
 
   useEffect(() => {
     sceneRef.current?.setSelectedObjects(selectedId ? [selectedId] : [])
+    sceneRef.current?.setTransformTarget(selectedId)
   }, [selectedId])
 
+  // Sync transform mode to Three.js scene
+  useEffect(() => {
+    sceneRef.current?.setTransformMode(transformMode)
+  }, [transformMode])
+
+  // Debounced undo for inspector property edits — collapses rapid changes into one undo entry
+  const updateUndoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const updateUndoBeforeRef = useRef<SceneEntity | null>(null)
+
   const handleUpdateEntity = useCallback((updated: SceneEntity) => {
-    setSceneData(prev => {
-      if (!prev) return prev
+    // Capture the "before" state only on the first change in a batch
+    if (!updateUndoBeforeRef.current || updateUndoBeforeRef.current.id !== updated.id) {
+      const prev = sceneDataRef.current?.entities.find(e => e.id === updated.id)
+      updateUndoBeforeRef.current = prev ? { ...prev } : null
+    }
+
+    setSceneData(sd => {
+      if (!sd) return sd
       return {
-        ...prev,
-        entities: prev.entities.map(e => (e.id === updated.id ? updated : e)),
+        ...sd,
+        entities: sd.entities.map(e => (e.id === updated.id ? updated : e)),
       }
     })
     sceneRef.current?.updateEntity(updated.id, updated)
+
+    // Reset the debounce timer
+    if (updateUndoTimer.current) clearTimeout(updateUndoTimer.current)
+    const capturedBefore = updateUndoBeforeRef.current
+    updateUndoTimer.current = setTimeout(() => {
+      if (capturedBefore) {
+        const oldEntity = { ...capturedBefore }
+        const newEntity = { ...updated }
+        historyRef.current.push({
+          description: `Update ${updated.name}`,
+          undo: () => {
+            setSceneData(sd => {
+              if (!sd) return sd
+              return { ...sd, entities: sd.entities.map(e => (e.id === oldEntity.id ? oldEntity : e)) }
+            })
+            sceneRef.current?.updateEntity(oldEntity.id, oldEntity)
+          },
+          redo: () => {
+            setSceneData(sd => {
+              if (!sd) return sd
+              return { ...sd, entities: sd.entities.map(e => (e.id === newEntity.id ? newEntity : e)) }
+            })
+            sceneRef.current?.updateEntity(newEntity.id, newEntity)
+          },
+        })
+        forceUpdate(n => n + 1)
+      }
+      updateUndoBeforeRef.current = null
+      updateUndoTimer.current = null
+    }, 500)
   }, [])
 
   return (
@@ -317,7 +533,22 @@ export default function Editor({
         overflow: 'hidden',
       }}
     >
-      <Toolbar playing={playing} onPlay={handlePlay} onStop={handleStop} dirty={dirty} />
+      <Toolbar
+        playing={playing}
+        onPlay={handlePlay}
+        onStop={handleStop}
+        dirty={dirty}
+        transformMode={transformMode}
+        onTransformModeChange={setTransformMode}
+        canUndo={historyRef.current.canUndo}
+        canRedo={historyRef.current.canRedo}
+        onUndo={() => {
+          if (historyRef.current.undo()) forceUpdate(n => n + 1)
+        }}
+        onRedo={() => {
+          if (historyRef.current.redo()) forceUpdate(n => n + 1)
+        }}
+      />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <LeftPanel
           sceneList={sceneList}

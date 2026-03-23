@@ -26,7 +26,14 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 - **Unity-like lifecycle** — `init(ctx)`, `update(ctx)`, `fixedUpdate(ctx)`, `dispose()`
 - **Script parameters** — Declare typed params (`number`, `string`, `boolean`) with defaults, editable in the editor
 - **Fixed timestep** — `fixedUpdate` runs at 60Hz with accumulator for deterministic physics
-- **ScriptContext** — Provides `entity`, `scene`, `dt`, `time`, `rigidBody`, `params`
+- **ScriptContext** — Provides `entity`, `scene`, `dt`, `time`, `rigidBody`, `input`, `params`
+
+### Input System
+
+- **Keyboard input** — `input.isKeyDown('KeyW')`, `input.isKeyPressed('Space')`, `input.isKeyReleased('ShiftLeft')`
+- **Mouse input** — `input.isMouseDown(0)`, `input.mouseX/Y`, `input.mouseDeltaX/Y`, `input.scrollDelta`
+- **Axis helpers** — `input.getAxis('horizontal')` (A/D, arrows → -1/+1), `input.getAxis('vertical')` (W/S, arrows → -1/+1)
+- **Per-frame state** — Pressed/released states are true for exactly one frame
 
 ### Physics (Rapier 3D)
 
@@ -55,6 +62,8 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 - **Selection outline** — Blue outline highlighting for selected entities (WebGPU TSL OutlineNode)
 - **Gizmo helpers** — Camera, directional light, and point light helpers visible in edit mode
 - **UI overlay toggle** — Show/hide React UI components in the viewport
+- **Transform gizmos** — Translate (W), rotate (E), scale (R) gizmos for manipulating entities in the viewport
+- **Undo/redo** — Cmd+Z / Ctrl+Shift+Z with full action history for transforms, entity operations, and property changes
 
 ### Build & Runtime
 
@@ -136,7 +145,7 @@ export default {
 - `fixedUpdate(ctx)` — Called at fixed 60Hz (for physics)
 - `dispose()` — Called on scene cleanup
 
-`ScriptContext` provides: `entity` (Three.js Object3D), `scene`, `dt` (seconds), `time` (elapsed seconds).
+`ScriptContext` provides: `entity` (Three.js Object3D), `scene`, `dt` (seconds), `time` (elapsed seconds), `input` (keyboard/mouse state).
 
 ## Scene Switching
 
@@ -189,9 +198,6 @@ Features not yet implemented that would enhance the engine:
 - **Audio system** — Positional and global audio playback with volume/loop controls
 - **Animation system** — Keyframe-based animations, skeletal animation, and animation clips
 - **Particle system** — Configurable emitters for effects like fire, smoke, and sparks
-- **Input system** — First-class keyboard, mouse, touch, and gamepad input API available in ScriptContext
-- **Transform gizmos** — Translate/rotate/scale gizmos in the editor viewport (like Unity/Blender)
-- **Undo/redo** — Editor action history
 - **Entity parenting** — Nested entity hierarchies with parent-child transforms
 - **Prefab system** — Reusable entity templates that can be instantiated at runtime
 - **Asset manager** — Centralized loading and caching of textures, models, and audio files

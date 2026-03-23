@@ -27,6 +27,8 @@ import {
   WebGPURenderer,
 } from 'three/webgpu'
 
+import { Input } from './input.ts'
+
 import type { ColliderData, SceneData, SceneEntity, Transform } from './scene-data.ts'
 import type { ManaScript } from './script.ts'
 
@@ -37,6 +39,8 @@ export interface EditorCameraState {
   position: [number, number, number]
   target: [number, number, number]
 }
+
+export type TransformMode = 'translate' | 'rotate' | 'scale'
 
 export interface ManaScene {
   dispose(): void
@@ -51,6 +55,10 @@ export interface ManaScene {
   getEditorCamera(): EditorCameraState | null
   /** Restore the editor camera position and target (only available in orbit controls mode) */
   setEditorCamera(state: EditorCameraState): void
+  /** Set transform gizmo mode (translate/rotate/scale). Editor mode only. */
+  setTransformMode(mode: TransformMode): void
+  /** Attach transform gizmo to entity, or detach if id is null. Editor mode only. */
+  setTransformTarget(id: string | null): void
 }
 
 export interface CreateSceneOptions {
@@ -58,6 +66,12 @@ export interface CreateSceneOptions {
   debugPhysics?: boolean
   orbitControls?: boolean
   editorCamera?: EditorCameraState
+  /** Called continuously while the transform gizmo is dragged */
+  onTransformChange?: (id: string, transform: Transform) => void
+  /** Called when a gizmo drag starts */
+  onTransformStart?: (id: string) => void
+  /** Called when a gizmo drag ends */
+  onTransformEnd?: (id: string, transform: Transform) => void
 }
 
 function applyTransform(obj: Object3D, transform?: Transform) {
@@ -266,6 +280,16 @@ export async function createScene(
     target: { x: number; y: number; z: number; set(x: number, y: number, z: number): void }
   } | null = null
 
+  // TransformControls for editor gizmos
+  let transformControls: {
+    attach(obj: Object3D): void
+    detach(): void
+    setMode(mode: 'translate' | 'rotate' | 'scale'): void
+    dispose(): void
+    object?: Object3D
+  } | null = null
+  let transformControlsRoot: Object3D | null = null
+
   if (enableOrbitControls) {
     camera = new PerspectiveCamera(50, 1, 0.1, 1000)
     const camState = options?.editorCamera
@@ -282,6 +306,102 @@ export async function createScene(
       orbitControls.update()
     }
     controls = orbitControls
+
+    // Set up TransformControls
+    const { TransformControls } = await import('three/examples/jsm/controls/TransformControls.js')
+    const tc = new TransformControls(camera, canvas)
+    scene.add(tc.getHelper())
+    transformControlsRoot = tc.getHelper()
+
+    // Disable orbit controls while dragging gizmo
+    tc.addEventListener('dragging-changed', event => {
+      orbitControls.enabled = !event.value
+    })
+
+    // Track which entity the gizmo is attached to for callbacks
+    let attachedEntityId: string | null = null
+
+    tc.addEventListener('mouseDown', () => {
+      if (attachedEntityId) {
+        options?.onTransformStart?.(attachedEntityId)
+      }
+    })
+
+    tc.addEventListener('mouseUp', () => {
+      if (attachedEntityId && tc.object) {
+        const obj = tc.object
+        const t: Transform = {
+          position: [
+            Math.round(obj.position.x * 1000) / 1000,
+            Math.round(obj.position.y * 1000) / 1000,
+            Math.round(obj.position.z * 1000) / 1000,
+          ],
+          rotation: [
+            Math.round(obj.rotation.x * 1000) / 1000,
+            Math.round(obj.rotation.y * 1000) / 1000,
+            Math.round(obj.rotation.z * 1000) / 1000,
+          ],
+          scale: [
+            Math.round(obj.scale.x * 1000) / 1000,
+            Math.round(obj.scale.y * 1000) / 1000,
+            Math.round(obj.scale.z * 1000) / 1000,
+          ],
+        }
+        options?.onTransformEnd?.(attachedEntityId, t)
+      }
+    })
+
+    tc.addEventListener('objectChange', () => {
+      if (attachedEntityId && tc.object) {
+        const obj = tc.object
+        const t: Transform = {
+          position: [
+            Math.round(obj.position.x * 1000) / 1000,
+            Math.round(obj.position.y * 1000) / 1000,
+            Math.round(obj.position.z * 1000) / 1000,
+          ],
+          rotation: [
+            Math.round(obj.rotation.x * 1000) / 1000,
+            Math.round(obj.rotation.y * 1000) / 1000,
+            Math.round(obj.rotation.z * 1000) / 1000,
+          ],
+          scale: [
+            Math.round(obj.scale.x * 1000) / 1000,
+            Math.round(obj.scale.y * 1000) / 1000,
+            Math.round(obj.scale.z * 1000) / 1000,
+          ],
+        }
+        options?.onTransformChange?.(attachedEntityId, t)
+      }
+    })
+
+    transformControls = {
+      attach(obj: Object3D) {
+        tc.attach(obj)
+        // Find the entity ID for this object
+        for (const [id, entityObj] of entityObjects) {
+          if (entityObj === obj) {
+            attachedEntityId = id
+            break
+          }
+        }
+      },
+      detach() {
+        tc.detach()
+        attachedEntityId = null
+      },
+      setMode(mode: 'translate' | 'rotate' | 'scale') {
+        tc.setMode(mode)
+      },
+      dispose() {
+        tc.detach()
+        tc.dispose()
+        scene.remove(tc.getHelper())
+      },
+      get object() {
+        return tc.object
+      },
+    }
   } else {
     camera = gameCam
   }
@@ -387,6 +507,9 @@ export async function createScene(
     }
   }
 
+  // Input system (only for play mode with scripts)
+  const input = scriptDefs && !enableOrbitControls ? new Input(canvas) : null
+
   // Script setup
   const activeScripts: {
     script: ManaScript
@@ -422,8 +545,12 @@ export async function createScene(
     }
   }
 
+  // Create input when scripts are active (play mode). Guaranteed non-null when activeScripts > 0.
+  const scriptInput = activeScripts.length > 0 ? (input ?? new Input(canvas)) : null
+
   for (const { script, entityObj, rb, params } of activeScripts) {
-    script.init?.({ entity: entityObj, scene, dt: 0, time: 0, rigidBody: rb, params })
+    if (!scriptInput) break
+    script.init?.({ entity: entityObj, scene, dt: 0, time: 0, rigidBody: rb, input: scriptInput, params })
   }
 
   let animationId = 0
@@ -459,14 +586,26 @@ export async function createScene(
     lastTime = now
     elapsed += dt
 
+    scriptInput?.beginFrame()
+
     // Fixed update
     fixedAccumulator += dt
     while (fixedAccumulator >= FIXED_DT) {
       // Step physics when we have a physics world (regardless of scripts)
       world?.step()
 
-      for (const { script, entityObj, rb, params } of activeScripts) {
-        script.fixedUpdate?.({ entity: entityObj, scene, dt: FIXED_DT, time: elapsed, rigidBody: rb, params })
+      if (scriptInput) {
+        for (const { script, entityObj, rb, params } of activeScripts) {
+          script.fixedUpdate?.({
+            entity: entityObj,
+            scene,
+            dt: FIXED_DT,
+            time: elapsed,
+            rigidBody: rb,
+            input: scriptInput,
+            params,
+          })
+        }
       }
       fixedAccumulator -= FIXED_DT
     }
@@ -482,9 +621,13 @@ export async function createScene(
     }
 
     // Update scripts
-    for (const { script, entityObj, rb, params } of activeScripts) {
-      script.update?.({ entity: entityObj, scene, dt, time: elapsed, rigidBody: rb, params })
+    if (scriptInput) {
+      for (const { script, entityObj, rb, params } of activeScripts) {
+        script.update?.({ entity: entityObj, scene, dt, time: elapsed, rigidBody: rb, input: scriptInput, params })
+      }
     }
+
+    scriptInput?.endFrame()
 
     controls?.update()
     render()
@@ -496,8 +639,10 @@ export async function createScene(
     dispose() {
       cancelAnimationFrame(animationId)
       observer.disconnect()
+      transformControls?.dispose()
       controls?.dispose()
       renderPipeline?.dispose()
+      scriptInput?.dispose()
       for (const { script } of activeScripts) {
         script.dispose?.()
       }
@@ -566,9 +711,10 @@ export async function createScene(
       // Use a tight threshold so helpers are only selected when clicking near their lines
       raycaster.params.Line.threshold = 0.15
 
-      // Collect all clickable targets: meshes, helpers, wireframes
+      // Collect all clickable targets: meshes, helpers, wireframes (excluding transform gizmo)
       const targets: Object3D[] = []
       const objectToEntity = new Map<Object3D, string>()
+      const tcRoot = transformControlsRoot
 
       for (const [id, obj] of entityObjects) {
         if (obj instanceof Mesh) {
@@ -588,7 +734,23 @@ export async function createScene(
 
       const hits = raycaster.intersectObjects(targets, true)
       if (hits.length === 0) return null
-      return objectToEntity.get(hits[0].object) ?? null
+      // Filter out hits on transform controls gizmo
+      for (const hit of hits) {
+        if (tcRoot) {
+          let isGizmo = false
+          let parent = hit.object.parent
+          while (parent) {
+            if (parent === tcRoot) {
+              isGizmo = true
+              break
+            }
+            parent = parent.parent
+          }
+          if (isGizmo) continue
+        }
+        return objectToEntity.get(hit.object) ?? null
+      }
+      return null
     },
     addEntity(entity: SceneEntity) {
       createEntityObject(entity, scene, maps, { enableOrbitControls, showGizmos: debugPhysics })
@@ -649,6 +811,20 @@ export async function createScene(
       camera.position.set(...state.position)
       controls.target.set(...state.target)
       controls.update()
+    },
+    setTransformMode(mode: TransformMode) {
+      transformControls?.setMode(mode)
+    },
+    setTransformTarget(id: string | null) {
+      if (!transformControls) return
+      if (id) {
+        const obj = entityObjects.get(id)
+        if (obj) {
+          transformControls.attach(obj)
+        }
+      } else {
+        transformControls.detach()
+      }
     },
   }
 }
