@@ -1,10 +1,12 @@
 import {
   AmbientLight,
   BoxGeometry,
+  CameraHelper,
   CapsuleGeometry,
   Color,
   CylinderGeometry,
   DirectionalLight,
+  DirectionalLightHelper,
   EdgesGeometry,
   LineBasicMaterial,
   LineSegments,
@@ -24,7 +26,7 @@ import type { ManaScript } from './script.ts'
 export interface ManaScene {
   dispose(): void
   updateEntity(id: string, entity: SceneEntity): void
-  setDebugPhysics(enabled: boolean): void
+  setGizmos(enabled: boolean): void
 }
 
 export interface CreateSceneOptions {
@@ -112,22 +114,27 @@ export async function createScene(
 
   const entityObjects = new Map<string, Object3D>()
   const debugWireframes = new Map<string, LineSegments>()
+  const gizmoHelpers: Object3D[] = []
 
-  let cam: PerspectiveCamera | null = null
+  let gameCam: PerspectiveCamera | null = null
 
   if (sceneData) {
     for (const entity of sceneData.entities) {
       switch (entity.type) {
         case 'camera': {
-          cam = new PerspectiveCamera(
+          gameCam = new PerspectiveCamera(
             entity.camera?.fov ?? 50,
             1,
             entity.camera?.near ?? 0.1,
             entity.camera?.far ?? 100,
           )
-          applyTransform(cam, entity.transform)
-          cam.lookAt(0, 0, 0)
-          entityObjects.set(entity.id, cam)
+          applyTransform(gameCam, entity.transform)
+          gameCam.lookAt(0, 0, 0)
+          // In edit mode, add the game camera to the scene so it's visible
+          if (enableOrbitControls) {
+            scene.add(gameCam)
+          }
+          entityObjects.set(entity.id, gameCam)
           break
         }
         case 'mesh': {
@@ -168,16 +175,45 @@ export async function createScene(
         scene.add(wireframe)
         debugWireframes.set(entity.id, wireframe)
       }
+
+      // Gizmo helpers for cameras and lights
+      if (entity.type === 'camera' && gameCam) {
+        const helper = new CameraHelper(gameCam)
+        helper.visible = debugPhysics
+        scene.add(helper)
+        gizmoHelpers.push(helper)
+      }
+      if (entity.type === 'directional-light') {
+        const obj = entityObjects.get(entity.id) as DirectionalLight
+        const helper = new DirectionalLightHelper(obj, 1)
+        helper.visible = debugPhysics
+        scene.add(helper)
+        gizmoHelpers.push(helper)
+      }
     }
   }
 
-  if (!cam) {
-    cam = new PerspectiveCamera(50, 1, 0.1, 100)
-    cam.position.set(0, 1, 3)
-    cam.lookAt(0, 0, 0)
+  if (!gameCam) {
+    gameCam = new PerspectiveCamera(50, 1, 0.1, 100)
+    gameCam.position.set(0, 1, 3)
+    gameCam.lookAt(0, 0, 0)
   }
 
-  const camera = cam
+  // In edit mode, use a separate editor camera for the viewport.
+  // The game camera entity is visible in the scene with its helper.
+  // In play mode, use the game camera directly.
+  let camera: PerspectiveCamera
+  let controls: { update(): void; dispose(): void } | null = null
+
+  if (enableOrbitControls) {
+    camera = new PerspectiveCamera(50, 1, 0.1, 1000)
+    camera.position.set(5, 5, 10)
+    camera.lookAt(0, 0, 0)
+    const { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js')
+    controls = new OrbitControls(camera, canvas)
+  } else {
+    camera = gameCam
+  }
 
   // Ensure renderer and camera match current canvas size
   const initW = canvas.clientWidth
@@ -186,13 +222,6 @@ export async function createScene(
     renderer.setSize(initW, initH, false)
     camera.aspect = initW / initH
     camera.updateProjectionMatrix()
-  }
-
-  // Orbit controls (edit mode only)
-  let controls: { update(): void; dispose(): void } | null = null
-  if (enableOrbitControls) {
-    const { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js')
-    controls = new OrbitControls(camera, canvas)
   }
 
   // Physics setup
@@ -359,6 +388,9 @@ export async function createScene(
         ;(wireframe.material as LineBasicMaterial).dispose()
         scene.remove(wireframe)
       }
+      for (const helper of gizmoHelpers) {
+        scene.remove(helper)
+      }
       for (const obj of entityObjects.values()) {
         if (obj instanceof Mesh) {
           obj.geometry.dispose()
@@ -368,9 +400,12 @@ export async function createScene(
         }
       }
     },
-    setDebugPhysics(enabled: boolean) {
+    setGizmos(enabled: boolean) {
       for (const wireframe of debugWireframes.values()) {
         wireframe.visible = enabled
+      }
+      for (const helper of gizmoHelpers) {
+        helper.visible = enabled
       }
     },
     updateEntity(id: string, entity: SceneEntity) {

@@ -898,6 +898,8 @@ export default function Editor({
 
   sceneDataRef.current = sceneData
   activeSceneRef.current = activeScene
+  const showGizmosRef = useRef(showGizmos)
+  showGizmosRef.current = showGizmos
 
   const dirty = sceneData ? JSON.stringify(sceneData) !== savedSceneJson : false
 
@@ -982,7 +984,7 @@ export default function Editor({
     if (sceneRef.current) return
 
     let disposed = false
-    createScene(canvas, sceneData, { debugPhysics: showGizmos, orbitControls: true }).then(s => {
+    createScene(canvas, sceneData, { debugPhysics: showGizmosRef.current, orbitControls: true }).then(s => {
       if (disposed) {
         s.dispose()
         return
@@ -997,7 +999,7 @@ export default function Editor({
         sceneRef.current = null
       }
     }
-  }, [sceneData, showGizmos])
+  }, [sceneData])
 
   // Cmd+S / Ctrl+S to save
   useEffect(() => {
@@ -1120,7 +1122,7 @@ export default function Editor({
                 setShowGizmos(s => {
                   const next = !s
                   localStorage.setItem('mana:showGizmos', String(next))
-                  sceneRef.current?.setDebugPhysics(next)
+                  sceneRef.current?.setGizmos(next)
                   return next
                 })
               }}
