@@ -65,6 +65,8 @@ The game's `index.tsx` must export:
 
 ## Commands
 
+Always run `bun install` first to ensure dependencies (including CLI tools like `oxfmt`, `oxlint`, `tsgo`) are installed. All commands below are defined in the root `package.json` and must be run from the repository root. Always run `bun run format` before committing, and run `bun run all` to validate everything passes before pushing.
+
 - `bun run all` — lint + format check + typecheck + test + build (the full CI pipeline)
 - `bun run dev:game` — starts the game in dev mode
 - `bun run dev:host` — builds the production game, then starts the host in dev mode
@@ -89,4 +91,4 @@ The game's `index.tsx` must export:
 
 ## Note
 
-Whenever important changes are done in this rapidly evolving project, update CLAUDE.md and README.md with relevant information.
+Whenever important changes are done in this rapidly evolving project, update CLAUDE.md and README.md with relevant information. Any new feature added to the engine must be documented in both CLAUDE.md (architecture/implementation details) and README.md (user-facing feature list). If a planned feature from the README is implemented, move it from the "Planned Features" section into the appropriate feature section.
