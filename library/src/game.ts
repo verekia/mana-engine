@@ -1,5 +1,5 @@
 export { createScene } from './scene.ts'
-export type { CreateSceneOptions, EditorCameraState, ManaScene } from './scene.ts'
+export type { CreateSceneOptions, EditorCameraState, ManaScene, RapierModule, RapierRigidBody } from './scene.ts'
 export type {
   ColliderData,
   RigidBodyData,

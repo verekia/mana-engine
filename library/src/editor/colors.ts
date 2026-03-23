@@ -1,0 +1,16 @@
+export const COLORS = {
+  bg: '#1a1a1a',
+  panel: '#242424',
+  panelHeader: '#2e2e2e',
+  border: '#333',
+  text: '#ccc',
+  textMuted: '#777',
+  toolbar: '#2a2a2a',
+  viewportBg: '#111',
+  hover: '#383838',
+  active: '#444',
+  selected: '#2a4a7a',
+  input: '#1e1e1e',
+  inputBorder: '#444',
+  accent: '#4488ff',
+}
