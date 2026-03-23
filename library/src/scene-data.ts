@@ -26,6 +26,17 @@ export interface UiData {
   component: string
 }
 
+export interface RigidBodyData {
+  type: 'dynamic' | 'fixed' | 'kinematic'
+}
+
+export interface ColliderData {
+  shape: 'box' | 'sphere' | 'capsule' | 'cylinder'
+  halfExtents?: [number, number, number]
+  radius?: number
+  halfHeight?: number
+}
+
 export interface SceneEntity {
   id: string
   name: string
@@ -36,6 +47,8 @@ export interface SceneEntity {
   light?: LightData
   ui?: UiData
   scripts?: string[]
+  rigidBody?: RigidBodyData
+  collider?: ColliderData
 }
 
 export interface SceneData {

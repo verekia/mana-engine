@@ -1,9 +1,13 @@
 import {
   AmbientLight,
   BoxGeometry,
+  CapsuleGeometry,
   Color,
   CylinderGeometry,
   DirectionalLight,
+  EdgesGeometry,
+  LineBasicMaterial,
+  LineSegments,
   Mesh,
   MeshStandardMaterial,
   type Object3D,
@@ -14,12 +18,18 @@ import {
   WebGLRenderer,
 } from 'three'
 
-import type { SceneData, SceneEntity, Transform } from './scene-data.ts'
+import type { ColliderData, SceneData, SceneEntity, Transform } from './scene-data.ts'
 import type { ManaScript } from './script.ts'
 
 export interface ManaScene {
   dispose(): void
   updateEntity(id: string, entity: SceneEntity): void
+  setDebugPhysics(enabled: boolean): void
+}
+
+export interface CreateSceneOptions {
+  scripts?: Record<string, ManaScript>
+  debugPhysics?: boolean
 }
 
 function applyTransform(obj: Object3D, transform?: Transform) {
@@ -42,13 +52,46 @@ function createGeometry(type?: string) {
   }
 }
 
+function createColliderWireframe(collider: ColliderData): LineSegments {
+  let geometry: EdgesGeometry
+  switch (collider.shape) {
+    case 'sphere': {
+      const r = collider.radius ?? 0.5
+      geometry = new EdgesGeometry(new SphereGeometry(r, 16, 12))
+      break
+    }
+    case 'capsule': {
+      const r = collider.radius ?? 0.5
+      const hh = collider.halfHeight ?? 0.5
+      geometry = new EdgesGeometry(new CapsuleGeometry(r, hh * 2, 8, 16))
+      break
+    }
+    case 'cylinder': {
+      const r = collider.radius ?? 0.5
+      const hh = collider.halfHeight ?? 0.5
+      geometry = new EdgesGeometry(new CylinderGeometry(r, r, hh * 2, 16))
+      break
+    }
+    default: {
+      const he = collider.halfExtents ?? [0.5, 0.5, 0.5]
+      geometry = new EdgesGeometry(new BoxGeometry(he[0] * 2, he[1] * 2, he[2] * 2))
+      break
+    }
+  }
+  const material = new LineBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.6 })
+  return new LineSegments(geometry, material)
+}
+
 const FIXED_DT = 1 / 60
 
-export function createScene(
+export async function createScene(
   canvas: HTMLCanvasElement,
   sceneData?: SceneData,
-  scriptDefs?: Record<string, ManaScript>,
-): ManaScene {
+  options?: CreateSceneOptions,
+): Promise<ManaScene> {
+  const scriptDefs = options?.scripts
+  const debugPhysics = options?.debugPhysics ?? false
+
   const renderer = new WebGLRenderer({ canvas, antialias: true })
   renderer.setPixelRatio(window.devicePixelRatio)
 
@@ -56,6 +99,7 @@ export function createScene(
   scene.background = new Color(sceneData?.background ?? '#111111')
 
   const entityObjects = new Map<string, Object3D>()
+  const debugWireframes = new Map<string, LineSegments>()
 
   let cam: PerspectiveCamera | null = null
 
@@ -99,6 +143,19 @@ export function createScene(
           break
         }
       }
+
+      // Debug collider wireframes (created for all colliders, visibility toggled)
+      if (entity.collider) {
+        const wireframe = createColliderWireframe(entity.collider)
+        const obj = entityObjects.get(entity.id)
+        if (obj) {
+          wireframe.position.copy(obj.position)
+          wireframe.rotation.copy(obj.rotation)
+        }
+        wireframe.visible = debugPhysics
+        scene.add(wireframe)
+        debugWireframes.set(entity.id, wireframe)
+      }
     }
   }
 
@@ -110,26 +167,95 @@ export function createScene(
 
   const camera = cam
 
-  // Collect active scripts
-  const activeScripts: { script: ManaScript; entityObj: Object3D }[] = []
+  // Physics setup
+  type RapierModule = typeof import('@dimforge/rapier3d-compat')
+  let RAPIER: RapierModule | null = null
+  let world: InstanceType<RapierModule['World']> | null = null
+  const physicsEntities: {
+    rigidBody: InstanceType<RapierModule['RigidBody']>
+    entityObj: Object3D
+  }[] = []
+  // biome-ignore lint: rapier types are dynamically imported
+  const rigidBodyMap = new Map<string, any>()
+
+  const hasPhysics = sceneData?.entities.some(e => e.rigidBody) ?? false
+
+  if (hasPhysics && sceneData) {
+    RAPIER = await import('@dimforge/rapier3d-compat')
+    await RAPIER.init()
+
+    world = new RAPIER.World({ x: 0, y: -9.81, z: 0 })
+
+    for (const entity of sceneData.entities) {
+      if (!entity.rigidBody) continue
+      const obj = entityObjects.get(entity.id)
+      if (!obj) continue
+
+      let bodyDesc: InstanceType<RapierModule['RigidBodyDesc']>
+      switch (entity.rigidBody.type) {
+        case 'fixed':
+          bodyDesc = RAPIER.RigidBodyDesc.fixed()
+          break
+        case 'kinematic':
+          bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
+          break
+        default:
+          bodyDesc = RAPIER.RigidBodyDesc.dynamic()
+      }
+
+      bodyDesc.setTranslation(obj.position.x, obj.position.y, obj.position.z)
+
+      const rigidBody = world.createRigidBody(bodyDesc)
+
+      if (entity.collider) {
+        let colliderDesc: InstanceType<RapierModule['ColliderDesc']>
+        switch (entity.collider.shape) {
+          case 'sphere':
+            colliderDesc = RAPIER.ColliderDesc.ball(entity.collider.radius ?? 0.5)
+            break
+          case 'capsule':
+            colliderDesc = RAPIER.ColliderDesc.capsule(entity.collider.halfHeight ?? 0.5, entity.collider.radius ?? 0.5)
+            break
+          case 'cylinder':
+            colliderDesc = RAPIER.ColliderDesc.cylinder(
+              entity.collider.halfHeight ?? 0.5,
+              entity.collider.radius ?? 0.5,
+            )
+            break
+          default: {
+            const he = entity.collider.halfExtents ?? [0.5, 0.5, 0.5]
+            colliderDesc = RAPIER.ColliderDesc.cuboid(he[0], he[1], he[2])
+          }
+        }
+        world.createCollider(colliderDesc, rigidBody)
+      }
+
+      physicsEntities.push({ rigidBody, entityObj: obj })
+      rigidBodyMap.set(entity.id, rigidBody)
+    }
+  }
+
+  // Script setup
+  // biome-ignore lint: rapier types are dynamically imported
+  const activeScripts: { script: ManaScript; entityObj: Object3D; rb?: any }[] = []
 
   if (sceneData && scriptDefs) {
     for (const entity of sceneData.entities) {
       if (!entity.scripts) continue
       const obj = entityObjects.get(entity.id)
       if (!obj) continue
+      const rb = rigidBodyMap.get(entity.id)
       for (const name of entity.scripts) {
         const script = scriptDefs[name]
         if (script) {
-          activeScripts.push({ script, entityObj: obj })
+          activeScripts.push({ script, entityObj: obj, rb })
         }
       }
     }
   }
 
-  // Init scripts
-  for (const { script, entityObj } of activeScripts) {
-    script.init?.({ entity: entityObj, scene, dt: 0, time: 0 })
+  for (const { script, entityObj, rb } of activeScripts) {
+    script.init?.({ entity: entityObj, scene, dt: 0, time: 0, rigidBody: rb })
   }
 
   let animationId = 0
@@ -160,15 +286,28 @@ export function createScene(
     // Fixed update
     fixedAccumulator += dt
     while (fixedAccumulator >= FIXED_DT) {
-      for (const { script, entityObj } of activeScripts) {
-        script.fixedUpdate?.({ entity: entityObj, scene, dt: FIXED_DT, time: elapsed })
+      // Step physics (only in game mode, not edit mode)
+      if (scriptDefs) world?.step()
+
+      for (const { script, entityObj, rb } of activeScripts) {
+        script.fixedUpdate?.({ entity: entityObj, scene, dt: FIXED_DT, time: elapsed, rigidBody: rb })
       }
       fixedAccumulator -= FIXED_DT
     }
 
-    // Update
-    for (const { script, entityObj } of activeScripts) {
-      script.update?.({ entity: entityObj, scene, dt, time: elapsed })
+    // Sync physics transforms to Three.js (only in game mode)
+    if (scriptDefs) {
+      for (const { rigidBody, entityObj } of physicsEntities) {
+        const pos = rigidBody.translation()
+        const rot = rigidBody.rotation()
+        entityObj.position.set(pos.x, pos.y, pos.z)
+        entityObj.quaternion.set(rot.x, rot.y, rot.z, rot.w)
+      }
+    }
+
+    // Update scripts
+    for (const { script, entityObj, rb } of activeScripts) {
+      script.update?.({ entity: entityObj, scene, dt, time: elapsed, rigidBody: rb })
     }
 
     renderer.render(scene, camera)
@@ -183,6 +322,12 @@ export function createScene(
       for (const { script } of activeScripts) {
         script.dispose?.()
       }
+      world?.free()
+      for (const wireframe of debugWireframes.values()) {
+        wireframe.geometry.dispose()
+        ;(wireframe.material as LineBasicMaterial).dispose()
+        scene.remove(wireframe)
+      }
       renderer.dispose()
       for (const obj of entityObjects.values()) {
         if (obj instanceof Mesh) {
@@ -193,10 +338,21 @@ export function createScene(
         }
       }
     },
+    setDebugPhysics(enabled: boolean) {
+      for (const wireframe of debugWireframes.values()) {
+        wireframe.visible = enabled
+      }
+    },
     updateEntity(id: string, entity: SceneEntity) {
       const obj = entityObjects.get(id)
       if (!obj) return
       applyTransform(obj, entity.transform)
+      // Sync debug wireframe position
+      const wireframe = debugWireframes.get(id)
+      if (wireframe) {
+        wireframe.position.copy(obj.position)
+        wireframe.rotation.copy(obj.rotation)
+      }
       if (entity.type === 'mesh' && obj instanceof Mesh && entity.mesh?.material?.color) {
         ;(obj.material as MeshStandardMaterial).color.set(entity.mesh.material.color)
       }

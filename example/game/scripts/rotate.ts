@@ -1,8 +1,9 @@
 import type { ManaScript } from 'mana-engine/game'
 
 export default {
-  update({ entity, dt }) {
-    entity.rotation.x += 0.6 * dt
-    entity.rotation.y += 0.9 * dt
+  update({ rigidBody }) {
+    if (rigidBody) {
+      rigidBody.setAngvel({ x: 0, y: 2, z: 0 }, true)
+    }
   },
 } satisfies ManaScript

@@ -84,7 +84,17 @@ function Viewport({
   )
 }
 
-function ViewportBar({ showUI, onToggleUI }: { showUI: boolean; onToggleUI: () => void }) {
+function ViewportBar({
+  showUI,
+  onToggleUI,
+  showGizmos,
+  onToggleGizmos,
+}: {
+  showUI: boolean
+  onToggleUI: () => void
+  showGizmos: boolean
+  onToggleGizmos: () => void
+}) {
   return (
     <div
       style={{
@@ -111,6 +121,19 @@ function ViewportBar({ showUI, onToggleUI }: { showUI: boolean; onToggleUI: () =
       >
         <input type="checkbox" checked={showUI} onChange={onToggleUI} />
         UI
+      </label>
+      <label
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 5,
+          color: COLORS.textMuted,
+          cursor: 'pointer',
+          userSelect: 'none',
+        }}
+      >
+        <input type="checkbox" checked={showGizmos} onChange={onToggleGizmos} />
+        Gizmos
       </label>
     </div>
   )
@@ -624,6 +647,79 @@ function RightPanel({ entity, onUpdate }: { entity: SceneEntity | null; onUpdate
               </>
             )}
 
+            {entity.rigidBody && (
+              <>
+                <SectionLabel>Rigid Body</SectionLabel>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 6,
+                  }}
+                >
+                  <span style={{ color: COLORS.textMuted, fontSize: 11 }}>Type</span>
+                  <span style={{ color: COLORS.text, fontSize: 11 }}>{entity.rigidBody.type}</span>
+                </div>
+              </>
+            )}
+
+            {entity.collider && (
+              <>
+                <SectionLabel>Collider</SectionLabel>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 6,
+                  }}
+                >
+                  <span style={{ color: COLORS.textMuted, fontSize: 11 }}>Shape</span>
+                  <span style={{ color: COLORS.text, fontSize: 11 }}>{entity.collider.shape}</span>
+                </div>
+                {entity.collider.halfExtents && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <span style={{ color: COLORS.textMuted, fontSize: 11 }}>Half Extents</span>
+                    <span style={{ color: COLORS.text, fontSize: 11 }}>{entity.collider.halfExtents.join(', ')}</span>
+                  </div>
+                )}
+                {entity.collider.radius !== undefined && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <span style={{ color: COLORS.textMuted, fontSize: 11 }}>Radius</span>
+                    <span style={{ color: COLORS.text, fontSize: 11 }}>{entity.collider.radius}</span>
+                  </div>
+                )}
+                {entity.collider.halfHeight !== undefined && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <span style={{ color: COLORS.textMuted, fontSize: 11 }}>Half Height</span>
+                    <span style={{ color: COLORS.text, fontSize: 11 }}>{entity.collider.halfHeight}</span>
+                  </div>
+                )}
+              </>
+            )}
+
             {entity.light && (
               <>
                 <SectionLabel>Light</SectionLabel>
@@ -700,10 +796,11 @@ export default function Editor({
   uiComponents?: Record<string, ComponentType>
   scripts?: Record<string, ManaScript>
 }) {
-  const [showUI, setShowUI] = useState(true)
+  const [showUI, setShowUI] = useState(() => localStorage.getItem('mana:showUI') !== 'false')
+  const [showGizmos, setShowGizmos] = useState(() => localStorage.getItem('mana:showGizmos') !== 'false')
   const [playing, setPlaying] = useState(false)
   const [sceneList, setSceneList] = useState<string[]>([])
-  const [activeScene, setActiveScene] = useState('')
+  const [activeScene, setActiveScene] = useState(() => localStorage.getItem('mana:activeScene') ?? '')
   const [sceneData, setSceneData] = useState<SceneData | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [logs, setLogs] = useState<{ id: number; msg: string }[]>([{ id: 0, msg: 'Mana Engine editor ready' }])
@@ -721,17 +818,18 @@ export default function Editor({
     setLogs(prev => [...prev, { id, msg }])
   }, [])
 
-  // Fetch scene list on mount, then load the first scene
+  // Fetch scene list on mount, then load the saved or first scene
   useEffect(() => {
     fetchSceneList().then(list => {
       setSceneList(list)
       if (list.length > 0) {
-        const first = list[0]
-        setActiveScene(first)
-        loadSceneData(first)
+        const saved = localStorage.getItem('mana:activeScene')
+        const initial = saved && list.includes(saved) ? saved : list[0]
+        setActiveScene(initial)
+        loadSceneData(initial)
           .then(data => {
             setSceneData(data)
-            log(`Loaded scene: ${first}`)
+            log(`Loaded scene: ${initial}`)
           })
           .catch(err => log(`Error loading scene: ${err.message}`))
       }
@@ -742,6 +840,7 @@ export default function Editor({
   const handleSwitchScene = useCallback(
     (name: string) => {
       setActiveScene(name)
+      localStorage.setItem('mana:activeScene', name)
       setSelectedId(null)
 
       // Dispose old Three.js scene
@@ -751,14 +850,14 @@ export default function Editor({
       }
 
       loadSceneData(name)
-        .then(data => {
+        .then(async data => {
           setSceneData(data)
           log(`Loaded scene: ${name}`)
 
           // Create new Three.js scene
           const canvas = canvasRef.current
           if (canvas) {
-            sceneRef.current = createScene(canvas, data)
+            sceneRef.current = await createScene(canvas, data, { debugPhysics: true })
           }
         })
         .catch(err => log(`Error loading scene: ${err.message}`))
@@ -775,9 +874,17 @@ export default function Editor({
     // Only create if not already created (handleSwitchScene creates its own)
     if (sceneRef.current) return
 
-    sceneRef.current = createScene(canvas, sceneData)
+    let disposed = false
+    createScene(canvas, sceneData, { debugPhysics: true }).then(s => {
+      if (disposed) {
+        s.dispose()
+        return
+      }
+      sceneRef.current = s
+    })
 
     return () => {
+      disposed = true
       if (sceneRef.current) {
         sceneRef.current.dispose()
         sceneRef.current = null
@@ -851,7 +958,27 @@ export default function Editor({
           onSelect={setSelectedId}
         />
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-          {!playing && <ViewportBar showUI={showUI} onToggleUI={() => setShowUI(s => !s)} />}
+          {!playing && (
+            <ViewportBar
+              showUI={showUI}
+              onToggleUI={() =>
+                setShowUI(s => {
+                  const next = !s
+                  localStorage.setItem('mana:showUI', String(next))
+                  return next
+                })
+              }
+              showGizmos={showGizmos}
+              onToggleGizmos={() => {
+                setShowGizmos(s => {
+                  const next = !s
+                  localStorage.setItem('mana:showGizmos', String(next))
+                  sceneRef.current?.setDebugPhysics(next)
+                  return next
+                })
+              }}
+            />
+          )}
           <div style={{ flex: 1, overflow: 'hidden' }}>
             {playing ? (
               <div

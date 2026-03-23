@@ -33,8 +33,19 @@ export default function Game() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !sceneData) return
-    const scene = createScene(canvas, sceneData, scripts)
-    return () => scene.dispose()
+    let disposed = false
+    let manaScene: Awaited<ReturnType<typeof createScene>> | null = null
+    createScene(canvas, sceneData, { scripts }).then(s => {
+      if (disposed) {
+        s.dispose()
+        return
+      }
+      manaScene = s
+    })
+    return () => {
+      disposed = true
+      manaScene?.dispose()
+    }
   }, [sceneData])
 
   const loadScene = useCallback((name: string) => {

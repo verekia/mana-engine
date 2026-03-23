@@ -9,6 +9,9 @@ export interface ScriptContext {
   dt: number
   /** Total elapsed time in seconds since scene started */
   time: number
+  /** The Rapier rigid body for this entity (if it has one) */
+  // biome-ignore lint: rapier types are dynamically imported
+  rigidBody?: any
 }
 
 export interface ManaScript {
