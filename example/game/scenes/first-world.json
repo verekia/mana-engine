@@ -6,7 +6,11 @@
       "name": "Camera",
       "type": "camera",
       "transform": {
-        "position": [0, 2, 5]
+        "position": [
+          0,
+          2,
+          5
+        ]
       },
       "camera": {
         "fov": 50,
@@ -19,9 +23,21 @@
       "name": "Kubo",
       "type": "mesh",
       "transform": {
-        "position": [0.9, 2, 0],
-        "rotation": [0, 0, 2],
-        "scale": [1, 1, 1]
+        "position": [
+          0.9,
+          2,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          2
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
       },
       "mesh": {
         "geometry": "box",
@@ -34,17 +50,33 @@
       },
       "collider": {
         "shape": "box",
-        "halfExtents": [0.5, 0.5, 0.5]
+        "halfExtents": [
+          0.5,
+          0.5,
+          0.5
+        ]
       },
-      "scripts": [{ "name": "rotate" }]
+      "scripts": [
+        {
+          "name": "rotate"
+        }
+      ]
     },
     {
       "id": "floor",
       "name": "Floor",
       "type": "mesh",
       "transform": {
-        "position": [0, -0.5, 0],
-        "scale": [10, 1, 10]
+        "position": [
+          0,
+          -0.5,
+          0
+        ],
+        "scale": [
+          10,
+          1,
+          10
+        ]
       },
       "mesh": {
         "geometry": "box",
@@ -57,7 +89,11 @@
       },
       "collider": {
         "shape": "box",
-        "halfExtents": [5, 0.5, 5]
+        "halfExtents": [
+          5,
+          0.5,
+          5
+        ]
       }
     },
     {
@@ -65,7 +101,11 @@
       "name": "Sun",
       "type": "directional-light",
       "transform": {
-        "position": [2, 3, 4]
+        "position": [
+          2,
+          3,
+          4
+        ]
       },
       "light": {
         "color": "#ffffff",
@@ -102,9 +142,21 @@
       "name": "Box",
       "type": "mesh",
       "transform": {
-        "position": [-0.7, 1.5, 0],
-        "rotation": [0, 0, 0],
-        "scale": [1, 1, 1]
+        "position": [
+          -0.7,
+          1.5,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
       },
       "mesh": {
         "geometry": "capsule",
@@ -117,7 +169,11 @@
       },
       "collider": {
         "shape": "capsule",
-        "halfExtents": [0.5, 0.5, 0.5],
+        "halfExtents": [
+          0.5,
+          0.5,
+          0.5
+        ],
         "radius": 1,
         "halfHeight": 0.5
       }
@@ -127,9 +183,21 @@
       "name": "Sphere",
       "type": "mesh",
       "transform": {
-        "position": [0.5, 1.1, 0],
-        "rotation": [0, 0, 0],
-        "scale": [1, 1, 1]
+        "position": [
+          0.5,
+          1.1,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
       },
       "mesh": {
         "geometry": "sphere",
@@ -143,9 +211,21 @@
       "name": "Sphere",
       "type": "mesh",
       "transform": {
-        "position": [0, 0, 0],
-        "rotation": [0, 0, 0],
-        "scale": [1, 1, 1]
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
       },
       "mesh": {
         "geometry": "sphere",

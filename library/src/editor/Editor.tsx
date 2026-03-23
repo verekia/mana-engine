@@ -1,7 +1,7 @@
 import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ManaContext } from '../scene-context.ts'
-import { createScene, type ManaScene } from '../scene.ts'
+import { createScene, type EditorCameraState, type ManaScene } from '../scene.ts'
 
 import type { MeshData, SceneData, SceneEntity } from '../scene-data.ts'
 import type { ManaScript } from '../script.ts'
@@ -1558,8 +1558,11 @@ export default function Editor({
   const prePlaySceneDataRef = useRef<SceneData | null>(null)
   const [savedSceneJson, setSavedSceneJson] = useState('')
 
+  const selectedIdRef = useRef<string | null>(null)
+
   sceneDataRef.current = sceneData
   activeSceneRef.current = activeScene
+  selectedIdRef.current = selectedId
   const showGizmosRef = useRef(showGizmos)
   showGizmosRef.current = showGizmos
 
@@ -1621,7 +1624,7 @@ export default function Editor({
 
   // Helper to create the editor scene (edit or play mode)
   const recreateScene = useCallback(
-    async (data: SceneData, isPlaying: boolean) => {
+    async (data: SceneData, isPlaying: boolean, editorCamera?: EditorCameraState) => {
       if (sceneRef.current) {
         sceneRef.current.dispose()
         sceneRef.current = null
@@ -1632,6 +1635,7 @@ export default function Editor({
         scripts: isPlaying ? scripts : undefined,
         debugPhysics: !isPlaying && showGizmos,
         orbitControls: !isPlaying,
+        editorCamera: !isPlaying ? editorCamera : undefined,
       })
     },
     [scripts, showGizmos],
@@ -1695,11 +1699,16 @@ export default function Editor({
     return () => window.removeEventListener('keydown', handler)
   }, [log])
 
+  const prePlaySelectedIdRef = useRef<string | null>(null)
+  const prePlayCameraRef = useRef<EditorCameraState | null>(null)
+
   const handlePlay = useCallback(async () => {
     const data = sceneDataRef.current
     if (!data) return
     prePlaySceneRef.current = activeSceneRef.current
     prePlaySceneDataRef.current = data
+    prePlaySelectedIdRef.current = selectedIdRef.current
+    prePlayCameraRef.current = sceneRef.current?.getEditorCamera() ?? null
     setPlaying(true)
     setSelectedId(null)
     await recreateScene(data, true)
@@ -1713,8 +1722,9 @@ export default function Editor({
     if (data) {
       setSceneData(data)
       setActiveScene(name)
-      await recreateScene(data, false)
+      await recreateScene(data, false, prePlayCameraRef.current ?? undefined)
     }
+    setSelectedId(prePlaySelectedIdRef.current)
     log('Play mode stopped')
   }, [log, recreateScene])
 

@@ -30,6 +30,11 @@ import {
 import type { ColliderData, SceneData, SceneEntity, Transform } from './scene-data.ts'
 import type { ManaScript } from './script.ts'
 
+export interface EditorCameraState {
+  position: [number, number, number]
+  target: [number, number, number]
+}
+
 export interface ManaScene {
   dispose(): void
   updateEntity(id: string, entity: SceneEntity): void
@@ -39,12 +44,17 @@ export interface ManaScene {
   setSelectedObjects(ids: string[]): void
   /** Raycast from normalized coordinates (-1 to 1). Returns the entity ID hit, or null. */
   raycast(ndcX: number, ndcY: number): string | null
+  /** Get the current editor camera position and target (only available in orbit controls mode) */
+  getEditorCamera(): EditorCameraState | null
+  /** Restore the editor camera position and target (only available in orbit controls mode) */
+  setEditorCamera(state: EditorCameraState): void
 }
 
 export interface CreateSceneOptions {
   scripts?: Record<string, ManaScript>
   debugPhysics?: boolean
   orbitControls?: boolean
+  editorCamera?: EditorCameraState
 }
 
 function applyTransform(obj: Object3D, transform?: Transform) {
@@ -232,14 +242,28 @@ export async function createScene(
   // The game camera entity is visible in the scene with its helper.
   // In play mode, use the game camera directly.
   let camera: PerspectiveCamera
-  let controls: { update(): void; dispose(): void } | null = null
+  let controls: {
+    update(): void
+    dispose(): void
+    target: { x: number; y: number; z: number; set(x: number, y: number, z: number): void }
+  } | null = null
 
   if (enableOrbitControls) {
     camera = new PerspectiveCamera(50, 1, 0.1, 1000)
-    camera.position.set(5, 5, 10)
+    const camState = options?.editorCamera
+    if (camState) {
+      camera.position.set(...camState.position)
+    } else {
+      camera.position.set(5, 5, 10)
+    }
     camera.lookAt(0, 0, 0)
     const { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js')
-    controls = new OrbitControls(camera, canvas)
+    const orbitControls = new OrbitControls(camera, canvas)
+    if (camState) {
+      orbitControls.target.set(...camState.target)
+      orbitControls.update()
+    }
+    controls = orbitControls
   } else {
     camera = gameCam
   }
@@ -668,6 +692,19 @@ export async function createScene(
         if (entity.light?.color) obj.color.set(entity.light.color)
         if (entity.light?.intensity !== undefined) obj.intensity = entity.light.intensity
       }
+    },
+    getEditorCamera(): EditorCameraState | null {
+      if (!controls) return null
+      return {
+        position: [camera.position.x, camera.position.y, camera.position.z],
+        target: [controls.target.x, controls.target.y, controls.target.z],
+      }
+    },
+    setEditorCamera(state: EditorCameraState) {
+      if (!controls) return
+      camera.position.set(...state.position)
+      controls.target.set(...state.target)
+      controls.update()
     },
   }
 }
