@@ -1,3 +1,5 @@
+import { outline } from 'three/examples/jsm/tsl/display/OutlineNode.js'
+import { pass, uniform } from 'three/tsl'
 import {
   AmbientLight,
   BoxGeometry,
@@ -18,11 +20,12 @@ import {
   PointLight,
   PointLightHelper,
   Raycaster,
+  RenderPipeline,
   Scene,
   SphereGeometry,
   Vector2,
-  WebGLRenderer,
-} from 'three'
+  WebGPURenderer,
+} from 'three/webgpu'
 
 import type { ColliderData, SceneData, SceneEntity, Transform } from './scene-data.ts'
 import type { ManaScript } from './script.ts'
@@ -33,6 +36,7 @@ export interface ManaScene {
   addEntity(entity: SceneEntity): void
   removeEntity(id: string): void
   setGizmos(enabled: boolean): void
+  setSelectedObjects(ids: string[]): void
   /** Raycast from normalized coordinates (-1 to 1). Returns the entity ID hit, or null. */
   raycast(ndcX: number, ndcY: number): string | null
 }
@@ -96,13 +100,14 @@ function createColliderWireframe(collider: ColliderData): LineSegments {
 }
 
 const FIXED_DT = 1 / 60
-const rendererCache = new WeakMap<HTMLCanvasElement, WebGLRenderer>()
+const rendererCache = new WeakMap<HTMLCanvasElement, WebGPURenderer>()
 
-function getOrCreateRenderer(canvas: HTMLCanvasElement): WebGLRenderer {
+async function getOrCreateRenderer(canvas: HTMLCanvasElement): Promise<WebGPURenderer> {
   let renderer = rendererCache.get(canvas)
   if (!renderer) {
-    renderer = new WebGLRenderer({ canvas, antialias: true })
+    renderer = new WebGPURenderer({ canvas, antialias: true })
     renderer.setPixelRatio(window.devicePixelRatio)
+    await renderer.init()
     rendererCache.set(canvas, renderer)
   }
   return renderer
@@ -117,7 +122,7 @@ export async function createScene(
   const debugPhysics = options?.debugPhysics ?? false
   const enableOrbitControls = options?.orbitControls ?? false
 
-  const renderer = getOrCreateRenderer(canvas)
+  const renderer = await getOrCreateRenderer(canvas)
 
   const scene = new Scene()
   scene.background = new Color(sceneData?.background ?? '#111111')
@@ -239,6 +244,31 @@ export async function createScene(
     camera = gameCam
   }
 
+  // Outline post-processing (editor mode only)
+  let renderPipeline: RenderPipeline | null = null
+  const selectedObjects: Object3D[] = []
+  // biome-ignore lint: OutlineNode type is complex
+  let outlinePass: any = null
+
+  if (enableOrbitControls) {
+    const edgeThickness = uniform(1.0)
+    const edgeGlow = uniform(0.0)
+
+    outlinePass = outline(scene, camera, {
+      selectedObjects,
+      edgeThickness,
+      edgeGlow,
+    })
+
+    const visibleEdgeColor = uniform(new Color(0x4488ff))
+    const outlineColor = outlinePass.visibleEdge.mul(visibleEdgeColor).mul(uniform(3.0))
+
+    const scenePass = pass(scene, camera)
+
+    renderPipeline = new RenderPipeline(renderer)
+    renderPipeline.outputNode = outlineColor.add(scenePass)
+  }
+
   // Ensure renderer and camera match current canvas size
   const initW = canvas.clientWidth
   const initH = canvas.clientHeight
@@ -345,6 +375,14 @@ export async function createScene(
   let elapsed = 0
   let fixedAccumulator = 0
 
+  function render() {
+    if (renderPipeline) {
+      renderPipeline.render()
+    } else {
+      renderer.render(scene, camera)
+    }
+  }
+
   const observer = new ResizeObserver(() => {
     const w = canvas.clientWidth
     const h = canvas.clientHeight
@@ -352,7 +390,7 @@ export async function createScene(
       renderer.setSize(w, h, false)
       camera.aspect = w / h
       camera.updateProjectionMatrix()
-      renderer.render(scene, camera)
+      render()
     }
   })
   observer.observe(canvas)
@@ -393,7 +431,7 @@ export async function createScene(
     }
 
     controls?.update()
-    renderer.render(scene, camera)
+    render()
   }
 
   animate()
@@ -403,6 +441,7 @@ export async function createScene(
       cancelAnimationFrame(animationId)
       observer.disconnect()
       controls?.dispose()
+      renderPipeline?.dispose()
       for (const { script } of activeScripts) {
         script.dispose?.()
       }
@@ -432,9 +471,44 @@ export async function createScene(
         helper.visible = enabled
       }
     },
+    setSelectedObjects(ids: string[]) {
+      selectedObjects.length = 0
+      for (const id of ids) {
+        const obj = entityObjects.get(id)
+        if (obj) selectedObjects.push(obj)
+      }
+      if (outlinePass) {
+        outlinePass.selectedObjects = selectedObjects
+      }
+      // Tint helpers blue when selected, reset when deselected
+      const selectedSet = new Set(ids)
+      const selectionColor = new Color(0x4488ff)
+      for (const [id, helper] of gizmoHelpers) {
+        const isSelected = selectedSet.has(id)
+        helper.traverse(child => {
+          if ('material' in child) {
+            const mat = child.material as LineBasicMaterial
+            if (isSelected) {
+              mat.color.copy(selectionColor)
+            } else if (helper instanceof CameraHelper) {
+              // CameraHelper uses white/grey lines by default
+              mat.color.set(0xffffff)
+            } else if (helper instanceof DirectionalLightHelper) {
+              const entity = entityObjects.get(id) as DirectionalLight
+              mat.color.copy(entity.color)
+            } else if (helper instanceof PointLightHelper) {
+              const entity = entityObjects.get(id) as PointLight
+              mat.color.copy(entity.color)
+            }
+          }
+        })
+      }
+    },
     raycast(ndcX: number, ndcY: number): string | null {
       const raycaster = new Raycaster()
       raycaster.setFromCamera(new Vector2(ndcX, ndcY), camera)
+      // Use a tight threshold so helpers are only selected when clicking near their lines
+      raycaster.params.Line.threshold = 0.15
 
       // Collect all clickable targets: meshes, helpers, wireframes
       const targets: Object3D[] = []

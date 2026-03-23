@@ -43,10 +43,13 @@ function resolvePackagePath(name: string): string {
 }
 
 function getManaAliases(): Record<string, string> {
+  const threePath = resolvePackagePath('three')
   return {
     react: resolvePackagePath('react'),
     'react-dom': resolvePackagePath('react-dom'),
-    three: resolvePackagePath('three'),
+    'three/webgpu': resolve(threePath, 'build/three.webgpu.js'),
+    'three/tsl': resolve(threePath, 'build/three.tsl.js'),
+    three: threePath,
   }
 }
 

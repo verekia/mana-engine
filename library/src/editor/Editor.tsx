@@ -60,6 +60,8 @@ function Viewport({
   onCanvasClick?: (e: React.MouseEvent<HTMLCanvasElement>) => void
   onSelectEntity?: (id: string) => void
 }) {
+  const pointerDownPos = useRef<{ x: number; y: number } | null>(null)
+
   return (
     <div
       style={{
@@ -71,7 +73,27 @@ function Viewport({
     >
       <canvas
         ref={canvasRef}
-        onClick={!playing ? onCanvasClick : undefined}
+        onPointerDown={
+          !playing
+            ? e => {
+                pointerDownPos.current = { x: e.clientX, y: e.clientY }
+              }
+            : undefined
+        }
+        onPointerUp={
+          !playing
+            ? e => {
+                if (pointerDownPos.current) {
+                  const dx = e.clientX - pointerDownPos.current.x
+                  const dy = e.clientY - pointerDownPos.current.y
+                  if (dx * dx + dy * dy < 25) {
+                    onCanvasClick?.(e)
+                  }
+                  pointerDownPos.current = null
+                }
+              }
+            : undefined
+        }
         style={{ width: '100%', height: '100%', display: 'block' }}
       />
       {showUI && uiEntities.length > 0 && (
@@ -1610,6 +1632,10 @@ export default function Editor({
   }, [])
 
   const selectedEntity = sceneData?.entities.find(e => e.id === selectedId) ?? null
+
+  useEffect(() => {
+    sceneRef.current?.setSelectedObjects(selectedId ? [selectedId] : [])
+  }, [selectedId])
 
   const handleUpdateEntity = useCallback((updated: SceneEntity) => {
     setSceneData(prev => {
