@@ -11,7 +11,7 @@ export interface CameraData {
 }
 
 export interface MeshData {
-  geometry?: 'box' | 'sphere' | 'plane' | 'cylinder'
+  geometry?: 'box' | 'sphere' | 'plane' | 'cylinder' | 'capsule'
   material?: {
     color?: string
   }
@@ -40,7 +40,7 @@ export interface ColliderData {
 export interface SceneEntity {
   id: string
   name: string
-  type: 'camera' | 'mesh' | 'directional-light' | 'ambient-light' | 'ui'
+  type: 'camera' | 'mesh' | 'directional-light' | 'ambient-light' | 'point-light' | 'ui'
   transform?: Transform
   camera?: CameraData
   mesh?: MeshData

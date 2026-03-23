@@ -15,6 +15,8 @@ import {
   type Object3D,
   PerspectiveCamera,
   PlaneGeometry,
+  PointLight,
+  PointLightHelper,
   Raycaster,
   Scene,
   SphereGeometry,
@@ -28,6 +30,8 @@ import type { ManaScript } from './script.ts'
 export interface ManaScene {
   dispose(): void
   updateEntity(id: string, entity: SceneEntity): void
+  addEntity(entity: SceneEntity): void
+  removeEntity(id: string): void
   setGizmos(enabled: boolean): void
   /** Raycast from normalized coordinates (-1 to 1). Returns the entity ID hit, or null. */
   raycast(ndcX: number, ndcY: number): string | null
@@ -54,6 +58,8 @@ function createGeometry(type?: string) {
       return new PlaneGeometry()
     case 'cylinder':
       return new CylinderGeometry()
+    case 'capsule':
+      return new CapsuleGeometry()
     default:
       return new BoxGeometry()
   }
@@ -165,6 +171,13 @@ export async function createScene(
           entityObjects.set(entity.id, light)
           break
         }
+        case 'point-light': {
+          const light = new PointLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 1)
+          applyTransform(light, entity.transform)
+          scene.add(light)
+          entityObjects.set(entity.id, light)
+          break
+        }
       }
 
       // Debug collider wireframes (created for all colliders, visibility toggled)
@@ -190,6 +203,13 @@ export async function createScene(
       if (entity.type === 'directional-light') {
         const obj = entityObjects.get(entity.id) as DirectionalLight
         const helper = new DirectionalLightHelper(obj, 1)
+        helper.visible = debugPhysics
+        scene.add(helper)
+        gizmoHelpers.set(entity.id, helper)
+      }
+      if (entity.type === 'point-light') {
+        const obj = entityObjects.get(entity.id) as PointLight
+        const helper = new PointLightHelper(obj, 0.5)
         helper.visible = debugPhysics
         scene.add(helper)
         gizmoHelpers.set(entity.id, helper)
@@ -440,6 +460,105 @@ export async function createScene(
       if (hits.length === 0) return null
       return objectToEntity.get(hits[0].object) ?? null
     },
+    addEntity(entity: SceneEntity) {
+      let obj: Object3D | null = null
+      switch (entity.type) {
+        case 'camera': {
+          const cam = new PerspectiveCamera(
+            entity.camera?.fov ?? 50,
+            1,
+            entity.camera?.near ?? 0.1,
+            entity.camera?.far ?? 100,
+          )
+          applyTransform(cam, entity.transform)
+          cam.lookAt(0, 0, 0)
+          if (enableOrbitControls) scene.add(cam)
+          obj = cam
+          // Camera helper
+          const camHelper = new CameraHelper(cam)
+          camHelper.visible = debugPhysics
+          scene.add(camHelper)
+          gizmoHelpers.set(entity.id, camHelper)
+          break
+        }
+        case 'mesh': {
+          const geometry = createGeometry(entity.mesh?.geometry)
+          const material = new MeshStandardMaterial({
+            color: entity.mesh?.material?.color ?? '#4488ff',
+          })
+          const mesh = new Mesh(geometry, material)
+          applyTransform(mesh, entity.transform)
+          scene.add(mesh)
+          obj = mesh
+          break
+        }
+        case 'directional-light': {
+          const light = new DirectionalLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 1)
+          applyTransform(light, entity.transform)
+          scene.add(light)
+          obj = light
+          const dlHelper = new DirectionalLightHelper(light, 1)
+          dlHelper.visible = debugPhysics
+          scene.add(dlHelper)
+          gizmoHelpers.set(entity.id, dlHelper)
+          break
+        }
+        case 'point-light': {
+          const light = new PointLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 1)
+          applyTransform(light, entity.transform)
+          scene.add(light)
+          obj = light
+          const plHelper = new PointLightHelper(light, 0.5)
+          plHelper.visible = debugPhysics
+          scene.add(plHelper)
+          gizmoHelpers.set(entity.id, plHelper)
+          break
+        }
+        case 'ambient-light': {
+          const light = new AmbientLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 0.3)
+          scene.add(light)
+          obj = light
+          break
+        }
+      }
+      if (obj) {
+        entityObjects.set(entity.id, obj)
+      }
+      // Collider wireframe
+      if (entity.collider) {
+        const wireframe = createColliderWireframe(entity.collider)
+        if (obj) {
+          wireframe.position.copy(obj.position)
+          wireframe.rotation.copy(obj.rotation)
+        }
+        wireframe.visible = debugPhysics
+        scene.add(wireframe)
+        debugWireframes.set(entity.id, wireframe)
+      }
+    },
+    removeEntity(id: string) {
+      const obj = entityObjects.get(id)
+      if (obj) {
+        scene.remove(obj)
+        if (obj instanceof Mesh) {
+          obj.geometry.dispose()
+          if (obj.material instanceof MeshStandardMaterial) obj.material.dispose()
+        }
+        entityObjects.delete(id)
+      }
+      const wireframe = debugWireframes.get(id)
+      if (wireframe) {
+        scene.remove(wireframe)
+        wireframe.geometry.dispose()
+        ;(wireframe.material as LineBasicMaterial).dispose()
+        debugWireframes.delete(id)
+      }
+      const helper = gizmoHelpers.get(id)
+      if (helper) {
+        scene.remove(helper)
+        gizmoHelpers.delete(id)
+      }
+    },
     updateEntity(id: string, entity: SceneEntity) {
       const obj = entityObjects.get(id)
       if (!obj) return
@@ -454,8 +573,8 @@ export async function createScene(
         ;(obj.material as MeshStandardMaterial).color.set(entity.mesh.material.color)
       }
       if (
-        (entity.type === 'directional-light' || entity.type === 'ambient-light') &&
-        (obj instanceof DirectionalLight || obj instanceof AmbientLight)
+        (entity.type === 'directional-light' || entity.type === 'ambient-light' || entity.type === 'point-light') &&
+        (obj instanceof DirectionalLight || obj instanceof AmbientLight || obj instanceof PointLight)
       ) {
         if (entity.light?.color) obj.color.set(entity.light.color)
         if (entity.light?.intensity !== undefined) obj.intensity = entity.light.intensity

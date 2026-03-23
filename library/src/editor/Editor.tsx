@@ -3,7 +3,7 @@ import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState }
 import { ManaContext } from '../scene-context.ts'
 import { createScene, type ManaScene } from '../scene.ts'
 
-import type { SceneData, SceneEntity } from '../scene-data.ts'
+import type { MeshData, SceneData, SceneEntity } from '../scene-data.ts'
 import type { ManaScript } from '../script.ts'
 
 const COLORS = {
@@ -270,6 +270,23 @@ function Toolbar({
   )
 }
 
+function entityTypeIcon(type: SceneEntity['type']): string {
+  switch (type) {
+    case 'camera':
+      return '\u{1F3A5}'
+    case 'mesh':
+      return '\u{25A6}'
+    case 'directional-light':
+      return '\u{2600}'
+    case 'ambient-light':
+      return '\u{1F4A1}'
+    case 'point-light':
+      return '\u{1F4A1}'
+    case 'ui':
+      return '\u{1F5BC}'
+  }
+}
+
 function entityTypeLabel(type: SceneEntity['type']): string {
   switch (type) {
     case 'camera':
@@ -280,10 +297,122 @@ function entityTypeLabel(type: SceneEntity['type']): string {
       return 'Dir. Light'
     case 'ambient-light':
       return 'Amb. Light'
+    case 'point-light':
+      return 'Point Light'
     case 'ui':
       return 'UI Component'
   }
 }
+
+function generateId() {
+  return Math.random().toString(36).slice(2, 10)
+}
+
+const ADD_OBJECT_OPTIONS: { label: string; category: string; create: () => SceneEntity }[] = [
+  {
+    label: 'Empty',
+    category: 'General',
+    create: () => ({ id: generateId(), name: 'Empty', type: 'mesh', transform: { position: [0, 0, 0] } }),
+  },
+  {
+    label: 'Box',
+    category: 'Mesh',
+    create: () => ({
+      id: generateId(),
+      name: 'Box',
+      type: 'mesh',
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      mesh: { geometry: 'box', material: { color: '#888888' } },
+    }),
+  },
+  {
+    label: 'Sphere',
+    category: 'Mesh',
+    create: () => ({
+      id: generateId(),
+      name: 'Sphere',
+      type: 'mesh',
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      mesh: { geometry: 'sphere', material: { color: '#888888' } },
+    }),
+  },
+  {
+    label: 'Plane',
+    category: 'Mesh',
+    create: () => ({
+      id: generateId(),
+      name: 'Plane',
+      type: 'mesh',
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      mesh: { geometry: 'plane', material: { color: '#888888' } },
+    }),
+  },
+  {
+    label: 'Cylinder',
+    category: 'Mesh',
+    create: () => ({
+      id: generateId(),
+      name: 'Cylinder',
+      type: 'mesh',
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      mesh: { geometry: 'cylinder', material: { color: '#888888' } },
+    }),
+  },
+  {
+    label: 'Capsule',
+    category: 'Mesh',
+    create: () => ({
+      id: generateId(),
+      name: 'Capsule',
+      type: 'mesh',
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      mesh: { geometry: 'capsule', material: { color: '#888888' } },
+    }),
+  },
+  {
+    label: 'Camera',
+    category: 'General',
+    create: () => ({
+      id: generateId(),
+      name: 'Camera',
+      type: 'camera',
+      transform: { position: [0, 1, 5] },
+      camera: { fov: 50, near: 0.1, far: 100 },
+    }),
+  },
+  {
+    label: 'Directional Light',
+    category: 'Light',
+    create: () => ({
+      id: generateId(),
+      name: 'Directional Light',
+      type: 'directional-light',
+      transform: { position: [2, 3, 4] },
+      light: { color: '#ffffff', intensity: 1 },
+    }),
+  },
+  {
+    label: 'Point Light',
+    category: 'Light',
+    create: () => ({
+      id: generateId(),
+      name: 'Point Light',
+      type: 'point-light',
+      transform: { position: [0, 2, 0] },
+      light: { color: '#ffffff', intensity: 1 },
+    }),
+  },
+  {
+    label: 'Ambient Light',
+    category: 'Light',
+    create: () => ({
+      id: generateId(),
+      name: 'Ambient Light',
+      type: 'ambient-light',
+      light: { color: '#ffffff', intensity: 0.3 },
+    }),
+  },
+]
 
 function LeftPanel({
   sceneList,
@@ -292,6 +421,9 @@ function LeftPanel({
   sceneData,
   selectedId,
   onSelect,
+  onAddEntity,
+  onDeleteEntity,
+  onRenameEntity,
 }: {
   sceneList: string[]
   activeScene: string
@@ -299,7 +431,14 @@ function LeftPanel({
   sceneData: SceneData | null
   selectedId: string | null
   onSelect: (id: string) => void
+  onAddEntity: (entity: SceneEntity) => void
+  onDeleteEntity: (id: string) => void
+  onRenameEntity: (id: string, name: string) => void
 }) {
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entityId: string } | null>(null)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
   return (
     <div
       style={{
@@ -335,7 +474,88 @@ function LeftPanel({
           ))}
         </select>
       </div>
-      <PanelHeader>Hierarchy</PanelHeader>
+      <div
+        style={{
+          padding: '6px 12px',
+          fontSize: 11,
+          fontWeight: 600,
+          textTransform: 'uppercase' as const,
+          letterSpacing: '0.05em',
+          color: COLORS.textMuted,
+          background: COLORS.panelHeader,
+          borderBottom: `1px solid ${COLORS.border}`,
+          userSelect: 'none',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        Hierarchy
+        <button
+          onClick={() => setAddMenuOpen(s => !s)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: COLORS.text,
+            cursor: 'pointer',
+            fontSize: 14,
+            padding: '0 2px',
+            lineHeight: 1,
+          }}
+        >
+          +
+        </button>
+      </div>
+      {addMenuOpen && (
+        <div
+          style={{
+            background: COLORS.panel,
+            borderBottom: `1px solid ${COLORS.border}`,
+            maxHeight: 200,
+            overflow: 'auto',
+          }}
+        >
+          {['General', 'Mesh', 'Light'].map(cat => (
+            <div key={cat}>
+              <div
+                style={{
+                  padding: '4px 10px',
+                  fontSize: 10,
+                  color: COLORS.textMuted,
+                  fontWeight: 600,
+                  textTransform: 'uppercase' as const,
+                  letterSpacing: '0.05em',
+                }}
+              >
+                {cat}
+              </div>
+              {ADD_OBJECT_OPTIONS.filter(o => o.category === cat).map(opt => (
+                <button
+                  key={opt.label}
+                  onClick={() => {
+                    const entity = opt.create()
+                    onAddEntity(entity)
+                    setAddMenuOpen(false)
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '4px 10px 4px 20px',
+                    background: 'none',
+                    border: 'none',
+                    color: COLORS.text,
+                    fontSize: 11,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
       <div
         style={{
           padding: 10,
@@ -352,6 +572,15 @@ function LeftPanel({
               <div
                 key={entity.id}
                 onClick={() => onSelect(entity.id)}
+                onDoubleClick={() => {
+                  setRenamingId(entity.id)
+                  setRenameValue(entity.name)
+                }}
+                onContextMenu={e => {
+                  e.preventDefault()
+                  onSelect(entity.id)
+                  setContextMenu({ x: e.clientX, y: e.clientY, entityId: entity.id })
+                }}
                 style={{
                   padding: '4px 8px 4px 24px',
                   cursor: 'pointer',
@@ -361,7 +590,40 @@ function LeftPanel({
                   userSelect: 'none',
                 }}
               >
-                {entity.name}
+                {renamingId === entity.id ? (
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={e => setRenameValue(e.target.value)}
+                    onBlur={() => {
+                      if (renameValue.trim()) onRenameEntity(entity.id, renameValue.trim())
+                      setRenamingId(null)
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        if (renameValue.trim()) onRenameEntity(entity.id, renameValue.trim())
+                        setRenamingId(null)
+                      }
+                      if (e.key === 'Escape') setRenamingId(null)
+                    }}
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      width: '100%',
+                      background: COLORS.input,
+                      border: `1px solid ${COLORS.accent}`,
+                      borderRadius: 2,
+                      color: COLORS.text,
+                      fontSize: 12,
+                      padding: '1px 4px',
+                      outline: 'none',
+                    }}
+                  />
+                ) : (
+                  <>
+                    <span style={{ marginRight: 6, fontSize: 10 }}>{entityTypeIcon(entity.type)}</span>
+                    {entity.name}
+                  </>
+                )}
               </div>
             ))}
           </>
@@ -369,6 +631,74 @@ function LeftPanel({
           <div style={{ color: COLORS.textMuted }}>Loading...</div>
         )}
       </div>
+      {contextMenu && (
+        <>
+          <div
+            onClick={() => setContextMenu(null)}
+            onContextMenu={e => {
+              e.preventDefault()
+              setContextMenu(null)
+            }}
+            style={{ position: 'fixed', inset: 0, zIndex: 1000 }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              left: contextMenu.x,
+              top: contextMenu.y,
+              background: COLORS.panel,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: 4,
+              padding: '4px 0',
+              zIndex: 1001,
+              minWidth: 120,
+            }}
+          >
+            <button
+              onClick={() => {
+                const entity = sceneData?.entities.find(e => e.id === contextMenu.entityId)
+                if (entity) {
+                  setRenamingId(entity.id)
+                  setRenameValue(entity.name)
+                }
+                setContextMenu(null)
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '5px 12px',
+                background: 'none',
+                border: 'none',
+                color: COLORS.text,
+                fontSize: 11,
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+            >
+              Rename
+            </button>
+            <button
+              onClick={() => {
+                onDeleteEntity(contextMenu.entityId)
+                setContextMenu(null)
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '5px 12px',
+                background: 'none',
+                border: 'none',
+                color: '#e55',
+                fontSize: 11,
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -564,7 +894,124 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-function RightPanel({ entity, onUpdate }: { entity: SceneEntity | null; onUpdate: (entity: SceneEntity) => void }) {
+function AddComponentButton({
+  entity,
+  availableScripts,
+  onUpdate,
+}: {
+  entity: SceneEntity
+  availableScripts: string[]
+  onUpdate: (entity: SceneEntity) => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  const options: { label: string; action: () => void }[] = []
+
+  if (!entity.mesh && entity.type === 'mesh') {
+    options.push({
+      label: 'Mesh',
+      action: () => onUpdate({ ...entity, mesh: { geometry: 'box', material: { color: '#4488ff' } } }),
+    })
+  }
+  if (!entity.rigidBody) {
+    options.push({
+      label: 'Rigid Body',
+      action: () => onUpdate({ ...entity, rigidBody: { type: 'dynamic' } }),
+    })
+  }
+  if (!entity.collider) {
+    options.push({
+      label: 'Collider',
+      action: () => onUpdate({ ...entity, collider: { shape: 'box', halfExtents: [0.5, 0.5, 0.5] } }),
+    })
+  }
+
+  const attachedScripts = entity.scripts ?? []
+  for (const name of availableScripts) {
+    if (!attachedScripts.includes(name)) {
+      options.push({
+        label: `Script: ${name}`,
+        action: () => onUpdate({ ...entity, scripts: [...attachedScripts, name] }),
+      })
+    }
+  }
+
+  if (options.length === 0) return null
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      {!open ? (
+        <button
+          onClick={() => setOpen(true)}
+          style={{
+            width: '100%',
+            padding: '6px 0',
+            background: COLORS.panelHeader,
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: 4,
+            color: COLORS.text,
+            fontSize: 11,
+            cursor: 'pointer',
+          }}
+        >
+          Add Component
+        </button>
+      ) : (
+        <div>
+          {options.map(opt => (
+            <button
+              key={opt.label}
+              onClick={() => {
+                opt.action()
+                setOpen(false)
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '5px 8px',
+                background: 'none',
+                border: 'none',
+                borderBottom: `1px solid ${COLORS.border}`,
+                color: COLORS.text,
+                fontSize: 11,
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+          <button
+            onClick={() => setOpen(false)}
+            style={{
+              display: 'block',
+              width: '100%',
+              padding: '5px 8px',
+              background: 'none',
+              border: 'none',
+              color: COLORS.textMuted,
+              fontSize: 11,
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RightPanel({
+  entity,
+  onUpdate,
+  availableScripts,
+}: {
+  entity: SceneEntity | null
+  onUpdate: (entity: SceneEntity) => void
+  availableScripts: string[]
+}) {
   return (
     <div
       style={{
@@ -690,11 +1137,11 @@ function RightPanel({ entity, onUpdate }: { entity: SceneEntity | null; onUpdate
                 <SelectInput
                   label="Geometry"
                   value={entity.mesh.geometry ?? 'box'}
-                  options={['box', 'sphere', 'plane', 'cylinder']}
+                  options={['box', 'sphere', 'plane', 'cylinder', 'capsule']}
                   onChange={v =>
                     onUpdate({
                       ...entity,
-                      mesh: { ...entity.mesh, geometry: v as 'box' | 'sphere' | 'plane' | 'cylinder' },
+                      mesh: { ...entity.mesh, geometry: v as MeshData['geometry'] },
                     })
                   }
                 />
@@ -738,6 +1185,9 @@ function RightPanel({ entity, onUpdate }: { entity: SceneEntity | null; onUpdate
                   <div
                     key={s}
                     style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
                       padding: '3px 0',
                       fontSize: 11,
                       color: COLORS.text,
@@ -745,6 +1195,24 @@ function RightPanel({ entity, onUpdate }: { entity: SceneEntity | null; onUpdate
                     }}
                   >
                     {s}
+                    <button
+                      onClick={() =>
+                        onUpdate({
+                          ...entity,
+                          scripts: entity.scripts?.filter(x => x !== s),
+                        })
+                      }
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: COLORS.textMuted,
+                        cursor: 'pointer',
+                        fontSize: 11,
+                        padding: '0 4px',
+                      }}
+                    >
+                      x
+                    </button>
                   </div>
                 ))}
               </>
@@ -851,6 +1319,7 @@ function RightPanel({ entity, onUpdate }: { entity: SceneEntity | null; onUpdate
                 />
               </>
             )}
+            <AddComponentButton entity={entity} availableScripts={availableScripts} onUpdate={onUpdate} />
           </>
         ) : (
           <div style={{ color: COLORS.textMuted, fontStyle: 'italic' }}>Select an entity to inspect</div>
@@ -997,31 +1466,43 @@ export default function Editor({
     [scripts, showGizmos],
   )
 
-  // Create Three.js scene when scene data is first loaded
+  // Create Three.js scene when scene data is first available (once)
+  // Scene switching is handled by handleSwitchScene/recreateScene explicitly.
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || !sceneData) return
-
-    // Only create if not already created (handleSwitchScene creates its own)
-    if (sceneRef.current) return
-
     let disposed = false
-    createScene(canvas, sceneData, { debugPhysics: showGizmosRef.current, orbitControls: true }).then(s => {
-      if (disposed) {
-        s.dispose()
+
+    function tryCreate() {
+      const canvas = canvasRef.current
+      const data = sceneDataRef.current
+      if (!canvas || !data || sceneRef.current) return
+      createScene(canvas, data, { debugPhysics: showGizmosRef.current, orbitControls: true }).then(s => {
+        if (disposed) {
+          s.dispose()
+          return
+        }
+        sceneRef.current = s
+      })
+    }
+
+    // Try immediately, and retry on a short interval until data is loaded
+    tryCreate()
+    const interval = setInterval(() => {
+      if (sceneRef.current || disposed) {
+        clearInterval(interval)
         return
       }
-      sceneRef.current = s
-    })
+      tryCreate()
+    }, 100)
 
     return () => {
       disposed = true
+      clearInterval(interval)
       if (sceneRef.current) {
         sceneRef.current.dispose()
         sceneRef.current = null
       }
     }
-  }, [sceneData])
+  }, [])
 
   // Cmd+S / Ctrl+S to save
   useEffect(() => {
@@ -1091,6 +1572,34 @@ export default function Editor({
     [playing, handlePlaySceneSwitch, noopLoadScene, activeScene],
   )
 
+  const handleDeleteEntity = useCallback((id: string) => {
+    setSceneData(prev => {
+      if (!prev) return prev
+      return { ...prev, entities: prev.entities.filter(e => e.id !== id) }
+    })
+    sceneRef.current?.removeEntity(id)
+    setSelectedId(prev => (prev === id ? null : prev))
+  }, [])
+
+  const handleRenameEntity = useCallback((id: string, name: string) => {
+    setSceneData(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        entities: prev.entities.map(e => (e.id === id ? { ...e, name } : e)),
+      }
+    })
+  }, [])
+
+  const handleAddEntity = useCallback((entity: SceneEntity) => {
+    setSceneData(prev => {
+      if (!prev) return prev
+      return { ...prev, entities: [...prev.entities, entity] }
+    })
+    sceneRef.current?.addEntity(entity)
+    setSelectedId(entity.id)
+  }, [])
+
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = e.currentTarget
     const rect = canvas.getBoundingClientRect()
@@ -1136,6 +1645,9 @@ export default function Editor({
           sceneData={sceneData}
           selectedId={selectedId}
           onSelect={setSelectedId}
+          onAddEntity={handleAddEntity}
+          onDeleteEntity={handleDeleteEntity}
+          onRenameEntity={handleRenameEntity}
         />
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           {!playing && (
@@ -1174,7 +1686,7 @@ export default function Editor({
           </div>
           <BottomPanel logs={logs} />
         </div>
-        <RightPanel entity={selectedEntity} onUpdate={handleUpdateEntity} />
+        <RightPanel entity={selectedEntity} onUpdate={handleUpdateEntity} availableScripts={Object.keys(scripts)} />
       </div>
     </div>
   )
