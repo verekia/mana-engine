@@ -1,5 +1,6 @@
-import { type ComponentType, useCallback, useEffect, useRef, useState } from 'react'
+import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { ManaContext } from '../scene-context.ts'
 import { createScene, type ManaScene } from '../scene.ts'
 
 import type { SceneData, SceneEntity } from '../scene-data.ts'
@@ -47,11 +48,13 @@ function Viewport({
   uiEntities,
   uiComponents,
   showUI,
+  playing,
 }: {
   canvasRef: React.RefObject<HTMLCanvasElement | null>
   uiEntities: SceneEntity[]
   uiComponents: Record<string, ComponentType>
   showUI: boolean
+  playing: boolean
 }) {
   return (
     <div
@@ -69,7 +72,7 @@ function Viewport({
             position: 'absolute',
             inset: 0,
             containerType: 'inline-size',
-            pointerEvents: 'none',
+            pointerEvents: playing ? 'auto' : 'none',
           }}
         >
           <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -788,9 +791,9 @@ function BottomPanel({ logs }: { logs: { id: number; msg: string }[] }) {
 }
 
 export default function Editor({
-  Game,
+  Game: _Game,
   uiComponents = {},
-  scripts: _scripts = {},
+  scripts = {},
 }: {
   Game: ComponentType
   uiComponents?: Record<string, ComponentType>
@@ -809,6 +812,7 @@ export default function Editor({
   const sceneRef = useRef<ManaScene | null>(null)
   const sceneDataRef = useRef<SceneData | null>(null)
   const activeSceneRef = useRef('')
+  const prePlaySceneRef = useRef('')
 
   sceneDataRef.current = sceneData
   activeSceneRef.current = activeScene
@@ -865,9 +869,26 @@ export default function Editor({
     [log],
   )
 
-  // Create/dispose Three.js scene based on scene data and play state
+  // Helper to create the editor scene (edit or play mode)
+  const recreateScene = useCallback(
+    async (data: SceneData, isPlaying: boolean) => {
+      if (sceneRef.current) {
+        sceneRef.current.dispose()
+        sceneRef.current = null
+      }
+      const canvas = canvasRef.current
+      if (!canvas) return
+      sceneRef.current = await createScene(canvas, data, {
+        scripts: isPlaying ? scripts : undefined,
+        debugPhysics: !isPlaying && showGizmos,
+        orbitControls: !isPlaying,
+      })
+    },
+    [scripts, showGizmos],
+  )
+
+  // Create Three.js scene when scene data is first loaded
   useEffect(() => {
-    if (playing) return
     const canvas = canvasRef.current
     if (!canvas || !sceneData) return
 
@@ -875,7 +896,7 @@ export default function Editor({
     if (sceneRef.current) return
 
     let disposed = false
-    createScene(canvas, sceneData, { debugPhysics: true, orbitControls: true }).then(s => {
+    createScene(canvas, sceneData, { debugPhysics: showGizmos, orbitControls: true }).then(s => {
       if (disposed) {
         s.dispose()
         return
@@ -890,7 +911,7 @@ export default function Editor({
         sceneRef.current = null
       }
     }
-  }, [sceneData, playing])
+  }, [sceneData, showGizmos])
 
   // Cmd+S / Ctrl+S to save
   useEffect(() => {
@@ -909,16 +930,53 @@ export default function Editor({
     return () => window.removeEventListener('keydown', handler)
   }, [log])
 
-  const handlePlay = useCallback(() => {
+  const handlePlay = useCallback(async () => {
+    const data = sceneDataRef.current
+    if (!data) return
+    prePlaySceneRef.current = activeSceneRef.current
     setPlaying(true)
     setSelectedId(null)
+    await recreateScene(data, true)
     log('Play mode started')
-  }, [log])
+  }, [log, recreateScene])
 
   const handleStop = useCallback(() => {
     setPlaying(false)
-    log('Play mode stopped')
-  }, [log])
+    const name = prePlaySceneRef.current || activeSceneRef.current
+    // Reload scene from disk to reset positions
+    loadSceneData(name)
+      .then(async data => {
+        setSceneData(data)
+        setActiveScene(name)
+        await recreateScene(data, false)
+        log('Play mode stopped')
+      })
+      .catch(err => log(`Error reloading scene: ${err.message}`))
+  }, [log, recreateScene])
+
+  // Scene switching during play mode (via useMana().loadScene)
+  const handlePlaySceneSwitch = useCallback(
+    (name: string) => {
+      loadSceneData(name)
+        .then(async data => {
+          setSceneData(data)
+          setActiveScene(name)
+          await recreateScene(data, true)
+          log(`Switched to scene: ${name}`)
+        })
+        .catch(err => log(`Error switching scene: ${err.message}`))
+    },
+    [log, recreateScene],
+  )
+
+  const noopLoadScene = useCallback(() => {}, [])
+  const manaContextValue = useMemo(
+    () => ({
+      loadScene: playing ? handlePlaySceneSwitch : noopLoadScene,
+      currentScene: activeScene,
+    }),
+    [playing, handlePlaySceneSwitch, noopLoadScene, activeScene],
+  )
 
   const selectedEntity = sceneData?.entities.find(e => e.id === selectedId) ?? null
 
@@ -980,25 +1038,15 @@ export default function Editor({
             />
           )}
           <div style={{ flex: 1, overflow: 'hidden' }}>
-            {playing ? (
-              <div
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  containerType: 'inline-size',
-                  position: 'relative',
-                }}
-              >
-                <Game />
-              </div>
-            ) : (
+            <ManaContext.Provider value={manaContextValue}>
               <Viewport
                 canvasRef={canvasRef}
                 uiEntities={sceneData?.entities.filter(e => e.type === 'ui') ?? []}
                 uiComponents={uiComponents}
                 showUI={showUI}
+                playing={playing}
               />
-            )}
+            </ManaContext.Provider>
           </div>
           <BottomPanel logs={logs} />
         </div>

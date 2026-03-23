@@ -84,6 +84,17 @@ function createColliderWireframe(collider: ColliderData): LineSegments {
 }
 
 const FIXED_DT = 1 / 60
+const rendererCache = new WeakMap<HTMLCanvasElement, WebGLRenderer>()
+
+function getOrCreateRenderer(canvas: HTMLCanvasElement): WebGLRenderer {
+  let renderer = rendererCache.get(canvas)
+  if (!renderer) {
+    renderer = new WebGLRenderer({ canvas, antialias: true })
+    renderer.setPixelRatio(window.devicePixelRatio)
+    rendererCache.set(canvas, renderer)
+  }
+  return renderer
+}
 
 export async function createScene(
   canvas: HTMLCanvasElement,
@@ -94,8 +105,7 @@ export async function createScene(
   const debugPhysics = options?.debugPhysics ?? false
   const enableOrbitControls = options?.orbitControls ?? false
 
-  const renderer = new WebGLRenderer({ canvas, antialias: true })
-  renderer.setPixelRatio(window.devicePixelRatio)
+  const renderer = getOrCreateRenderer(canvas)
 
   const scene = new Scene()
   scene.background = new Color(sceneData?.background ?? '#111111')
@@ -168,6 +178,15 @@ export async function createScene(
   }
 
   const camera = cam
+
+  // Ensure renderer and camera match current canvas size
+  const initW = canvas.clientWidth
+  const initH = canvas.clientHeight
+  if (initW > 0 && initH > 0) {
+    renderer.setSize(initW, initH, false)
+    camera.aspect = initW / initH
+    camera.updateProjectionMatrix()
+  }
 
   // Orbit controls (edit mode only)
   let controls: { update(): void; dispose(): void } | null = null
@@ -339,7 +358,6 @@ export async function createScene(
         ;(wireframe.material as LineBasicMaterial).dispose()
         scene.remove(wireframe)
       }
-      renderer.dispose()
       for (const obj of entityObjects.values()) {
         if (obj instanceof Mesh) {
           obj.geometry.dispose()
