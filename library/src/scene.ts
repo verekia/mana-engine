@@ -331,7 +331,7 @@ export async function createScene(
 
   const hasPhysics = sceneData?.entities.some(e => e.rigidBody) ?? false
 
-  if (hasPhysics && sceneData) {
+  if (hasPhysics && sceneData && !enableOrbitControls) {
     RAPIER = await import('@dimforge/rapier3d-compat')
     await RAPIER.init()
 
