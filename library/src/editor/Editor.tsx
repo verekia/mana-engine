@@ -616,6 +616,7 @@ function LeftPanel({
                   <input
                     autoFocus
                     value={renameValue}
+                    onFocus={e => e.target.select()}
                     onChange={e => setRenameValue(e.target.value)}
                     onBlur={() => {
                       if (renameValue.trim()) onRenameEntity(entity.id, renameValue.trim())
@@ -1025,14 +1026,73 @@ function AddComponentButton({
   )
 }
 
+function InspectorName({ entity, onRename }: { entity: SceneEntity; onRename: (id: string, name: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(entity.name)
+
+  useEffect(() => {
+    setValue(entity.name)
+    setEditing(false)
+  }, [entity.id])
+
+  return editing ? (
+    <input
+      autoFocus
+      value={value}
+      onFocus={e => e.target.select()}
+      onChange={e => setValue(e.target.value)}
+      onBlur={() => {
+        if (value.trim()) onRename(entity.id, value.trim())
+        setEditing(false)
+      }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') {
+          if (value.trim()) onRename(entity.id, value.trim())
+          setEditing(false)
+        }
+        if (e.key === 'Escape') setEditing(false)
+      }}
+      style={{
+        width: '100%',
+        background: COLORS.input,
+        border: `1px solid ${COLORS.inputBorder}`,
+        borderRadius: 3,
+        color: COLORS.text,
+        fontWeight: 600,
+        fontSize: 13,
+        marginBottom: 4,
+        padding: '1px 4px',
+        outline: 'none',
+      }}
+    />
+  ) : (
+    <div
+      onDoubleClick={() => setEditing(true)}
+      style={{
+        color: COLORS.text,
+        fontWeight: 600,
+        fontSize: 13,
+        marginBottom: 4,
+        cursor: 'default',
+      }}
+    >
+      {entity.name}
+    </div>
+  )
+}
+
 function RightPanel({
   entity,
   onUpdate,
+  onRename,
   availableScripts,
+  availableUiComponents,
 }: {
   entity: SceneEntity | null
   onUpdate: (entity: SceneEntity) => void
+  onRename: (id: string, name: string) => void
   availableScripts: string[]
+  availableUiComponents: string[]
 }) {
   return (
     <div
@@ -1058,16 +1118,7 @@ function RightPanel({
       >
         {entity ? (
           <>
-            <div
-              style={{
-                color: COLORS.text,
-                fontWeight: 600,
-                fontSize: 13,
-                marginBottom: 4,
-              }}
-            >
-              {entity.name}
-            </div>
+            <InspectorName entity={entity} onRename={onRename} />
             <div style={{ color: COLORS.textMuted, fontSize: 10, marginBottom: 12 }}>
               {entityTypeLabel(entity.type)}
             </div>
@@ -1186,17 +1237,17 @@ function RightPanel({
             {entity.ui && (
               <>
                 <SectionLabel>UI</SectionLabel>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 6,
-                  }}
-                >
-                  <span style={{ color: COLORS.textMuted, fontSize: 11 }}>Component</span>
-                  <span style={{ color: COLORS.text, fontSize: 11 }}>{entity.ui.component}</span>
-                </div>
+                <SelectInput
+                  label="Component"
+                  value={entity.ui.component}
+                  options={availableUiComponents}
+                  onChange={v =>
+                    onUpdate({
+                      ...entity,
+                      ui: { ...entity.ui, component: v },
+                    })
+                  }
+                />
               </>
             )}
 
@@ -1341,7 +1392,9 @@ function RightPanel({
                 />
               </>
             )}
-            <AddComponentButton entity={entity} availableScripts={availableScripts} onUpdate={onUpdate} />
+            {entity.type !== 'ui' && (
+              <AddComponentButton entity={entity} availableScripts={availableScripts} onUpdate={onUpdate} />
+            )}
           </>
         ) : (
           <div style={{ color: COLORS.textMuted, fontStyle: 'italic' }}>Select an entity to inspect</div>
@@ -1603,15 +1656,23 @@ export default function Editor({
     setSelectedId(prev => (prev === id ? null : prev))
   }, [])
 
-  const handleRenameEntity = useCallback((id: string, name: string) => {
-    setSceneData(prev => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        entities: prev.entities.map(e => (e.id === id ? { ...e, name } : e)),
-      }
-    })
-  }, [])
+  const handleRenameEntity = useCallback(
+    (id: string, name: string) => {
+      setSceneData(prev => {
+        if (!prev) return prev
+        const updated = {
+          ...prev,
+          entities: prev.entities.map(e => (e.id === id ? { ...e, name } : e)),
+        }
+        const sceneName = activeSceneRef.current
+        if (sceneName) {
+          saveSceneData(sceneName, updated).then(() => setSavedSceneJson(JSON.stringify(updated)))
+        }
+        return updated
+      })
+    },
+    [log],
+  )
 
   const handleAddEntity = useCallback((entity: SceneEntity) => {
     setSceneData(prev => {
@@ -1712,7 +1773,7 @@ export default function Editor({
           </div>
           <BottomPanel logs={logs} />
         </div>
-        <RightPanel entity={selectedEntity} onUpdate={handleUpdateEntity} availableScripts={Object.keys(scripts)} />
+        <RightPanel entity={selectedEntity} onUpdate={handleUpdateEntity} onRename={handleRenameEntity} availableScripts={Object.keys(scripts)} availableUiComponents={Object.keys(uiComponents)} />
       </div>
     </div>
   )
