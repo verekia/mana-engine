@@ -89,8 +89,7 @@ describe('ManaScript interface', () => {
       },
     }
 
-    // biome-ignore lint: testing with minimal mock context
-    const ctx: any = { entity: {}, scene: {}, dt: 0.016, time: 1, params: { speed: 1 } }
+    const ctx = { entity: {}, scene: {}, dt: 0.016, time: 1, params: { speed: 1 } } as any
     script.init?.(ctx)
     script.update?.(ctx)
     script.fixedUpdate?.(ctx)

@@ -13,9 +13,10 @@ export async function loadSceneData(name: string): Promise<SceneData> {
 }
 
 export async function saveSceneData(name: string, data: SceneData): Promise<void> {
-  await fetch(`/__mana/scenes/${name}`, {
+  const res = await fetch(`/__mana/scenes/${name}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data, null, 2),
   })
+  if (!res.ok) throw new Error(`Failed to save scene: ${name}`)
 }

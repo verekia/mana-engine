@@ -136,7 +136,7 @@ export class Input {
   }
 
   /** Get a -1 to 1 axis value. 'horizontal' = A/D or Left/Right, 'vertical' = W/S or Up/Down. */
-  getAxis(name: string): number {
+  getAxis(name: 'horizontal' | 'vertical'): number {
     switch (name) {
       case 'horizontal': {
         let v = 0

@@ -2,14 +2,10 @@ import { outline } from 'three/examples/jsm/tsl/display/OutlineNode.js'
 import { pass, uniform } from 'three/tsl'
 import {
   AmbientLight,
-  BoxGeometry,
   CameraHelper,
-  CapsuleGeometry,
   Color,
-  CylinderGeometry,
   DirectionalLight,
   DirectionalLightHelper,
-  EdgesGeometry,
   Group,
   LineBasicMaterial,
   LineSegments,
@@ -17,21 +13,28 @@ import {
   MeshStandardMaterial,
   type Object3D,
   PerspectiveCamera,
-  PlaneGeometry,
   PointLight,
   PointLightHelper,
   Raycaster,
   RenderPipeline,
   Scene,
-  SphereGeometry,
-  TextureLoader,
   Vector2,
   WebGPURenderer,
 } from 'three/webgpu'
 
+import {
+  applyMaterialData,
+  applyShadowProps,
+  applyTransform,
+  createEntityObject,
+  disposeEntityObject,
+  snapshotTransform,
+  type EntityMaps,
+} from './entity.ts'
 import { Input } from './input.ts'
+import { setupPhysics, type PhysicsState } from './physics.ts'
 
-import type { ColliderData, MaterialData, SceneData, SceneEntity, Transform } from './scene-data.ts'
+import type { SceneData, SceneEntity, Transform } from './scene-data.ts'
 import type { ManaScript } from './script.ts'
 
 export type RapierModule = typeof import('@dimforge/rapier3d-compat')
@@ -76,237 +79,6 @@ export interface CreateSceneOptions {
   onTransformEnd?: (id: string, transform: Transform) => void
 }
 
-function applyTransform(obj: Object3D, transform?: Transform) {
-  if (!transform) return
-  if (transform.position) obj.position.set(...transform.position)
-  if (transform.rotation) obj.rotation.set(...transform.rotation)
-  if (transform.scale) obj.scale.set(...transform.scale)
-}
-
-function createGeometry(type?: string) {
-  switch (type) {
-    case 'sphere':
-      return new SphereGeometry()
-    case 'plane':
-      return new PlaneGeometry()
-    case 'cylinder':
-      return new CylinderGeometry()
-    case 'capsule':
-      return new CapsuleGeometry()
-    default:
-      return new BoxGeometry()
-  }
-}
-
-function createColliderWireframe(collider: ColliderData): LineSegments {
-  let geometry: EdgesGeometry
-  switch (collider.shape) {
-    case 'sphere': {
-      const r = collider.radius ?? 0.5
-      geometry = new EdgesGeometry(new SphereGeometry(r, 16, 12))
-      break
-    }
-    case 'capsule': {
-      const r = collider.radius ?? 0.5
-      const hh = collider.halfHeight ?? 0.5
-      geometry = new EdgesGeometry(new CapsuleGeometry(r, hh * 2, 8, 16))
-      break
-    }
-    case 'cylinder': {
-      const r = collider.radius ?? 0.5
-      const hh = collider.halfHeight ?? 0.5
-      geometry = new EdgesGeometry(new CylinderGeometry(r, r, hh * 2, 16))
-      break
-    }
-    default: {
-      const he = collider.halfExtents ?? [0.5, 0.5, 0.5]
-      geometry = new EdgesGeometry(new BoxGeometry(he[0] * 2, he[1] * 2, he[2] * 2))
-      break
-    }
-  }
-  const material = new LineBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.6 })
-  return new LineSegments(geometry, material)
-}
-
-const textureLoader = new TextureLoader()
-
-function applyMaterialData(material: MeshStandardMaterial, mat?: MaterialData) {
-  material.color.set(mat?.color ?? '#4488ff')
-  if (!mat) return
-  if (mat.roughness !== undefined) material.roughness = mat.roughness
-  if (mat.metalness !== undefined) material.metalness = mat.metalness
-  if (mat.emissive) material.emissive.set(mat.emissive)
-  if (mat.map) material.map = textureLoader.load(mat.map)
-  if (mat.normalMap) material.normalMap = textureLoader.load(mat.normalMap)
-  if (mat.roughnessMap) material.roughnessMap = textureLoader.load(mat.roughnessMap)
-  if (mat.metalnessMap) material.metalnessMap = textureLoader.load(mat.metalnessMap)
-  if (mat.emissiveMap) material.emissiveMap = textureLoader.load(mat.emissiveMap)
-}
-
-function disposeMaterial(material: MeshStandardMaterial) {
-  material.map?.dispose()
-  material.normalMap?.dispose()
-  material.roughnessMap?.dispose()
-  material.metalnessMap?.dispose()
-  material.emissiveMap?.dispose()
-  material.dispose()
-}
-
-function disposeEntityObject(obj: Object3D) {
-  if (obj instanceof Mesh) {
-    obj.geometry.dispose()
-    if (obj.material instanceof MeshStandardMaterial) disposeMaterial(obj.material)
-  } else if (obj instanceof Group) {
-    obj.traverse(child => {
-      if (child instanceof Mesh) {
-        child.geometry.dispose()
-        if (child.material instanceof MeshStandardMaterial) disposeMaterial(child.material)
-      }
-    })
-  }
-}
-
-function applyShadowProps(obj: Object3D, entity: SceneEntity) {
-  obj.traverse(child => {
-    if (child instanceof Mesh) {
-      if (entity.castShadow !== undefined) child.castShadow = entity.castShadow
-      if (entity.receiveShadow !== undefined) child.receiveShadow = entity.receiveShadow
-    }
-  })
-}
-
-interface EntityMaps {
-  entityObjects: Map<string, Object3D>
-  debugWireframes: Map<string, LineSegments>
-  gizmoHelpers: Map<string, Object3D>
-}
-
-/** Creates a Three.js object from a scene entity and registers it in the entity maps. */
-function createEntityObject(
-  entity: SceneEntity,
-  threeScene: Scene,
-  maps: EntityMaps,
-  options: { enableOrbitControls: boolean; showGizmos: boolean },
-): Object3D | null {
-  let obj: Object3D | null = null
-
-  switch (entity.type) {
-    case 'camera': {
-      const cam = new PerspectiveCamera(
-        entity.camera?.fov ?? 50,
-        1,
-        entity.camera?.near ?? 0.1,
-        entity.camera?.far ?? 100,
-      )
-      applyTransform(cam, entity.transform)
-      cam.lookAt(0, 0, 0)
-      if (options.enableOrbitControls) threeScene.add(cam)
-      obj = cam
-      // Camera helper
-      const camHelper = new CameraHelper(cam)
-      camHelper.visible = options.showGizmos
-      threeScene.add(camHelper)
-      maps.gizmoHelpers.set(entity.id, camHelper)
-      break
-    }
-    case 'mesh': {
-      const geometry = createGeometry(entity.mesh?.geometry)
-      const material = new MeshStandardMaterial()
-      applyMaterialData(material, entity.mesh?.material)
-      const mesh = new Mesh(geometry, material)
-      applyTransform(mesh, entity.transform)
-      applyShadowProps(mesh, entity)
-      threeScene.add(mesh)
-      obj = mesh
-      break
-    }
-    case 'model': {
-      const group = new Group()
-      applyTransform(group, entity.transform)
-      threeScene.add(group)
-      obj = group
-      const modelSrc = entity.model?.src
-      if (modelSrc) {
-        import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
-          const loader = new GLTFLoader()
-          loader.load(
-            modelSrc,
-            gltf => {
-              group.add(gltf.scene)
-              applyShadowProps(group, entity)
-            },
-            undefined,
-            err => console.warn(`[mana] Failed to load model "${modelSrc}":`, err),
-          )
-        })
-      }
-      break
-    }
-    case 'directional-light': {
-      const light = new DirectionalLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 1)
-      applyTransform(light, entity.transform)
-      if (entity.light?.castShadow) {
-        light.castShadow = true
-        light.shadow.mapSize.width = 2048
-        light.shadow.mapSize.height = 2048
-        light.shadow.camera.near = 0.5
-        light.shadow.camera.far = 50
-        light.shadow.camera.left = -10
-        light.shadow.camera.right = 10
-        light.shadow.camera.top = 10
-        light.shadow.camera.bottom = -10
-      }
-      threeScene.add(light)
-      obj = light
-      const dlHelper = new DirectionalLightHelper(light, 1)
-      dlHelper.visible = options.showGizmos
-      threeScene.add(dlHelper)
-      maps.gizmoHelpers.set(entity.id, dlHelper)
-      break
-    }
-    case 'point-light': {
-      const light = new PointLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 1)
-      applyTransform(light, entity.transform)
-      if (entity.light?.castShadow) {
-        light.castShadow = true
-        light.shadow.mapSize.width = 1024
-        light.shadow.mapSize.height = 1024
-      }
-      threeScene.add(light)
-      obj = light
-      const plHelper = new PointLightHelper(light, 0.5)
-      plHelper.visible = options.showGizmos
-      threeScene.add(plHelper)
-      maps.gizmoHelpers.set(entity.id, plHelper)
-      break
-    }
-    case 'ambient-light': {
-      const light = new AmbientLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 0.3)
-      threeScene.add(light)
-      obj = light
-      break
-    }
-  }
-
-  if (obj) {
-    maps.entityObjects.set(entity.id, obj)
-  }
-
-  // Collider wireframe
-  if (entity.collider) {
-    const wireframe = createColliderWireframe(entity.collider)
-    if (obj) {
-      wireframe.position.copy(obj.position)
-      wireframe.rotation.copy(obj.rotation)
-    }
-    wireframe.visible = options.showGizmos
-    threeScene.add(wireframe)
-    maps.debugWireframes.set(entity.id, wireframe)
-  }
-
-  return obj
-}
-
 const FIXED_DT = 1 / 60
 const rendererCache = new WeakMap<HTMLCanvasElement, WebGPURenderer>()
 
@@ -320,6 +92,132 @@ async function getOrCreateRenderer(canvas: HTMLCanvasElement): Promise<WebGPURen
     rendererCache.set(canvas, renderer)
   }
   return renderer
+}
+
+async function setupEditorControls(
+  camera: PerspectiveCamera,
+  canvas: HTMLCanvasElement,
+  scene: Scene,
+  entityObjects: Map<string, Object3D>,
+  debugWireframes: Map<string, LineSegments>,
+  options: CreateSceneOptions,
+) {
+  const { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js')
+  const orbitControls = new OrbitControls(camera, canvas)
+  const camState = options.editorCamera
+  if (camState) {
+    orbitControls.target.set(...camState.target)
+    orbitControls.update()
+  }
+
+  // Set up TransformControls
+  const { TransformControls } = await import('three/examples/jsm/controls/TransformControls.js')
+  const tc = new TransformControls(camera, canvas)
+  scene.add(tc.getHelper())
+  const transformControlsRoot = tc.getHelper()
+
+  // Disable orbit controls while dragging gizmo
+  tc.addEventListener('dragging-changed', event => {
+    orbitControls.enabled = !event.value
+  })
+
+  // Track which entity the gizmo is attached to for callbacks
+  let attachedEntityId: string | null = null
+
+  tc.addEventListener('mouseDown', () => {
+    if (attachedEntityId) {
+      options.onTransformStart?.(attachedEntityId)
+    }
+  })
+
+  tc.addEventListener('mouseUp', () => {
+    if (attachedEntityId && tc.object) {
+      options.onTransformEnd?.(attachedEntityId, snapshotTransform(tc.object))
+    }
+  })
+
+  tc.addEventListener('objectChange', () => {
+    if (attachedEntityId && tc.object) {
+      // Sync debug wireframe to follow the gizmo
+      const wf = debugWireframes.get(attachedEntityId)
+      if (wf) {
+        wf.position.copy(tc.object.position)
+        wf.rotation.copy(tc.object.rotation)
+        wf.scale.copy(tc.object.scale)
+      }
+      options.onTransformChange?.(attachedEntityId, snapshotTransform(tc.object))
+    }
+  })
+
+  const transformControls = {
+    attach(obj: Object3D) {
+      tc.attach(obj)
+      for (const [id, entityObj] of entityObjects) {
+        if (entityObj === obj) {
+          attachedEntityId = id
+          break
+        }
+      }
+    },
+    detach() {
+      tc.detach()
+      attachedEntityId = null
+    },
+    setMode(mode: 'translate' | 'rotate' | 'scale') {
+      tc.setMode(mode)
+    },
+    dispose() {
+      tc.detach()
+      tc.dispose()
+      scene.remove(tc.getHelper())
+    },
+    get object() {
+      return tc.object
+    },
+  }
+
+  return { orbitControls, transformControls, transformControlsRoot }
+}
+
+function setupScripts(
+  sceneData: SceneData,
+  scriptDefs: Record<string, ManaScript>,
+  entityObjects: Map<string, Object3D>,
+  rigidBodyMap: Map<string, RapierRigidBody>,
+) {
+  const activeScripts: {
+    script: ManaScript
+    entityObj: Object3D
+    rb?: RapierRigidBody
+    params: Record<string, number | string | boolean>
+  }[] = []
+
+  for (const entity of sceneData.entities) {
+    if (!entity.scripts) continue
+    const obj = entityObjects.get(entity.id)
+    if (!obj) continue
+    const rb = rigidBodyMap.get(entity.id)
+    for (const entry of entity.scripts) {
+      const script = scriptDefs[entry.name]
+      if (!script) {
+        console.warn(`[mana] Script "${entry.name}" not found, skipping (entity: "${entity.name}")`)
+        continue
+      }
+      // Merge defaults from script definition with instance params from scene JSON
+      const params: Record<string, number | string | boolean> = {}
+      if (script.params) {
+        for (const [key, def] of Object.entries(script.params)) {
+          params[key] = def.default
+        }
+      }
+      if (entry.params) {
+        Object.assign(params, entry.params)
+      }
+      activeScripts.push({ script, entityObj: obj, rb, params })
+    }
+  }
+
+  return activeScripts
 }
 
 export async function createScene(
@@ -359,7 +257,6 @@ export async function createScene(
   }
 
   // In edit mode, use a separate editor camera for the viewport.
-  // The game camera entity is visible in the scene with its helper.
   // In play mode, use the game camera directly.
   let camera: PerspectiveCamera
   let controls: {
@@ -368,7 +265,6 @@ export async function createScene(
     target: { x: number; y: number; z: number; set(x: number, y: number, z: number): void }
   } | null = null
 
-  // TransformControls for editor gizmos
   let transformControls: {
     attach(obj: Object3D): void
     detach(): void
@@ -387,124 +283,31 @@ export async function createScene(
       camera.position.set(5, 5, 10)
     }
     camera.lookAt(0, 0, 0)
-    const { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js')
-    const orbitControls = new OrbitControls(camera, canvas)
-    if (camState) {
-      orbitControls.target.set(...camState.target)
-      orbitControls.update()
-    }
-    controls = orbitControls
 
-    // Set up TransformControls
-    const { TransformControls } = await import('three/examples/jsm/controls/TransformControls.js')
-    const tc = new TransformControls(camera, canvas)
-    scene.add(tc.getHelper())
-    transformControlsRoot = tc.getHelper()
-
-    // Disable orbit controls while dragging gizmo
-    tc.addEventListener('dragging-changed', event => {
-      orbitControls.enabled = !event.value
-    })
-
-    // Track which entity the gizmo is attached to for callbacks
-    let attachedEntityId: string | null = null
-
-    tc.addEventListener('mouseDown', () => {
-      if (attachedEntityId) {
-        options?.onTransformStart?.(attachedEntityId)
-      }
-    })
-
-    tc.addEventListener('mouseUp', () => {
-      if (attachedEntityId && tc.object) {
-        const obj = tc.object
-        const t: Transform = {
-          position: [
-            Math.round(obj.position.x * 1000) / 1000,
-            Math.round(obj.position.y * 1000) / 1000,
-            Math.round(obj.position.z * 1000) / 1000,
-          ],
-          rotation: [
-            Math.round(obj.rotation.x * 1000) / 1000,
-            Math.round(obj.rotation.y * 1000) / 1000,
-            Math.round(obj.rotation.z * 1000) / 1000,
-          ],
-          scale: [
-            Math.round(obj.scale.x * 1000) / 1000,
-            Math.round(obj.scale.y * 1000) / 1000,
-            Math.round(obj.scale.z * 1000) / 1000,
-          ],
-        }
-        options?.onTransformEnd?.(attachedEntityId, t)
-      }
-    })
-
-    tc.addEventListener('objectChange', () => {
-      if (attachedEntityId && tc.object) {
-        const obj = tc.object
-        const t: Transform = {
-          position: [
-            Math.round(obj.position.x * 1000) / 1000,
-            Math.round(obj.position.y * 1000) / 1000,
-            Math.round(obj.position.z * 1000) / 1000,
-          ],
-          rotation: [
-            Math.round(obj.rotation.x * 1000) / 1000,
-            Math.round(obj.rotation.y * 1000) / 1000,
-            Math.round(obj.rotation.z * 1000) / 1000,
-          ],
-          scale: [
-            Math.round(obj.scale.x * 1000) / 1000,
-            Math.round(obj.scale.y * 1000) / 1000,
-            Math.round(obj.scale.z * 1000) / 1000,
-          ],
-        }
-        // Sync debug wireframe to follow the gizmo
-        const wf = debugWireframes.get(attachedEntityId)
-        if (wf) {
-          wf.position.copy(obj.position)
-          wf.rotation.copy(obj.rotation)
-          wf.scale.copy(obj.scale)
-        }
-        options?.onTransformChange?.(attachedEntityId, t)
-      }
-    })
-
-    transformControls = {
-      attach(obj: Object3D) {
-        tc.attach(obj)
-        // Find the entity ID for this object
-        for (const [id, entityObj] of entityObjects) {
-          if (entityObj === obj) {
-            attachedEntityId = id
-            break
-          }
-        }
-      },
-      detach() {
-        tc.detach()
-        attachedEntityId = null
-      },
-      setMode(mode: 'translate' | 'rotate' | 'scale') {
-        tc.setMode(mode)
-      },
-      dispose() {
-        tc.detach()
-        tc.dispose()
-        scene.remove(tc.getHelper())
-      },
-      get object() {
-        return tc.object
-      },
-    }
+    const editorControls = await setupEditorControls(
+      camera,
+      canvas,
+      scene,
+      entityObjects,
+      debugWireframes,
+      options ?? {},
+    )
+    controls = editorControls.orbitControls
+    transformControls = editorControls.transformControls
+    transformControlsRoot = editorControls.transformControlsRoot
   } else {
     camera = gameCam
   }
 
+  // Reusable objects for raycasting (avoid per-click allocations)
+  const raycaster = new Raycaster()
+  const ndcVec = new Vector2()
+  const selectionColor = new Color(0x4488ff)
+
   // Outline post-processing (editor mode only)
   let renderPipeline: RenderPipeline | null = null
   const selectedObjects: Object3D[] = []
-  // biome-ignore lint: OutlineNode type is complex
+  // OutlineNode type is complex, not worth typing inline
   let outlinePass: any = null
 
   if (enableOrbitControls) {
@@ -536,109 +339,19 @@ export async function createScene(
   }
 
   // Physics setup
-  let RAPIER: RapierModule | null = null
-  let world: InstanceType<RapierModule['World']> | null = null
-  const physicsEntities: {
-    rigidBody: RapierRigidBody
-    entityObj: Object3D
-  }[] = []
-  const rigidBodyMap = new Map<string, RapierRigidBody>()
-
-  const hasPhysics = sceneData?.entities.some(e => e.rigidBody) ?? false
-
-  if (hasPhysics && sceneData && !enableOrbitControls) {
-    RAPIER = await import('@dimforge/rapier3d-compat')
-    await RAPIER.init()
-
-    world = new RAPIER.World({ x: 0, y: -9.81, z: 0 })
-
-    for (const entity of sceneData.entities) {
-      if (!entity.rigidBody) continue
-      const obj = entityObjects.get(entity.id)
-      if (!obj) continue
-
-      let bodyDesc: InstanceType<RapierModule['RigidBodyDesc']>
-      switch (entity.rigidBody.type) {
-        case 'fixed':
-          bodyDesc = RAPIER.RigidBodyDesc.fixed()
-          break
-        case 'kinematic':
-          bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
-          break
-        default:
-          bodyDesc = RAPIER.RigidBodyDesc.dynamic()
-      }
-
-      bodyDesc.setTranslation(obj.position.x, obj.position.y, obj.position.z)
-      bodyDesc.setRotation({ x: obj.quaternion.x, y: obj.quaternion.y, z: obj.quaternion.z, w: obj.quaternion.w })
-
-      const rigidBody = world.createRigidBody(bodyDesc)
-
-      if (entity.collider) {
-        let colliderDesc: InstanceType<RapierModule['ColliderDesc']>
-        switch (entity.collider.shape) {
-          case 'sphere':
-            colliderDesc = RAPIER.ColliderDesc.ball(entity.collider.radius ?? 0.5)
-            break
-          case 'capsule':
-            colliderDesc = RAPIER.ColliderDesc.capsule(entity.collider.halfHeight ?? 0.5, entity.collider.radius ?? 0.5)
-            break
-          case 'cylinder':
-            colliderDesc = RAPIER.ColliderDesc.cylinder(
-              entity.collider.halfHeight ?? 0.5,
-              entity.collider.radius ?? 0.5,
-            )
-            break
-          default: {
-            const he = entity.collider.halfExtents ?? [0.5, 0.5, 0.5]
-            colliderDesc = RAPIER.ColliderDesc.cuboid(he[0], he[1], he[2])
-          }
-        }
-        world.createCollider(colliderDesc, rigidBody)
-      }
-
-      physicsEntities.push({ rigidBody, entityObj: obj })
-      rigidBodyMap.set(entity.id, rigidBody)
-    }
+  let physics: PhysicsState | null = null
+  if (sceneData && !enableOrbitControls) {
+    physics = await setupPhysics(sceneData, entityObjects)
   }
 
   // Input system (only for play mode with scripts)
   const input = scriptDefs && !enableOrbitControls ? new Input(canvas) : null
 
   // Script setup
-  const activeScripts: {
-    script: ManaScript
-    entityObj: Object3D
-    rb?: RapierRigidBody
-    params: Record<string, number | string | boolean>
-  }[] = []
-
-  if (sceneData && scriptDefs) {
-    for (const entity of sceneData.entities) {
-      if (!entity.scripts) continue
-      const obj = entityObjects.get(entity.id)
-      if (!obj) continue
-      const rb = rigidBodyMap.get(entity.id)
-      for (const entry of entity.scripts) {
-        const script = scriptDefs[entry.name]
-        if (!script) {
-          console.warn(`[mana] Script "${entry.name}" not found, skipping (entity: "${entity.name}")`)
-          continue
-        }
-        // Merge defaults from script definition with instance params from scene JSON
-        const params: Record<string, number | string | boolean> = {}
-        if (script.params) {
-          for (const [key, def] of Object.entries(script.params)) {
-            params[key] = def.default
-          }
-        }
-        if (entry.params) {
-          Object.assign(params, entry.params)
-        }
-        activeScripts.push({ script, entityObj: obj, rb, params })
-      }
-    }
-  }
+  const activeScripts =
+    sceneData && scriptDefs
+      ? setupScripts(sceneData, scriptDefs, entityObjects, physics?.rigidBodyMap ?? new Map())
+      : []
 
   // Create input when scripts are active (play mode). Guaranteed non-null when activeScripts > 0.
   const scriptInput = activeScripts.length > 0 ? (input ?? new Input(canvas)) : null
@@ -687,7 +400,7 @@ export async function createScene(
     fixedAccumulator += dt
     while (fixedAccumulator >= FIXED_DT) {
       // Step physics when we have a physics world (regardless of scripts)
-      world?.step()
+      physics?.world.step()
 
       if (scriptInput) {
         for (const { script, entityObj, rb, params } of activeScripts) {
@@ -706,8 +419,8 @@ export async function createScene(
     }
 
     // Sync physics transforms to Three.js
-    if (world) {
-      for (const { rigidBody, entityObj } of physicsEntities) {
+    if (physics) {
+      for (const { rigidBody, entityObj } of physics.physicsEntities) {
         const pos = rigidBody.translation()
         const rot = rigidBody.rotation()
         entityObj.position.set(pos.x, pos.y, pos.z)
@@ -741,7 +454,7 @@ export async function createScene(
       for (const { script } of activeScripts) {
         script.dispose?.()
       }
-      world?.free()
+      physics?.world.free()
       for (const wireframe of debugWireframes.values()) {
         wireframe.geometry.dispose()
         ;(wireframe.material as LineBasicMaterial).dispose()
@@ -773,7 +486,6 @@ export async function createScene(
       }
       // Tint helpers blue when selected, reset when deselected
       const selectedSet = new Set(ids)
-      const selectionColor = new Color(0x4488ff)
       for (const [id, helper] of gizmoHelpers) {
         const isSelected = selectedSet.has(id)
         helper.traverse(child => {
@@ -782,7 +494,6 @@ export async function createScene(
             if (isSelected) {
               mat.color.copy(selectionColor)
             } else if (helper instanceof CameraHelper) {
-              // CameraHelper uses white/grey lines by default
               mat.color.set(0xffffff)
             } else if (helper instanceof DirectionalLightHelper) {
               const entity = entityObjects.get(id) as DirectionalLight
@@ -796,12 +507,9 @@ export async function createScene(
       }
     },
     raycast(ndcX: number, ndcY: number): string | null {
-      const raycaster = new Raycaster()
-      raycaster.setFromCamera(new Vector2(ndcX, ndcY), camera)
-      // Use a tight threshold so helpers are only selected when clicking near their lines
+      raycaster.setFromCamera(ndcVec.set(ndcX, ndcY), camera)
       raycaster.params.Line.threshold = 0.15
 
-      // Collect all clickable targets: meshes, helpers, wireframes (excluding transform gizmo)
       const targets: Object3D[] = []
       const objectToEntity = new Map<Object3D, string>()
       const tcRoot = transformControlsRoot
@@ -817,7 +525,6 @@ export async function createScene(
       }
       for (const [id, helper] of gizmoHelpers) {
         targets.push(helper)
-        // Map all descendants so child line segments match
         helper.traverse(child => objectToEntity.set(child, id))
       }
       for (const [id, wireframe] of debugWireframes) {
@@ -827,7 +534,6 @@ export async function createScene(
 
       const hits = raycaster.intersectObjects(targets, true)
       if (hits.length === 0) return null
-      // Filter out hits on transform controls gizmo
       for (const hit of hits) {
         if (tcRoot) {
           let isGizmo = false
@@ -872,7 +578,6 @@ export async function createScene(
       const obj = entityObjects.get(id)
       if (!obj) return
       applyTransform(obj, entity.transform)
-      // Sync debug wireframe position
       const wireframe = debugWireframes.get(id)
       if (wireframe) {
         wireframe.position.copy(obj.position)

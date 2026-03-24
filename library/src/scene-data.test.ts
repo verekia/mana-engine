@@ -64,7 +64,15 @@ describe('SceneData types', () => {
   })
 
   test('all entity types are representable', () => {
-    const types: SceneEntity['type'][] = ['camera', 'mesh', 'directional-light', 'ambient-light', 'point-light', 'ui']
+    const types: SceneEntity['type'][] = [
+      'camera',
+      'mesh',
+      'model',
+      'directional-light',
+      'ambient-light',
+      'point-light',
+      'ui',
+    ]
     for (const type of types) {
       const entity: SceneEntity = { id: `test-${type}`, name: type, type }
       expect(entity.type).toBe(type)
