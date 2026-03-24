@@ -31,44 +31,48 @@ export function useEditorScene({
   showGizmosRef.current = showGizmos
   const transformModeRef = useRef(transformMode)
   transformModeRef.current = transformMode
+  const sceneDataRef = useRef(sceneData)
+  sceneDataRef.current = sceneData
 
   // Track whether the initial scene has been created (prevents re-creation on re-renders)
   const initializedRef = useRef(false)
 
   // Create initial Three.js scene when sceneData first becomes available
   useEffect(() => {
-    if (!sceneData || initializedRef.current) return
+    const data = sceneDataRef.current
+    if (!data || initializedRef.current) return
     const canvas = canvasRef.current
     if (!canvas) return
 
     initializedRef.current = true
-    let disposed = false
 
-    createScene(canvas, sceneData, {
+    createScene(canvas, data, {
       debugPhysics: showGizmosRef.current,
       orbitControls: true,
       onTransformStart,
       onTransformChange,
       onTransformEnd,
     }).then(s => {
-      if (disposed) {
+      if (!initializedRef.current) {
         s.dispose()
         return
       }
       sceneRef.current = s
       s.setTransformMode(transformModeRef.current as 'translate' | 'rotate' | 'scale')
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only create on first sceneData availability; sceneData read via ref
+  }, [sceneData, onTransformStart, onTransformChange, onTransformEnd])
 
+  // Cleanup on unmount only
+  useEffect(() => {
     return () => {
-      disposed = true
+      initializedRef.current = false
       if (sceneRef.current) {
         sceneRef.current.dispose()
         sceneRef.current = null
       }
-      initializedRef.current = false
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only create on first sceneData availability
-  }, [sceneData, onTransformStart, onTransformChange, onTransformEnd])
+  }, [])
 
   // Recreate the scene (for play/stop, scene switch, etc.)
   const recreateScene = useCallback(
