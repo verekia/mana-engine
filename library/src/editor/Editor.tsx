@@ -1,7 +1,6 @@
 import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ManaContext } from '../scene-context.ts'
-import { createScene, type EditorCameraState, type ManaScene, type TransformMode } from '../scene.ts'
 import { BottomPanel } from './BottomPanel.tsx'
 import { COLORS } from './colors.ts'
 import { UndoHistory } from './history.ts'
@@ -9,10 +8,11 @@ import { LeftPanel } from './LeftPanel.tsx'
 import { RightPanel } from './RightPanel.tsx'
 import { fetchSceneList, loadSceneData, saveSceneData } from './scene-api.ts'
 import { Toolbar } from './Toolbar.tsx'
+import { useEditorScene } from './use-editor-scene.ts'
 import { Viewport, ViewportBar } from './Viewport.tsx'
 
-import type { Transform } from '../scene-data.ts'
-import type { SceneData, SceneEntity } from '../scene-data.ts'
+import type { SceneData, SceneEntity, Transform } from '../scene-data.ts'
+import type { EditorCameraState, TransformMode } from '../scene.ts'
 import type { ManaScript } from '../script.ts'
 
 export default function Editor({
@@ -28,8 +28,6 @@ export default function Editor({
   const [showGizmos, setShowGizmos] = useState(() => localStorage.getItem('mana:showGizmos') !== 'false')
   const [playing, setPlaying] = useState(false)
   const [transformMode, setTransformMode] = useState<TransformMode>('translate')
-  const transformModeRef = useRef<TransformMode>('translate')
-  transformModeRef.current = transformMode
   const historyRef = useRef(new UndoHistory())
   const [, forceUpdate] = useState(0)
   const transformStartRef = useRef<{ id: string; transform: Transform } | null>(null)
@@ -38,24 +36,24 @@ export default function Editor({
   const [sceneData, setSceneData] = useState<SceneData | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const sceneRef = useRef<ManaScene | null>(null)
-  const sceneDataRef = useRef<SceneData | null>(null)
-  const activeSceneRef = useRef('')
-  const prePlaySceneRef = useRef('')
-  const prePlaySceneDataRef = useRef<SceneData | null>(null)
   const [savedSceneJson, setSavedSceneJson] = useState('')
 
-  const selectedIdRef = useRef<string | null>(null)
-
+  // Refs for values accessed in async/event callbacks to avoid stale closures
+  const sceneDataRef = useRef<SceneData | null>(null)
   sceneDataRef.current = sceneData
+  const activeSceneRef = useRef('')
   activeSceneRef.current = activeScene
+  const selectedIdRef = useRef<string | null>(null)
   selectedIdRef.current = selectedId
-  const showGizmosRef = useRef(showGizmos)
-  showGizmosRef.current = showGizmos
+  const dirtyRef = useRef(false)
 
   const dirty = sceneData ? JSON.stringify(sceneData) !== savedSceneJson : false
-  const dirtyRef = useRef(false)
   dirtyRef.current = dirty
+
+  const prePlaySceneRef = useRef('')
+  const prePlaySceneDataRef = useRef<SceneData | null>(null)
+  const prePlaySelectedIdRef = useRef<string | null>(null)
+  const prePlayCameraRef = useRef<EditorCameraState | null>(null)
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -69,25 +67,6 @@ export default function Editor({
     console.log(`[Mana] ${msg}`)
   }, [])
 
-  // Fetch scene list on mount, then load the saved or first scene
-  useEffect(() => {
-    fetchSceneList().then(list => {
-      setSceneList(list)
-      if (list.length > 0) {
-        const saved = localStorage.getItem('mana:activeScene')
-        const initial = saved && list.includes(saved) ? saved : list[0]
-        setActiveScene(initial)
-        loadSceneData(initial)
-          .then(data => {
-            setSceneData(data)
-            setSavedSceneJson(JSON.stringify(data))
-            log(`Loaded scene: ${initial}`)
-          })
-          .catch(err => log(`Error loading scene: ${err.message}`))
-      }
-    })
-  }, [log])
-
   // Transform gizmo callbacks
   const handleTransformStart = useCallback((id: string) => {
     const entity = sceneDataRef.current?.entities.find(e => e.id === id)
@@ -97,7 +76,6 @@ export default function Editor({
   }, [])
 
   const handleTransformChange = useCallback((id: string, transform: Transform) => {
-    // Update scene data in real time so inspector stays in sync
     setSceneData(prev => {
       if (!prev) return prev
       return {
@@ -144,7 +122,39 @@ export default function Editor({
     })
     forceUpdate(n => n + 1)
     transformStartRef.current = null
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is a stable ref, .current is intentionally read at execution time
   }, [])
+
+  // Scene lifecycle hook — handles Three.js scene creation, disposal, and recreation
+  const { sceneRef, recreateScene } = useEditorScene({
+    canvasRef,
+    sceneData,
+    scripts,
+    showGizmos,
+    transformMode,
+    onTransformStart: handleTransformStart,
+    onTransformChange: handleTransformChange,
+    onTransformEnd: handleTransformEnd,
+  })
+
+  // Fetch scene list on mount, then load the saved or first scene
+  useEffect(() => {
+    fetchSceneList().then(list => {
+      setSceneList(list)
+      if (list.length > 0) {
+        const saved = localStorage.getItem('mana:activeScene')
+        const initial = saved && list.includes(saved) ? saved : list[0]
+        setActiveScene(initial)
+        loadSceneData(initial)
+          .then(data => {
+            setSceneData(data)
+            setSavedSceneJson(JSON.stringify(data))
+            log(`Loaded scene: ${initial}`)
+          })
+          .catch(err => log(`Error loading scene: ${err.message}`))
+      }
+    })
+  }, [log])
 
   // Switch scene handler
   const handleSwitchScene = useCallback(
@@ -168,93 +178,63 @@ export default function Editor({
           log(`Loaded scene: ${name}`)
 
           // Create new Three.js scene
-          const canvas = canvasRef.current
-          if (canvas) {
-            sceneRef.current = await createScene(canvas, data, {
-              debugPhysics: true,
-              orbitControls: true,
-              onTransformStart: handleTransformStart,
-              onTransformChange: handleTransformChange,
-              onTransformEnd: handleTransformEnd,
-            })
-            sceneRef.current?.setTransformMode(transformModeRef.current)
-          }
+          await recreateScene(data, false)
         })
         .catch(err => log(`Error loading scene: ${err.message}`))
     },
-    [log, handleTransformStart, handleTransformChange, handleTransformEnd],
+    [log, sceneRef, recreateScene],
   )
 
-  // Helper to create the editor scene (edit or play mode)
-  const recreateScene = useCallback(
-    async (data: SceneData, isPlaying: boolean, editorCamera?: EditorCameraState) => {
-      if (sceneRef.current) {
-        sceneRef.current.dispose()
-        sceneRef.current = null
-      }
-      const canvas = canvasRef.current
-      if (!canvas) return
-      sceneRef.current = await createScene(canvas, data, {
-        scripts: isPlaying ? scripts : undefined,
-        debugPhysics: !isPlaying && showGizmos,
-        orbitControls: !isPlaying,
-        editorCamera: !isPlaying ? editorCamera : undefined,
-        onTransformStart: !isPlaying ? handleTransformStart : undefined,
-        onTransformChange: !isPlaying ? handleTransformChange : undefined,
-        onTransformEnd: !isPlaying ? handleTransformEnd : undefined,
-      })
-      // Re-apply transform mode to newly created scene
-      if (!isPlaying) {
-        sceneRef.current?.setTransformMode(transformModeRef.current)
-      }
+  const handlePlay = useCallback(async () => {
+    const data = sceneDataRef.current
+    if (!data) return
+    prePlaySceneRef.current = activeSceneRef.current
+    prePlaySceneDataRef.current = data
+    prePlaySelectedIdRef.current = selectedIdRef.current
+    prePlayCameraRef.current = sceneRef.current?.getEditorCamera() ?? null
+    setPlaying(true)
+    setSelectedId(null)
+    await recreateScene(data, true)
+    log('Play mode started')
+  }, [log, sceneRef, recreateScene])
+
+  const handleStop = useCallback(async () => {
+    setPlaying(false)
+    const name = prePlaySceneRef.current || activeSceneRef.current
+    const data = prePlaySceneDataRef.current
+    if (data) {
+      setSceneData(data)
+      setActiveScene(name)
+      await recreateScene(data, false, prePlayCameraRef.current ?? undefined)
+    }
+    setSelectedId(prePlaySelectedIdRef.current)
+    log('Play mode stopped')
+  }, [log, recreateScene])
+
+  // Scene switching during play mode (via useMana().loadScene)
+  const handlePlaySceneSwitch = useCallback(
+    (name: string) => {
+      loadSceneData(name)
+        .then(async data => {
+          setSceneData(data)
+          setSavedSceneJson(JSON.stringify(data))
+          setActiveScene(name)
+          await recreateScene(data, true)
+          log(`Switched to scene: ${name}`)
+        })
+        .catch(err => log(`Error switching scene: ${err.message}`))
     },
-    [scripts, showGizmos, handleTransformStart, handleTransformChange, handleTransformEnd],
+    [log, recreateScene],
   )
 
-  // Create Three.js scene when scene data is first available (once)
-  // Scene switching is handled by handleSwitchScene/recreateScene explicitly.
-  useEffect(() => {
-    let disposed = false
-
-    function tryCreate() {
-      const canvas = canvasRef.current
-      const data = sceneDataRef.current
-      if (!canvas || !data || sceneRef.current) return
-      createScene(canvas, data, {
-        debugPhysics: showGizmosRef.current,
-        orbitControls: true,
-        onTransformStart: handleTransformStart,
-        onTransformChange: handleTransformChange,
-        onTransformEnd: handleTransformEnd,
-      }).then(s => {
-        if (disposed) {
-          s.dispose()
-          return
-        }
-        sceneRef.current = s
-        s.setTransformMode(transformModeRef.current)
-      })
-    }
-
-    // Try immediately, and retry on a short interval until data is loaded
-    tryCreate()
-    const interval = setInterval(() => {
-      if (sceneRef.current || disposed) {
-        clearInterval(interval)
-        return
-      }
-      tryCreate()
-    }, 100)
-
-    return () => {
-      disposed = true
-      clearInterval(interval)
-      if (sceneRef.current) {
-        sceneRef.current.dispose()
-        sceneRef.current = null
-      }
-    }
-  }, [handleTransformStart, handleTransformChange, handleTransformEnd])
+  const noopLoadScene = useCallback(() => {}, [])
+  const manaContextValue = useMemo(
+    () => ({
+      loadScene: playing ? handlePlaySceneSwitch : noopLoadScene,
+      currentScene: activeScene,
+    }),
+    [playing, handlePlaySceneSwitch, noopLoadScene, activeScene],
+  )
 
   // Keyboard shortcuts: Cmd+S (save), Cmd+Z (undo), Cmd+Shift+Z (redo), W/E/R (transform mode)
   useEffect(() => {
@@ -298,60 +278,6 @@ export default function Editor({
     return () => window.removeEventListener('keydown', handler)
   }, [log])
 
-  const prePlaySelectedIdRef = useRef<string | null>(null)
-  const prePlayCameraRef = useRef<EditorCameraState | null>(null)
-
-  const handlePlay = useCallback(async () => {
-    const data = sceneDataRef.current
-    if (!data) return
-    prePlaySceneRef.current = activeSceneRef.current
-    prePlaySceneDataRef.current = data
-    prePlaySelectedIdRef.current = selectedIdRef.current
-    prePlayCameraRef.current = sceneRef.current?.getEditorCamera() ?? null
-    setPlaying(true)
-    setSelectedId(null)
-    await recreateScene(data, true)
-    log('Play mode started')
-  }, [log, recreateScene])
-
-  const handleStop = useCallback(async () => {
-    setPlaying(false)
-    const name = prePlaySceneRef.current || activeSceneRef.current
-    const data = prePlaySceneDataRef.current
-    if (data) {
-      setSceneData(data)
-      setActiveScene(name)
-      await recreateScene(data, false, prePlayCameraRef.current ?? undefined)
-    }
-    setSelectedId(prePlaySelectedIdRef.current)
-    log('Play mode stopped')
-  }, [log, recreateScene])
-
-  // Scene switching during play mode (via useMana().loadScene)
-  const handlePlaySceneSwitch = useCallback(
-    (name: string) => {
-      loadSceneData(name)
-        .then(async data => {
-          setSceneData(data)
-          setSavedSceneJson(JSON.stringify(data))
-          setActiveScene(name)
-          await recreateScene(data, true)
-          log(`Switched to scene: ${name}`)
-        })
-        .catch(err => log(`Error switching scene: ${err.message}`))
-    },
-    [log, recreateScene],
-  )
-
-  const noopLoadScene = useCallback(() => {}, [])
-  const manaContextValue = useMemo(
-    () => ({
-      loadScene: playing ? handlePlaySceneSwitch : noopLoadScene,
-      currentScene: activeScene,
-    }),
-    [playing, handlePlaySceneSwitch, noopLoadScene, activeScene],
-  )
-
   const handleDeleteEntity = useCallback((id: string) => {
     const deleted = sceneDataRef.current?.entities.find(e => e.id === id)
     setSceneData(prev => {
@@ -382,6 +308,7 @@ export default function Editor({
       })
       forceUpdate(n => n + 1)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
   }, [])
 
   const handleRenameEntity = useCallback((id: string, name: string) => {
@@ -442,6 +369,7 @@ export default function Editor({
       },
     })
     forceUpdate(n => n + 1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
   }, [])
 
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -451,6 +379,7 @@ export default function Editor({
     const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1
     const hitId = sceneRef.current?.raycast(ndcX, ndcY) ?? null
     setSelectedId(hitId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
   }, [])
 
   const selectedEntity = sceneData?.entities.find(e => e.id === selectedId) ?? null
@@ -458,12 +387,7 @@ export default function Editor({
   useEffect(() => {
     sceneRef.current?.setSelectedObjects(selectedId ? [selectedId] : [])
     sceneRef.current?.setTransformTarget(selectedId)
-  }, [selectedId])
-
-  // Sync transform mode to Three.js scene
-  useEffect(() => {
-    sceneRef.current?.setTransformMode(transformMode)
-  }, [transformMode])
+  }, [selectedId, sceneRef])
 
   // Debounced undo for inspector property edits — collapses rapid changes into one undo entry
   const updateUndoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -514,6 +438,7 @@ export default function Editor({
       updateUndoBeforeRef.current = null
       updateUndoTimer.current = null
     }, 500)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
   }, [])
 
   return (
