@@ -1,7 +1,7 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
-import { basename, extname, resolve } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { basename, extname, join, resolve } from 'node:path'
 
 import type { InlineConfig, Plugin } from 'vite'
 
@@ -55,6 +55,7 @@ export function createBuildConfig(
   entryFile: string,
   aliases: Record<string, string>,
   tailwindPath: string,
+  _threePath?: string,
 ): InlineConfig {
   return {
     plugins: [tailwindResolvePlugin(tailwindPath), react(), tailwindcss(), cssInlinePlugin()],
@@ -78,10 +79,11 @@ export function createDevConfig(
   root: string,
   aliases: Record<string, string>,
   tailwindPath: string,
+  threePath: string,
 ): InlineConfig {
   return {
     root,
-    plugins: [tailwindResolvePlugin(tailwindPath), react(), tailwindcss()],
+    plugins: [tailwindResolvePlugin(tailwindPath), react(), tailwindcss(), basisTranscoderPlugin(threePath)],
     resolve: {
       alias: aliases,
     },
@@ -155,17 +157,164 @@ function sceneApiPlugin(scenesDir: string): Plugin {
   }
 }
 
+function basisTranscoderPlugin(threePath: string): Plugin {
+  const basisDir = resolve(threePath, 'examples/jsm/libs/basis')
+  return {
+    name: 'mana-basis-transcoder',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url?.startsWith('/__mana/basis/')) return next()
+        const fileName = req.url.replace('/__mana/basis/', '')
+        if (!/^[a-zA-Z0-9._-]+$/.test(fileName)) {
+          res.writeHead(400)
+          res.end('Invalid filename')
+          return
+        }
+        const filePath = resolve(basisDir, fileName)
+        if (!existsSync(filePath)) {
+          res.writeHead(404)
+          res.end('Not found')
+          return
+        }
+        const contentType = fileName.endsWith('.wasm') ? 'application/wasm' : 'application/javascript'
+        res.writeHead(200, { 'Content-Type': contentType })
+        res.end(readFileSync(filePath))
+      })
+    },
+  }
+}
+
+const MIME_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.bmp': 'image/bmp',
+  '.hdr': 'application/octet-stream',
+  '.exr': 'application/octet-stream',
+  '.ktx2': 'application/octet-stream',
+  '.gltf': 'model/gltf+json',
+  '.glb': 'model/gltf-binary',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.flac': 'audio/flac',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.json': 'application/json',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+}
+
+function validateAssetPath(assetsDir: string, relPath: string): string | null {
+  if (/\.\./.test(relPath)) return null
+  const absPath = resolve(assetsDir, relPath)
+  if (!absPath.startsWith(assetsDir)) return null
+  return absPath
+}
+
+function assetsApiPlugin(assetsDir: string): Plugin {
+  return {
+    name: 'mana-assets-api',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url?.startsWith('/__mana/assets')) return next()
+        if (req.method !== 'GET') return next()
+
+        const url = new URL(req.url, 'http://localhost')
+
+        // Serve individual files: /__mana/assets/file?path=...
+        if (url.pathname === '/__mana/assets/file') {
+          const relPath = url.searchParams.get('path') || ''
+          const absPath = validateAssetPath(assetsDir, relPath)
+          if (!absPath) {
+            res.writeHead(400)
+            res.end('Invalid path')
+            return
+          }
+          if (!existsSync(absPath) || statSync(absPath).isDirectory()) {
+            res.writeHead(404)
+            res.end('Not found')
+            return
+          }
+          const ext = extname(absPath).toLowerCase()
+          const mime = MIME_TYPES[ext] || 'application/octet-stream'
+          res.writeHead(200, { 'Content-Type': mime })
+          res.end(readFileSync(absPath))
+          return
+        }
+
+        // List directory: /__mana/assets?path=...
+        const relPath = url.searchParams.get('path') || ''
+        const absPath = validateAssetPath(assetsDir, relPath)
+        if (!absPath) {
+          res.writeHead(400)
+          res.end('Invalid path')
+          return
+        }
+
+        if (!existsSync(absPath)) {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify([]))
+          return
+        }
+
+        const stat = statSync(absPath)
+        if (!stat.isDirectory()) {
+          res.writeHead(400)
+          res.end('Not a directory')
+          return
+        }
+
+        const entries = readdirSync(absPath)
+          .filter(name => !name.startsWith('.'))
+          .map(name => {
+            const fullPath = join(absPath, name)
+            const fileStat = statSync(fullPath)
+            const isDir = fileStat.isDirectory()
+            return {
+              name,
+              type: isDir ? ('folder' as const) : ('file' as const),
+              ext: isDir ? null : extname(name).toLowerCase(),
+              size: isDir ? null : fileStat.size,
+            }
+          })
+          .toSorted((a, b) => {
+            if (a.type !== b.type) return a.type === 'folder' ? -1 : 1
+            return a.name.localeCompare(b.name)
+          })
+
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify(entries))
+      })
+    },
+  }
+}
+
 export function createEditorConfig(
   manaRoot: string,
   gameDir: string,
   root: string,
   aliases: Record<string, string>,
   tailwindPath: string,
+  threePath: string,
 ): InlineConfig {
   const scenesDir = resolve(gameDir, 'scenes')
+  const assetsDir = resolve(gameDir, 'assets')
   return {
     root,
-    plugins: [tailwindResolvePlugin(tailwindPath), react(), tailwindcss(), sceneApiPlugin(scenesDir)],
+    plugins: [
+      tailwindResolvePlugin(tailwindPath),
+      react(),
+      tailwindcss(),
+      sceneApiPlugin(scenesDir),
+      assetsApiPlugin(assetsDir),
+      basisTranscoderPlugin(threePath),
+    ],
     resolve: {
       alias: aliases,
     },

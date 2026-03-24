@@ -14,7 +14,7 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 
 - **5 geometry types** — `box`, `sphere`, `plane`, `cylinder`, `capsule`
 - **PBR material** — MeshStandardMaterial with configurable color, roughness, metalness, and emissive color
-- **Texture maps** — Albedo (`map`), normal, roughness, metalness, and emissive maps via file paths
+- **Texture maps** — Albedo (`map`), normal, roughness, metalness, and emissive maps via file paths (PNG, JPG, KTX2)
 - **GLTF/GLB model loading** — Import 3D models as `model` entities with full PBR material support
 
 ### Lighting & Shadows
@@ -56,7 +56,7 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 - **Hierarchy panel** — Entity tree with selection, right-click context menu (rename, delete)
 - **Inspector panel** — Editable properties for transform, camera, mesh, light, UI, rigid body, collider, and scripts
 - **Viewport** — Live 3D preview with raycast-based entity selection and orbit controls
-- **Console panel** — Log output for scene loads, saves, play/stop events, and errors
+- **Asset browser** — Bottom panel file browser for `game/assets/` with folder navigation, type icons, previews (images, KTX2, audio), and path copying
 - **Scene selector** — Dropdown to switch between scene files
 - **Play/Stop mode** — Toggle between editing and running the game with full interactivity
 - **Save hotkey** — Cmd+S / Ctrl+S saves the current scene to disk
@@ -91,6 +91,10 @@ bun run build       # Production build
 game/
   index.tsx           # Game component, uiComponents & scripts registries
   game.css            # Tailwind entry
+  assets/             # Static assets (textures, models, audio)
+    textures/
+    models/
+    audio/
   scenes/
     main-menu.json    # Scene definitions
     first-world.json
@@ -170,7 +174,7 @@ The built-in editor (`mana editor`) provides:
 - **Hierarchy panel** — Scene entity tree with selection
 - **Inspector panel** — Editable properties (transform, material, light, camera, scripts)
 - **Viewport** — Live 3D preview with UI overlay
-- **Console** — Log output
+- **Asset browser** — Browse `game/assets/` with folder navigation and path copying
 - **Scene selector** — Switch between scene files
 - **Play/Stop** — Toggle play mode to test the game with full interactivity
 - **Cmd+S / Ctrl+S** — Save scene changes to disk
@@ -200,7 +204,7 @@ Features not yet implemented that would enhance the engine:
 - **Particle system** — Configurable emitters for effects like fire, smoke, and sparks
 - **Entity parenting** — Nested entity hierarchies with parent-child transforms
 - **Prefab system** — Reusable entity templates that can be instantiated at runtime
-- **Asset manager** — Centralized loading and caching of textures, models, and audio files
+- **Asset manager** — Centralized loading and caching of textures, models, and audio files (asset browser in editor is implemented)
 - **Post-processing** — Bloom, depth of field, tone mapping, color grading, SSAO
 - **Spot light** — Cone-shaped light source with angle and penumbra
 - **Skybox / environment maps** — HDR environment lighting and reflections

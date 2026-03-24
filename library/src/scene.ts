@@ -1,3 +1,4 @@
+import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js'
 import { outline } from 'three/examples/jsm/tsl/display/OutlineNode.js'
 import { pass, uniform } from 'three/tsl'
 import {
@@ -129,18 +130,43 @@ function createColliderWireframe(collider: ColliderData): LineSegments {
 }
 
 const textureLoader = new TextureLoader()
+const ktx2Loader = new KTX2Loader().setTranscoderPath('/__mana/basis/')
 
-function applyMaterialData(material: MeshStandardMaterial, mat?: MaterialData) {
+let ktx2DetectedSupport = false
+
+function loadTexture(
+  path: string,
+  material: MeshStandardMaterial,
+  slot: keyof MeshStandardMaterial,
+  renderer?: WebGPURenderer,
+) {
+  if (path.endsWith('.ktx2')) {
+    if (renderer && !ktx2DetectedSupport) {
+      ktx2Loader.detectSupport(renderer)
+      ktx2DetectedSupport = true
+    }
+    ktx2Loader.load(path, texture => {
+      // biome-ignore lint: dynamic slot assignment
+      ;(material as any)[slot] = texture
+      material.needsUpdate = true
+    })
+  } else {
+    // biome-ignore lint: dynamic slot assignment
+    ;(material as any)[slot] = textureLoader.load(path)
+  }
+}
+
+function applyMaterialData(material: MeshStandardMaterial, mat?: MaterialData, renderer?: WebGPURenderer) {
   material.color.set(mat?.color ?? '#4488ff')
   if (!mat) return
   if (mat.roughness !== undefined) material.roughness = mat.roughness
   if (mat.metalness !== undefined) material.metalness = mat.metalness
   if (mat.emissive) material.emissive.set(mat.emissive)
-  if (mat.map) material.map = textureLoader.load(mat.map)
-  if (mat.normalMap) material.normalMap = textureLoader.load(mat.normalMap)
-  if (mat.roughnessMap) material.roughnessMap = textureLoader.load(mat.roughnessMap)
-  if (mat.metalnessMap) material.metalnessMap = textureLoader.load(mat.metalnessMap)
-  if (mat.emissiveMap) material.emissiveMap = textureLoader.load(mat.emissiveMap)
+  if (mat.map) loadTexture(mat.map, material, 'map', renderer)
+  if (mat.normalMap) loadTexture(mat.normalMap, material, 'normalMap', renderer)
+  if (mat.roughnessMap) loadTexture(mat.roughnessMap, material, 'roughnessMap', renderer)
+  if (mat.metalnessMap) loadTexture(mat.metalnessMap, material, 'metalnessMap', renderer)
+  if (mat.emissiveMap) loadTexture(mat.emissiveMap, material, 'emissiveMap', renderer)
 }
 
 function disposeMaterial(material: MeshStandardMaterial) {
@@ -186,7 +212,7 @@ function createEntityObject(
   entity: SceneEntity,
   threeScene: Scene,
   maps: EntityMaps,
-  options: { enableOrbitControls: boolean; showGizmos: boolean },
+  options: { enableOrbitControls: boolean; showGizmos: boolean; renderer?: WebGPURenderer },
 ): Object3D | null {
   let obj: Object3D | null = null
 
@@ -212,7 +238,7 @@ function createEntityObject(
     case 'mesh': {
       const geometry = createGeometry(entity.mesh?.geometry)
       const material = new MeshStandardMaterial()
-      applyMaterialData(material, entity.mesh?.material)
+      applyMaterialData(material, entity.mesh?.material, options.renderer)
       const mesh = new Mesh(geometry, material)
       applyTransform(mesh, entity.transform)
       applyShadowProps(mesh, entity)
@@ -345,7 +371,7 @@ export async function createScene(
 
   if (sceneData) {
     for (const entity of sceneData.entities) {
-      const obj = createEntityObject(entity, scene, maps, { enableOrbitControls, showGizmos: debugPhysics })
+      const obj = createEntityObject(entity, scene, maps, { enableOrbitControls, showGizmos: debugPhysics, renderer })
       if (entity.type === 'camera' && obj instanceof PerspectiveCamera) {
         gameCam = obj
       }
@@ -846,7 +872,7 @@ export async function createScene(
       return null
     },
     addEntity(entity: SceneEntity) {
-      createEntityObject(entity, scene, maps, { enableOrbitControls, showGizmos: debugPhysics })
+      createEntityObject(entity, scene, maps, { enableOrbitControls, showGizmos: debugPhysics, renderer })
     },
     removeEntity(id: string) {
       const obj = entityObjects.get(id)
@@ -880,7 +906,7 @@ export async function createScene(
         wireframe.scale.copy(obj.scale)
       }
       if (entity.type === 'mesh' && obj instanceof Mesh) {
-        applyMaterialData(obj.material as MeshStandardMaterial, entity.mesh?.material)
+        applyMaterialData(obj.material as MeshStandardMaterial, entity.mesh?.material, renderer)
         applyShadowProps(obj, entity)
       }
       if (

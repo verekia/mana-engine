@@ -1,5 +1,22 @@
 import type { SceneData } from '../scene-data.ts'
 
+export interface AssetEntry {
+  name: string
+  type: 'file' | 'folder'
+  ext: string | null
+  size: number | null
+}
+
+export function assetFileUrl(path: string): string {
+  return `/__mana/assets/file?path=${encodeURIComponent(path)}`
+}
+
+export async function fetchAssets(path: string): Promise<AssetEntry[]> {
+  const res = await fetch(`/__mana/assets?path=${encodeURIComponent(path)}`)
+  if (!res.ok) return []
+  return res.json()
+}
+
 export async function fetchSceneList(): Promise<string[]> {
   const res = await fetch('/__mana/scenes')
   if (!res.ok) return []

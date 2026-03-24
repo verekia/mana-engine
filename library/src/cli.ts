@@ -42,14 +42,17 @@ function resolvePackagePath(name: string): string {
   }
 }
 
-function getManaAliases(): Record<string, string> {
+function getManaAliases(): { aliases: Record<string, string>; threePath: string } {
   const threePath = resolvePackagePath('three')
   return {
-    react: resolvePackagePath('react'),
-    'react-dom': resolvePackagePath('react-dom'),
-    'three/webgpu': resolve(threePath, 'build/three.webgpu.js'),
-    'three/tsl': resolve(threePath, 'build/three.tsl.js'),
-    three: threePath,
+    aliases: {
+      react: resolvePackagePath('react'),
+      'react-dom': resolvePackagePath('react-dom'),
+      'three/webgpu': resolve(threePath, 'build/three.webgpu.js'),
+      'three/tsl': resolve(threePath, 'build/three.tsl.js'),
+      three: threePath,
+    },
+    threePath,
   }
 }
 
@@ -84,8 +87,9 @@ async function runBuild() {
     ].join('\n'),
   )
 
+  const { aliases, threePath } = getManaAliases()
   console.log(`Building game from ${config.gameDir}...`)
-  await build(createBuildConfig(gameDir, outDir, entryFile, getManaAliases(), resolvePackagePath('tailwindcss')))
+  await build(createBuildConfig(gameDir, outDir, entryFile, aliases, resolvePackagePath('tailwindcss'), threePath))
   console.log(`Game built to ${config.outDir}`)
 }
 
@@ -149,8 +153,9 @@ async function runDev() {
 `,
   )
 
+  const { aliases, threePath } = getManaAliases()
   const server = await createServer(
-    createDevConfig(gameDir, manaDir, getManaAliases(), resolvePackagePath('tailwindcss')),
+    createDevConfig(gameDir, manaDir, aliases, resolvePackagePath('tailwindcss'), threePath),
   )
   await server.listen()
   server.printUrls()
@@ -201,8 +206,9 @@ async function runEditor() {
 `,
   )
 
+  const { aliases, threePath } = getManaAliases()
   const server = await createServer(
-    createEditorConfig(manaRoot, gameDir, manaDir, getManaAliases(), resolvePackagePath('tailwindcss')),
+    createEditorConfig(manaRoot, gameDir, manaDir, aliases, resolvePackagePath('tailwindcss'), threePath),
   )
   await server.listen()
   server.printUrls()

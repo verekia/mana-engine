@@ -37,8 +37,6 @@ export default function Editor({
   const [activeScene, setActiveScene] = useState(() => localStorage.getItem('mana:activeScene') ?? '')
   const [sceneData, setSceneData] = useState<SceneData | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [logs, setLogs] = useState<{ id: number; msg: string }[]>([{ id: 0, msg: 'Mana Engine editor ready' }])
-  const logIdRef = useRef(1)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sceneRef = useRef<ManaScene | null>(null)
   const sceneDataRef = useRef<SceneData | null>(null)
@@ -68,8 +66,7 @@ export default function Editor({
   }, [])
 
   const log = useCallback((msg: string) => {
-    const id = logIdRef.current++
-    setLogs(prev => [...prev, { id, msg }])
+    console.log(`[Mana] ${msg}`)
   }, [])
 
   // Fetch scene list on mount, then load the saved or first scene
@@ -596,7 +593,7 @@ export default function Editor({
               />
             </ManaContext.Provider>
           </div>
-          <BottomPanel logs={logs} />
+          <BottomPanel />
         </div>
         <RightPanel
           entity={selectedEntity}

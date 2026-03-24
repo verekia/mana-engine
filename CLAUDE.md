@@ -25,7 +25,9 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 
 - `MaterialData` in `scene-data.ts` defines PBR material properties: `color`, `roughness`, `metalness`, `emissive` (color), and texture maps
 - Texture map fields: `map` (albedo), `normalMap`, `roughnessMap`, `metalnessMap`, `emissiveMap` — all are string paths to image files
-- Textures are loaded via Three.js `TextureLoader` at entity creation time
+- Textures are loaded via Three.js `TextureLoader` (standard formats) or `KTX2Loader` (`.ktx2` GPU-compressed textures) at entity creation time
+- KTX2 support requires the basis universal transcoder, served via `/__mana/basis/` middleware from Three.js's bundled transcoder files
+- `loadTexture()` helper detects file extension and uses the appropriate loader; KTX2 textures load asynchronously with `material.needsUpdate = true`
 - In the editor, texture paths are editable text inputs; scalar values (roughness, metalness) are draggable number inputs
 - `applyMaterialData()` helper applies all material properties to a `MeshStandardMaterial`
 - Texture disposal is handled in `dispose()` and `removeEntity()` to prevent memory leaks
@@ -77,9 +79,14 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 
 ## Editor
 
-- `mana editor` launches a full editor with hierarchy, inspector, viewport, and console panels
+- `mana editor` launches a full editor with hierarchy, inspector, viewport, and asset browser panels
 - Editor source is split into modular components: `Editor.tsx` (main), `Toolbar.tsx`, `Viewport.tsx`, `LeftPanel.tsx`, `RightPanel.tsx`, `BottomPanel.tsx`, `widgets.tsx`, `colors.ts`, `scene-api.ts`, `history.ts`
 - Editor reads/writes scene JSON files via a Vite middleware API (`/__mana/scenes/:name`)
+- Asset browser in bottom panel browses `game/assets/` via `/__mana/assets?path=` API
+- `assetsApiPlugin` lists files/folders with type detection, path traversal prevention, and sorted output (folders first)
+- Asset file serving via `/__mana/assets/file?path=` for previews (images, audio, KTX2)
+- Asset preview panel shows image thumbnails, KTX2 previews (via WebGPU renderer), audio players, and file info
+- `basisTranscoderPlugin` serves Three.js basis transcoder files at `/__mana/basis/` for KTX2 decoding
 - Scene names are validated to only contain `[a-zA-Z0-9_-]` characters (prevents path traversal)
 - Scene selector dropdown to switch between scenes
 - Hierarchy panel shows entities from the active scene; click to select
