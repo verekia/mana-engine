@@ -22,19 +22,27 @@ function DragNumberInput({
   return (
     <input
       ref={inputRef}
-      type="number"
-      step={baseStep}
+      type="text"
+      inputMode="decimal"
       value={value}
-      onChange={e => onChange(Number.parseFloat(e.target.value) || 0)}
+      onChange={e => {
+        const parsed = Number.parseFloat(e.target.value)
+        if (!Number.isNaN(parsed)) onChange(parsed)
+      }}
       onMouseDown={e => {
         if (document.activeElement === inputRef.current) return
         e.preventDefault()
         const startY = e.clientY
         const startValue = value
-        document.body.style.cursor = 'ns-resize'
+        let dragging = false
 
         const handleMouseMove = (ev: MouseEvent) => {
           const dy = startY - ev.clientY
+          if (!dragging) {
+            if (Math.abs(dy) < 3) return
+            dragging = true
+            document.body.style.cursor = 'ns-resize'
+          }
           let multiplier = 1
           if (ev.shiftKey) multiplier = 10
           else if (ev.altKey) multiplier = 0.1
@@ -46,6 +54,10 @@ function DragNumberInput({
           document.body.style.cursor = ''
           document.removeEventListener('mousemove', handleMouseMove)
           document.removeEventListener('mouseup', handleMouseUp)
+          if (!dragging) {
+            inputRef.current?.focus()
+            inputRef.current?.select()
+          }
         }
 
         document.addEventListener('mousemove', handleMouseMove)
@@ -61,6 +73,7 @@ function DragNumberInput({
         padding: '3px 4px',
         outline: 'none',
         cursor: 'ns-resize',
+        MozAppearance: 'textfield',
         ...style,
       }}
     />

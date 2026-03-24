@@ -459,6 +459,13 @@ export async function createScene(
             Math.round(obj.scale.z * 1000) / 1000,
           ],
         }
+        // Sync debug wireframe to follow the gizmo
+        const wf = debugWireframes.get(attachedEntityId)
+        if (wf) {
+          wf.position.copy(obj.position)
+          wf.rotation.copy(obj.rotation)
+          wf.scale.copy(obj.scale)
+        }
         options?.onTransformChange?.(attachedEntityId, t)
       }
     })
@@ -870,6 +877,7 @@ export async function createScene(
       if (wireframe) {
         wireframe.position.copy(obj.position)
         wireframe.rotation.copy(obj.rotation)
+        wireframe.scale.copy(obj.scale)
       }
       if (entity.type === 'mesh' && obj instanceof Mesh) {
         applyMaterialData(obj.material as MeshStandardMaterial, entity.mesh?.material)
