@@ -166,7 +166,7 @@ function AssetPreview({ filePath, ext, size }: { filePath: string; ext: string |
   )
 }
 
-export function BottomPanel() {
+export function BottomPanel({ height }: { height: number }) {
   const [currentPath, setCurrentPath] = useState('')
   const [entries, setEntries] = useState<AssetEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -232,7 +232,7 @@ export function BottomPanel() {
   return (
     <div
       style={{
-        height: 210,
+        height,
         background: COLORS.panel,
         borderTop: `1px solid ${COLORS.border}`,
         display: 'flex',

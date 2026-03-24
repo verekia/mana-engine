@@ -245,6 +245,7 @@ function InspectorName({ entity, onRename }: { entity: SceneEntity; onRename: (i
 }
 
 export function RightPanel({
+  width,
   entity,
   onUpdate,
   onRename,
@@ -252,6 +253,7 @@ export function RightPanel({
   availableUiComponents,
   scriptDefs,
 }: {
+  width: number
   entity: SceneEntity | null
   onUpdate: (entity: SceneEntity) => void
   onRename: (id: string, name: string) => void
@@ -262,7 +264,7 @@ export function RightPanel({
   return (
     <div
       style={{
-        width: 260,
+        width,
         background: COLORS.panel,
         borderLeft: `1px solid ${COLORS.border}`,
         display: 'flex',

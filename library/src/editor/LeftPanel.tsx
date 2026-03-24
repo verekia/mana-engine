@@ -268,6 +268,7 @@ function AddEntityPopover({
 }
 
 export function LeftPanel({
+  width,
   sceneList,
   activeScene,
   onSwitchScene,
@@ -278,6 +279,7 @@ export function LeftPanel({
   onDeleteEntity,
   onRenameEntity,
 }: {
+  width: number
   sceneList: string[]
   activeScene: string
   onSwitchScene: (name: string) => void
@@ -296,7 +298,7 @@ export function LeftPanel({
   return (
     <div
       style={{
-        width: 220,
+        width,
         background: COLORS.panel,
         borderRight: `1px solid ${COLORS.border}`,
         display: 'flex',

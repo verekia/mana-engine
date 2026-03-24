@@ -5,6 +5,7 @@ import { BottomPanel } from './BottomPanel.tsx'
 import { COLORS, FOCUS_STYLE } from './colors.ts'
 import { UndoHistory } from './history.ts'
 import { LeftPanel } from './LeftPanel.tsx'
+import { ResizeHandle } from './ResizeHandle.tsx'
 import { RightPanel } from './RightPanel.tsx'
 import { fetchSceneList, loadSceneData, saveSceneData } from './scene-api.ts'
 import { Toolbar } from './Toolbar.tsx'
@@ -37,6 +38,11 @@ export default function Editor({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [savedSceneJson, setSavedSceneJson] = useState('')
+
+  // Panel sizes (persisted to localStorage)
+  const [leftWidth, setLeftWidth] = useState(() => Number(localStorage.getItem('mana:leftWidth')) || 220)
+  const [rightWidth, setRightWidth] = useState(() => Number(localStorage.getItem('mana:rightWidth')) || 260)
+  const [bottomHeight, setBottomHeight] = useState(() => Number(localStorage.getItem('mana:bottomHeight')) || 210)
 
   // Refs for values accessed in async/event callbacks to avoid stale closures
   const sceneDataRef = useRef<SceneData | null>(null)
@@ -462,6 +468,7 @@ export default function Editor({
           {/* Top: hierarchy + viewport */}
           <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
             <LeftPanel
+              width={leftWidth}
               sceneList={sceneList}
               activeScene={activeScene}
               onSwitchScene={handleSwitchScene}
@@ -471,6 +478,16 @@ export default function Editor({
               onAddEntity={handleAddEntity}
               onDeleteEntity={handleDeleteEntity}
               onRenameEntity={handleRenameEntity}
+            />
+            <ResizeHandle
+              direction="horizontal"
+              onResize={d =>
+                setLeftWidth(w => {
+                  const next = Math.max(140, Math.min(400, w + d))
+                  localStorage.setItem('mana:leftWidth', String(next))
+                  return next
+                })
+              }
             />
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
               <Toolbar
@@ -521,11 +538,32 @@ export default function Editor({
               </div>
             </div>
           </div>
-          {/* Bottom: asset browser (left panel + viewport width) */}
-          <BottomPanel />
+          {/* Bottom: asset browser */}
+          <ResizeHandle
+            direction="vertical"
+            onResize={d =>
+              setBottomHeight(h => {
+                const next = Math.max(80, Math.min(500, h - d))
+                localStorage.setItem('mana:bottomHeight', String(next))
+                return next
+              })
+            }
+          />
+          <BottomPanel height={bottomHeight} />
         </div>
         {/* Right: inspector (full height) */}
+        <ResizeHandle
+          direction="horizontal"
+          onResize={d =>
+            setRightWidth(w => {
+              const next = Math.max(200, Math.min(450, w - d))
+              localStorage.setItem('mana:rightWidth', String(next))
+              return next
+            })
+          }
+        />
         <RightPanel
+          width={rightWidth}
           entity={selectedEntity}
           onUpdate={handleUpdateEntity}
           onRename={handleRenameEntity}
