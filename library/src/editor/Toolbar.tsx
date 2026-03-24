@@ -1,4 +1,15 @@
 import { COLORS } from './colors.ts'
+import {
+  IconEye,
+  IconGrid,
+  IconPlay,
+  IconRedo,
+  IconRotate,
+  IconScale,
+  IconStop,
+  IconTranslate,
+  IconUndo,
+} from './icons.tsx'
 
 import type { TransformMode } from '../scene.ts'
 
@@ -21,19 +32,23 @@ function ToolbarButton({
       onClick={onClick}
       disabled={disabled}
       style={{
-        background: active ? COLORS.accent : 'none',
-        border: `1px solid ${active ? COLORS.accent : COLORS.border}`,
-        borderRadius: 4,
-        color: active ? '#fff' : disabled ? COLORS.border : COLORS.text,
-        cursor: disabled ? 'default' : 'pointer',
+        background: active ? COLORS.accent : 'transparent',
+        border: `1px solid ${active ? COLORS.accent : 'transparent'}`,
+        borderRadius: 5,
+        color: active ? '#fff' : disabled ? COLORS.textDim : COLORS.text,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        width: 28,
-        height: 28,
-        fontSize: 14,
+        width: 26,
+        height: 26,
         padding: 0,
         opacity: disabled ? 0.4 : 1,
+      }}
+      onMouseEnter={e => {
+        if (!disabled && !active) e.currentTarget.style.background = COLORS.hover
+      }}
+      onMouseLeave={e => {
+        if (!active) e.currentTarget.style.background = active ? COLORS.accent : 'transparent'
       }}
     >
       {children}
@@ -46,11 +61,51 @@ function ToolbarSeparator() {
     <div
       style={{
         width: 1,
-        height: 20,
+        height: 14,
         background: COLORS.border,
-        margin: '0 4px',
+        margin: '0 2px',
       }}
     />
+  )
+}
+
+function ToggleButton({
+  icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: React.ReactNode
+  label: string
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 3,
+        background: 'none',
+        border: 'none',
+        color: active ? COLORS.text : COLORS.textDim,
+        padding: '2px 4px',
+        fontSize: 10,
+        borderRadius: 3,
+        userSelect: 'none',
+        fontFamily: 'inherit',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.background = COLORS.hover
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.background = 'transparent'
+      }}
+    >
+      {icon}
+      {label}
+    </button>
   )
 }
 
@@ -65,6 +120,10 @@ export function Toolbar({
   canRedo,
   onUndo,
   onRedo,
+  showUI,
+  onToggleUI,
+  showGizmos,
+  onToggleGizmos,
 }: {
   playing: boolean
   onPlay: () => void
@@ -76,76 +135,90 @@ export function Toolbar({
   canRedo: boolean
   onUndo: () => void
   onRedo: () => void
+  showUI: boolean
+  onToggleUI: () => void
+  showGizmos: boolean
+  onToggleGizmos: () => void
 }) {
   return (
     <div
       style={{
-        height: 40,
-        background: playing ? '#1a2a4a' : COLORS.toolbar,
-        borderBottom: `1px solid ${playing ? '#2a4a7a' : COLORS.border}`,
+        height: 32,
+        background: playing ? '#0f1a2e' : COLORS.panelHeader,
+        borderBottom: `1px solid ${playing ? '#1e3a5f' : COLORS.border}`,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        gap: 4,
-        padding: '0 12px',
+        padding: '0 8px',
         flexShrink: 0,
-        position: 'relative',
+        gap: 2,
       }}
     >
-      {/* Transform mode buttons (left side) */}
-      <div style={{ position: 'absolute', left: 12, display: 'flex', gap: 4, alignItems: 'center' }}>
-        <ToolbarButton
-          title="Translate (W)"
-          onClick={() => onTransformModeChange('translate')}
-          active={!playing && transformMode === 'translate'}
-          disabled={playing}
-        >
-          T
-        </ToolbarButton>
-        <ToolbarButton
-          title="Rotate (E)"
-          onClick={() => onTransformModeChange('rotate')}
-          active={!playing && transformMode === 'rotate'}
-          disabled={playing}
-        >
-          R
-        </ToolbarButton>
-        <ToolbarButton
-          title="Scale (R)"
-          onClick={() => onTransformModeChange('scale')}
-          active={!playing && transformMode === 'scale'}
-          disabled={playing}
-        >
-          S
-        </ToolbarButton>
-        <ToolbarSeparator />
-        <ToolbarButton title="Undo (Ctrl+Z)" onClick={onUndo} disabled={!canUndo || playing}>
-          &#8630;
-        </ToolbarButton>
-        <ToolbarButton title="Redo (Ctrl+Shift+Z)" onClick={onRedo} disabled={!canRedo || playing}>
-          &#8631;
-        </ToolbarButton>
-      </div>
-
-      {/* Play/Stop buttons (center) */}
-      <ToolbarButton title="Play" onClick={onPlay} disabled={playing} active={playing}>
-        &#9654;
+      {/* Left: transform + undo/redo */}
+      <ToolbarButton
+        title="Translate (W)"
+        onClick={() => onTransformModeChange('translate')}
+        active={!playing && transformMode === 'translate'}
+        disabled={playing}
+      >
+        <IconTranslate />
       </ToolbarButton>
-      <ToolbarButton title="Stop" onClick={onStop} disabled={!playing}>
-        &#9632;
+      <ToolbarButton
+        title="Rotate (E)"
+        onClick={() => onTransformModeChange('rotate')}
+        active={!playing && transformMode === 'rotate'}
+        disabled={playing}
+      >
+        <IconRotate />
+      </ToolbarButton>
+      <ToolbarButton
+        title="Scale (R)"
+        onClick={() => onTransformModeChange('scale')}
+        active={!playing && transformMode === 'scale'}
+        disabled={playing}
+      >
+        <IconScale />
+      </ToolbarButton>
+      <ToolbarSeparator />
+      <ToolbarButton title="Undo (Ctrl+Z)" onClick={onUndo} disabled={!canUndo || playing}>
+        <IconUndo />
+      </ToolbarButton>
+      <ToolbarButton title="Redo (Ctrl+Shift+Z)" onClick={onRedo} disabled={!canRedo || playing}>
+        <IconRedo />
       </ToolbarButton>
 
-      {/* Save status (right side) */}
+      {/* Center: play/stop toggle */}
+      <div style={{ flex: 1 }} />
+      <ToolbarButton title={playing ? 'Stop' : 'Play'} onClick={playing ? onStop : onPlay} active={playing}>
+        {playing ? <IconStop /> : <IconPlay />}
+      </ToolbarButton>
+      <div style={{ flex: 1 }} />
+
+      {/* Right: viewport toggles + save status */}
+      {!playing && (
+        <>
+          <ToggleButton icon={<IconEye />} label="UI" active={showUI} onClick={onToggleUI} />
+          <ToggleButton icon={<IconGrid />} label="Gizmos" active={showGizmos} onClick={onToggleGizmos} />
+          <ToolbarSeparator />
+        </>
+      )}
       <div
         style={{
-          position: 'absolute',
-          right: 12,
-          fontSize: 11,
-          fontWeight: 600,
-          color: dirty ? '#e8a034' : '#4a4',
+          fontSize: 10,
+          fontWeight: 500,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 5,
         }}
       >
-        {dirty ? 'Unsaved' : 'Saved'}
+        <div
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            background: dirty ? '#f59e0b' : '#22c55e',
+          }}
+        />
+        <span style={{ color: dirty ? '#f59e0b' : COLORS.textMuted }}>{dirty ? 'Unsaved' : 'Saved'}</span>
       </div>
     </div>
   )

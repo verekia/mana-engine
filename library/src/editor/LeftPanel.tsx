@@ -1,26 +1,36 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-import { COLORS } from './colors.ts'
-import { PanelHeader } from './widgets.tsx'
+import { COLORS, INPUT_STYLE } from './colors.ts'
+import {
+  IconAmbientLight,
+  IconCamera,
+  IconChevronDown,
+  IconDirectionalLight,
+  IconMesh,
+  IconModel,
+  IconPlus,
+  IconPointLight,
+  IconUI,
+} from './icons.tsx'
 
 import type { SceneData, SceneEntity } from '../scene-data.ts'
 
-function entityTypeIcon(type: SceneEntity['type']): string {
+function entityTypeIcon(type: SceneEntity['type']): React.ReactNode {
   switch (type) {
     case 'camera':
-      return '\u{1F3A5}'
+      return <IconCamera />
     case 'mesh':
-      return '\u{25A6}'
+      return <IconMesh />
     case 'model':
-      return '\u{1F4E6}'
+      return <IconModel />
     case 'directional-light':
-      return '\u{2600}'
+      return <IconDirectionalLight />
     case 'ambient-light':
-      return '\u{1F4A1}'
+      return <IconAmbientLight />
     case 'point-light':
-      return '\u{1F4A1}'
+      return <IconPointLight />
     case 'ui':
-      return '\u{1F5BC}'
+      return <IconUI />
   }
 }
 
@@ -28,70 +38,17 @@ function generateId() {
   return Math.random().toString(36).slice(2, 10)
 }
 
-const ADD_OBJECT_OPTIONS: { label: string; category: string; create: () => SceneEntity }[] = [
+const ADD_OBJECT_OPTIONS: { label: string; category: string; icon: React.ReactNode; create: () => SceneEntity }[] = [
   {
     label: 'Empty',
     category: 'General',
+    icon: <IconMesh />,
     create: () => ({ id: generateId(), name: 'Empty', type: 'mesh', transform: { position: [0, 0, 0] } }),
-  },
-  {
-    label: 'Box',
-    category: 'Mesh',
-    create: () => ({
-      id: generateId(),
-      name: 'Box',
-      type: 'mesh',
-      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
-      mesh: { geometry: 'box', material: { color: '#888888' } },
-    }),
-  },
-  {
-    label: 'Sphere',
-    category: 'Mesh',
-    create: () => ({
-      id: generateId(),
-      name: 'Sphere',
-      type: 'mesh',
-      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
-      mesh: { geometry: 'sphere', material: { color: '#888888' } },
-    }),
-  },
-  {
-    label: 'Plane',
-    category: 'Mesh',
-    create: () => ({
-      id: generateId(),
-      name: 'Plane',
-      type: 'mesh',
-      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
-      mesh: { geometry: 'plane', material: { color: '#888888' } },
-    }),
-  },
-  {
-    label: 'Cylinder',
-    category: 'Mesh',
-    create: () => ({
-      id: generateId(),
-      name: 'Cylinder',
-      type: 'mesh',
-      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
-      mesh: { geometry: 'cylinder', material: { color: '#888888' } },
-    }),
-  },
-  {
-    label: 'Capsule',
-    category: 'Mesh',
-    create: () => ({
-      id: generateId(),
-      name: 'Capsule',
-      type: 'mesh',
-      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
-      mesh: { geometry: 'capsule', material: { color: '#888888' } },
-    }),
   },
   {
     label: 'GLTF Model',
     category: 'General',
+    icon: <IconModel />,
     create: () => ({
       id: generateId(),
       name: 'Model',
@@ -103,6 +60,7 @@ const ADD_OBJECT_OPTIONS: { label: string; category: string; create: () => Scene
   {
     label: 'Camera',
     category: 'General',
+    icon: <IconCamera />,
     create: () => ({
       id: generateId(),
       name: 'Camera',
@@ -112,8 +70,69 @@ const ADD_OBJECT_OPTIONS: { label: string; category: string; create: () => Scene
     }),
   },
   {
+    label: 'Box',
+    category: 'Mesh',
+    icon: <IconMesh />,
+    create: () => ({
+      id: generateId(),
+      name: 'Box',
+      type: 'mesh',
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      mesh: { geometry: 'box', material: { color: '#888888' } },
+    }),
+  },
+  {
+    label: 'Sphere',
+    category: 'Mesh',
+    icon: <IconMesh />,
+    create: () => ({
+      id: generateId(),
+      name: 'Sphere',
+      type: 'mesh',
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      mesh: { geometry: 'sphere', material: { color: '#888888' } },
+    }),
+  },
+  {
+    label: 'Plane',
+    category: 'Mesh',
+    icon: <IconMesh />,
+    create: () => ({
+      id: generateId(),
+      name: 'Plane',
+      type: 'mesh',
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      mesh: { geometry: 'plane', material: { color: '#888888' } },
+    }),
+  },
+  {
+    label: 'Cylinder',
+    category: 'Mesh',
+    icon: <IconMesh />,
+    create: () => ({
+      id: generateId(),
+      name: 'Cylinder',
+      type: 'mesh',
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      mesh: { geometry: 'cylinder', material: { color: '#888888' } },
+    }),
+  },
+  {
+    label: 'Capsule',
+    category: 'Mesh',
+    icon: <IconMesh />,
+    create: () => ({
+      id: generateId(),
+      name: 'Capsule',
+      type: 'mesh',
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      mesh: { geometry: 'capsule', material: { color: '#888888' } },
+    }),
+  },
+  {
     label: 'Directional Light',
     category: 'Light',
+    icon: <IconDirectionalLight />,
     create: () => ({
       id: generateId(),
       name: 'Directional Light',
@@ -125,6 +144,7 @@ const ADD_OBJECT_OPTIONS: { label: string; category: string; create: () => Scene
   {
     label: 'Point Light',
     category: 'Light',
+    icon: <IconPointLight />,
     create: () => ({
       id: generateId(),
       name: 'Point Light',
@@ -136,6 +156,7 @@ const ADD_OBJECT_OPTIONS: { label: string; category: string; create: () => Scene
   {
     label: 'Ambient Light',
     category: 'Light',
+    icon: <IconAmbientLight />,
     create: () => ({
       id: generateId(),
       name: 'Ambient Light',
@@ -144,6 +165,107 @@ const ADD_OBJECT_OPTIONS: { label: string; category: string; create: () => Scene
     }),
   },
 ]
+
+function AddEntityPopover({
+  anchorRef,
+  onAdd,
+  onClose,
+}: {
+  anchorRef: React.RefObject<HTMLButtonElement | null>
+  onAdd: (entity: SceneEntity) => void
+  onClose: () => void
+}) {
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const pos = (() => {
+    if (!anchorRef.current) return { top: 0, left: 0 }
+    const rect = anchorRef.current.getBoundingClientRect()
+    return { top: rect.bottom + 2, left: rect.right - 180 }
+  })()
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [onClose])
+
+  return (
+    <div
+      ref={popoverRef}
+      style={{
+        position: 'fixed',
+        top: pos.top,
+        left: pos.left,
+        width: 180,
+        background: COLORS.panel,
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: 6,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+        zIndex: 1001,
+        padding: '4px 0',
+        maxHeight: 300,
+        overflow: 'auto',
+      }}
+    >
+      {['General', 'Mesh', 'Light'].map(cat => (
+        <div key={cat}>
+          <div
+            style={{
+              padding: '5px 10px 3px',
+              fontSize: 9,
+              color: COLORS.textMuted,
+              fontWeight: 600,
+              textTransform: 'uppercase' as const,
+              letterSpacing: '0.06em',
+            }}
+          >
+            {cat}
+          </div>
+          {ADD_OBJECT_OPTIONS.filter(o => o.category === cat).map(opt => (
+            <button
+              key={opt.label}
+              onClick={() => {
+                onAdd(opt.create())
+                onClose()
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = COLORS.hover
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent'
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                width: '100%',
+                padding: '4px 10px',
+                background: 'transparent',
+                border: 'none',
+                color: COLORS.text,
+                fontSize: 11,
+                textAlign: 'left',
+              }}
+            >
+              <span style={{ color: COLORS.textMuted, display: 'flex' }}>{opt.icon}</span>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export function LeftPanel({
   sceneList,
@@ -167,13 +289,14 @@ export function LeftPanel({
   onRenameEntity: (id: string, name: string) => void
 }) {
   const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const addButtonRef = useRef<HTMLButtonElement>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entityId: string } | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   return (
     <div
       style={{
-        width: 240,
+        width: 220,
         background: COLORS.panel,
         borderRight: `1px solid ${COLORS.border}`,
         display: 'flex',
@@ -182,187 +305,183 @@ export function LeftPanel({
         overflow: 'hidden',
       }}
     >
-      <PanelHeader>Scenes</PanelHeader>
-      <div style={{ padding: '6px 10px', borderBottom: `1px solid ${COLORS.border}` }}>
-        <select
-          value={activeScene}
-          onChange={e => onSwitchScene(e.target.value)}
-          style={{
-            width: '100%',
-            background: COLORS.input,
-            border: `1px solid ${COLORS.inputBorder}`,
-            borderRadius: 3,
-            color: COLORS.text,
-            fontSize: 11,
-            padding: '4px 6px',
-            outline: 'none',
-          }}
-        >
-          {sceneList.map(name => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Scene selector */}
       <div
         style={{
-          padding: '6px 12px',
-          fontSize: 11,
-          fontWeight: 600,
-          textTransform: 'uppercase' as const,
-          letterSpacing: '0.05em',
-          color: COLORS.textMuted,
-          background: COLORS.panelHeader,
+          padding: '6px 8px',
           borderBottom: `1px solid ${COLORS.border}`,
-          userSelect: 'none',
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
+          gap: 6,
         }}
       >
-        Hierarchy
-        <button
-          onClick={() => setAddMenuOpen(s => !s)}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: COLORS.text,
-            cursor: 'pointer',
-            fontSize: 14,
-            padding: '0 2px',
-            lineHeight: 1,
-          }}
+        <span
+          style={{ fontSize: 10, fontWeight: 600, color: COLORS.textMuted, letterSpacing: '0.04em', flexShrink: 0 }}
         >
-          +
-        </button>
-      </div>
-      {addMenuOpen && (
-        <div
-          style={{
-            background: COLORS.panel,
-            borderBottom: `1px solid ${COLORS.border}`,
-            maxHeight: 200,
-            overflow: 'auto',
-          }}
-        >
-          {['General', 'Mesh', 'Light'].map(cat => (
-            <div key={cat}>
-              <div
-                style={{
-                  padding: '4px 10px',
-                  fontSize: 10,
-                  color: COLORS.textMuted,
-                  fontWeight: 600,
-                  textTransform: 'uppercase' as const,
-                  letterSpacing: '0.05em',
-                }}
-              >
-                {cat}
-              </div>
-              {ADD_OBJECT_OPTIONS.filter(o => o.category === cat).map(opt => (
-                <button
-                  key={opt.label}
-                  onClick={() => {
-                    const entity = opt.create()
-                    onAddEntity(entity)
-                    setAddMenuOpen(false)
-                  }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '4px 10px 4px 20px',
-                    background: 'none',
-                    border: 'none',
-                    color: COLORS.text,
-                    fontSize: 11,
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          ))}
+          SCENE
+        </span>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <select
+            value={activeScene}
+            onChange={e => onSwitchScene(e.target.value)}
+            style={{
+              ...INPUT_STYLE,
+              width: '100%',
+              paddingRight: 18,
+              appearance: 'none',
+            }}
+          >
+            {sceneList.map(name => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+          <span
+            style={{
+              position: 'absolute',
+              right: 5,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              pointerEvents: 'none',
+              color: COLORS.textMuted,
+              display: 'flex',
+            }}
+          >
+            <IconChevronDown />
+          </span>
         </div>
-      )}
+      </div>
+
+      {/* Entity list */}
       <div
         style={{
-          padding: 10,
-          fontSize: 12,
-          color: COLORS.textMuted,
           flex: 1,
           overflow: 'auto',
+          padding: '4px 0',
         }}
       >
         {sceneData ? (
-          <>
-            <div style={{ padding: '4px 8px', color: COLORS.text, userSelect: 'none' }}>Scene</div>
-            {sceneData.entities.map(entity => (
-              <div
-                key={entity.id}
-                onClick={() => onSelect(entity.id)}
-                onDoubleClick={() => {
-                  setRenamingId(entity.id)
-                  setRenameValue(entity.name)
-                }}
-                onContextMenu={e => {
-                  e.preventDefault()
-                  onSelect(entity.id)
-                  setContextMenu({ x: e.clientX, y: e.clientY, entityId: entity.id })
-                }}
-                style={{
-                  padding: '4px 8px 4px 24px',
-                  cursor: 'pointer',
-                  borderRadius: 3,
-                  background: selectedId === entity.id ? COLORS.selected : 'transparent',
-                  color: selectedId === entity.id ? COLORS.text : COLORS.textMuted,
-                  userSelect: 'none',
-                }}
-              >
-                {renamingId === entity.id ? (
-                  <input
-                    autoFocus
-                    value={renameValue}
-                    onFocus={e => e.target.select()}
-                    onChange={e => setRenameValue(e.target.value)}
-                    onBlur={() => {
+          sceneData.entities.map(entity => (
+            <div
+              key={entity.id}
+              onClick={() => onSelect(entity.id)}
+              onDoubleClick={() => {
+                setRenamingId(entity.id)
+                setRenameValue(entity.name)
+              }}
+              onContextMenu={e => {
+                e.preventDefault()
+                onSelect(entity.id)
+                setContextMenu({ x: e.clientX, y: e.clientY, entityId: entity.id })
+              }}
+              style={{
+                padding: '3px 8px 3px 10px',
+                borderRadius: 4,
+                margin: '0 4px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: selectedId === entity.id ? COLORS.selected : 'transparent',
+                borderLeft: selectedId === entity.id ? `2px solid ${COLORS.accent}` : '2px solid transparent',
+                color: selectedId === entity.id ? COLORS.text : COLORS.textMuted,
+                userSelect: 'none',
+                fontSize: 12,
+              }}
+              onMouseEnter={e => {
+                if (selectedId !== entity.id) e.currentTarget.style.background = COLORS.hover
+              }}
+              onMouseLeave={e => {
+                if (selectedId !== entity.id) e.currentTarget.style.background = 'transparent'
+              }}
+            >
+              {renamingId === entity.id ? (
+                <input
+                  autoFocus
+                  value={renameValue}
+                  onFocus={e => e.target.select()}
+                  onChange={e => setRenameValue(e.target.value)}
+                  onBlur={() => {
+                    if (renameValue.trim()) onRenameEntity(entity.id, renameValue.trim())
+                    setRenamingId(null)
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
                       if (renameValue.trim()) onRenameEntity(entity.id, renameValue.trim())
                       setRenamingId(null)
-                    }}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        if (renameValue.trim()) onRenameEntity(entity.id, renameValue.trim())
-                        setRenamingId(null)
-                      }
-                      if (e.key === 'Escape') setRenamingId(null)
-                    }}
-                    onClick={e => e.stopPropagation()}
+                    }
+                    if (e.key === 'Escape') setRenamingId(null)
+                  }}
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    ...INPUT_STYLE,
+                    width: '100%',
+                    fontSize: 12,
+                    padding: '1px 4px',
+                    borderColor: COLORS.accent,
+                    boxShadow: COLORS.focusRing,
+                  }}
+                />
+              ) : (
+                <>
+                  <span
                     style={{
-                      width: '100%',
-                      background: COLORS.input,
-                      border: `1px solid ${COLORS.accent}`,
-                      borderRadius: 2,
-                      color: COLORS.text,
-                      fontSize: 12,
-                      padding: '1px 4px',
-                      outline: 'none',
+                      color: selectedId === entity.id ? COLORS.text : COLORS.textDim,
+                      display: 'flex',
+                      flexShrink: 0,
                     }}
-                  />
-                ) : (
-                  <>
-                    <span style={{ marginRight: 6, fontSize: 10 }}>{entityTypeIcon(entity.type)}</span>
+                  >
+                    {entityTypeIcon(entity.type)}
+                  </span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {entity.name}
-                  </>
-                )}
-              </div>
-            ))}
-          </>
+                  </span>
+                </>
+              )}
+            </div>
+          ))
         ) : (
-          <div style={{ color: COLORS.textMuted }}>Loading...</div>
+          <div style={{ padding: 10, color: COLORS.textMuted, fontSize: 11 }}>Loading...</div>
         )}
       </div>
+
+      {/* Add object button */}
+      <div style={{ padding: '4px 6px', borderTop: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
+        <button
+          ref={addButtonRef}
+          onClick={() => setAddMenuOpen(s => !s)}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = COLORS.active
+            e.currentTarget.style.color = COLORS.text
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = COLORS.hover
+            e.currentTarget.style.color = COLORS.textMuted
+          }}
+          style={{
+            width: '100%',
+            padding: '4px 0',
+            background: COLORS.hover,
+            border: 'none',
+            borderRadius: 4,
+            color: COLORS.textMuted,
+            fontSize: 11,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 4,
+          }}
+        >
+          <IconPlus />
+          Add Object
+        </button>
+      </div>
+
+      {addMenuOpen && (
+        <AddEntityPopover anchorRef={addButtonRef} onAdd={onAddEntity} onClose={() => setAddMenuOpen(false)} />
+      )}
+
+      {/* Context menu */}
       {contextMenu && (
         <>
           <div
@@ -380,10 +499,11 @@ export function LeftPanel({
               top: contextMenu.y,
               background: COLORS.panel,
               border: `1px solid ${COLORS.border}`,
-              borderRadius: 4,
+              borderRadius: 6,
               padding: '4px 0',
               zIndex: 1001,
               minWidth: 120,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
             }}
           >
             <button
@@ -395,15 +515,20 @@ export function LeftPanel({
                 }
                 setContextMenu(null)
               }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = COLORS.hover
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent'
+              }}
               style={{
                 display: 'block',
                 width: '100%',
                 padding: '5px 12px',
-                background: 'none',
+                background: 'transparent',
                 border: 'none',
                 color: COLORS.text,
                 fontSize: 11,
-                cursor: 'pointer',
                 textAlign: 'left',
               }}
             >
@@ -414,15 +539,20 @@ export function LeftPanel({
                 onDeleteEntity(contextMenu.entityId)
                 setContextMenu(null)
               }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(239,68,68,0.15)'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent'
+              }}
               style={{
                 display: 'block',
                 width: '100%',
                 padding: '5px 12px',
-                background: 'none',
+                background: 'transparent',
                 border: 'none',
-                color: '#e55',
+                color: COLORS.danger,
                 fontSize: 11,
-                cursor: 'pointer',
                 textAlign: 'left',
               }}
             >

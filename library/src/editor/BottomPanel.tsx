@@ -1,60 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { COLORS } from './colors.ts'
+import { Icon3D, IconAudio, IconData, IconFile, IconFolder, IconFont, IconImage, IconVideo } from './icons.tsx'
 import { type AssetEntry, assetFileUrl, fetchAssets } from './scene-api.ts'
-import { PanelHeader } from './widgets.tsx'
-
-const ASSET_ICONS: Record<string, string> = {
-  // Images
-  '.png': 'IMG',
-  '.jpg': 'IMG',
-  '.jpeg': 'IMG',
-  '.webp': 'IMG',
-  '.svg': 'IMG',
-  '.gif': 'IMG',
-  '.bmp': 'IMG',
-  '.hdr': 'IMG',
-  '.exr': 'IMG',
-  '.ktx2': 'IMG',
-  // Models
-  '.gltf': '3D',
-  '.glb': '3D',
-  '.fbx': '3D',
-  '.obj': '3D',
-  // Audio
-  '.mp3': 'SFX',
-  '.wav': 'SFX',
-  '.ogg': 'SFX',
-  '.flac': 'SFX',
-  // Video
-  '.mp4': 'VID',
-  '.webm': 'VID',
-  // Data
-  '.json': '{ }',
-  '.xml': '{ }',
-  // Fonts
-  '.ttf': 'Aa',
-  '.otf': 'Aa',
-  '.woff': 'Aa',
-  '.woff2': 'Aa',
-}
-
-const ICON_COLORS: Record<string, string> = {
-  IMG: '#4a9',
-  '3D': '#a6e',
-  SFX: '#e94',
-  VID: '#e55',
-  '{ }': '#999',
-  Aa: '#6ae',
-}
 
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.bmp'])
 const AUDIO_EXTS = new Set(['.mp3', '.wav', '.ogg', '.flac'])
 
-function getIcon(entry: AssetEntry): { label: string; color: string } {
-  if (entry.type === 'folder') return { label: 'DIR', color: '#da5' }
-  const icon = (entry.ext && ASSET_ICONS[entry.ext]) || 'FILE'
-  return { label: icon, color: ICON_COLORS[icon] || '#666' }
+function getAssetIcon(entry: AssetEntry): React.ReactNode {
+  if (entry.type === 'folder') return <IconFolder />
+  if (!entry.ext) return <IconFile />
+  if (IMAGE_EXTS.has(entry.ext) || entry.ext === '.ktx2' || entry.ext === '.hdr' || entry.ext === '.exr')
+    return <IconImage />
+  if (['.gltf', '.glb', '.fbx', '.obj'].includes(entry.ext)) return <Icon3D />
+  if (AUDIO_EXTS.has(entry.ext)) return <IconAudio />
+  if (['.mp4', '.webm'].includes(entry.ext)) return <IconVideo />
+  if (['.json', '.xml'].includes(entry.ext)) return <IconData />
+  if (['.ttf', '.otf', '.woff', '.woff2'].includes(entry.ext)) return <IconFont />
+  return <IconFile />
+}
+
+function getIconColor(entry: AssetEntry): string {
+  if (entry.type === 'folder') return '#d4a843'
+  if (!entry.ext) return COLORS.textDim
+  if (IMAGE_EXTS.has(entry.ext) || entry.ext === '.ktx2' || entry.ext === '.hdr' || entry.ext === '.exr') return '#4a9'
+  if (['.gltf', '.glb', '.fbx', '.obj'].includes(entry.ext)) return '#a6e'
+  if (AUDIO_EXTS.has(entry.ext)) return '#e94'
+  if (['.mp4', '.webm'].includes(entry.ext)) return '#e55'
+  if (['.json', '.xml'].includes(entry.ext)) return '#999'
+  if (['.ttf', '.otf', '.woff', '.woff2'].includes(entry.ext)) return '#6ae'
+  return COLORS.textDim
 }
 
 function formatSize(bytes: number): string {
@@ -144,12 +119,11 @@ function AssetPreview({ filePath, ext, size }: { filePath: string; ext: string |
         alignItems: 'center',
         justifyContent: 'center',
         height: '100%',
-        gap: 6,
+        gap: 4,
         padding: 8,
         overflow: 'hidden',
       }}
     >
-      {/* Thumbnail */}
       <div
         style={{
           flex: 1,
@@ -168,33 +142,24 @@ function AssetPreview({ filePath, ext, size }: { filePath: string; ext: string |
               maxWidth: '100%',
               maxHeight: '100%',
               objectFit: 'contain',
-              borderRadius: 2,
+              borderRadius: 3,
               imageRendering: 'auto',
             }}
           />
         )}
         {ext === '.ktx2' && <Ktx2Preview url={url} />}
         {ext && AUDIO_EXTS.has(ext) && (
-          <audio controls src={url} style={{ width: '100%', maxWidth: 180 }}>
+          <audio controls src={url} style={{ width: '100%', maxWidth: 140 }}>
             <track kind="captions" />
           </audio>
         )}
         {ext && !IMAGE_EXTS.has(ext) && ext !== '.ktx2' && !AUDIO_EXTS.has(ext) && (
-          <div
-            style={{
-              color: COLORS.textMuted,
-              fontSize: 10,
-              textAlign: 'center',
-            }}
-          >
-            No preview
-          </div>
+          <div style={{ color: COLORS.textDim, fontSize: 10 }}>No preview</div>
         )}
       </div>
 
-      {/* File info */}
       <div style={{ fontSize: 10, color: COLORS.textMuted, textAlign: 'center', flexShrink: 0 }}>
-        <div style={{ color: COLORS.text, fontSize: 11, marginBottom: 2, wordBreak: 'break-all' }}>{fileName}</div>
+        <div style={{ color: COLORS.text, fontSize: 10, marginBottom: 1, wordBreak: 'break-all' }}>{fileName}</div>
         {size != null && <div>{formatSize(size)}</div>}
       </div>
     </div>
@@ -267,7 +232,7 @@ export function BottomPanel() {
   return (
     <div
       style={{
-        height: 180,
+        height: 210,
         background: COLORS.panel,
         borderTop: `1px solid ${COLORS.border}`,
         display: 'flex',
@@ -276,26 +241,30 @@ export function BottomPanel() {
         overflow: 'hidden',
       }}
     >
-      <PanelHeader>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span>Assets</span>
-          <span style={{ color: COLORS.textMuted, fontWeight: 400, fontSize: 10, marginLeft: 4 }}>game/assets/</span>
-        </div>
-      </PanelHeader>
-
       {/* Breadcrumb bar */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           padding: '4px 10px',
-          fontSize: 11,
+          fontSize: 10,
           borderBottom: `1px solid ${COLORS.border}`,
           background: COLORS.panelHeader,
-          gap: 2,
+          gap: 1,
           flexShrink: 0,
         }}
       >
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: COLORS.textMuted,
+            letterSpacing: '0.04em',
+            marginRight: 6,
+          }}
+        >
+          ASSETS
+        </span>
         <button
           type="button"
           onClick={() => navigateTo(-1)}
@@ -303,8 +272,7 @@ export function BottomPanel() {
             background: 'none',
             border: 'none',
             color: currentPath ? COLORS.accent : COLORS.text,
-            cursor: currentPath ? 'pointer' : 'default',
-            padding: '1px 3px',
+            padding: '1px 2px',
             fontSize: 11,
             fontFamily: 'inherit',
           }}
@@ -312,8 +280,8 @@ export function BottomPanel() {
           assets
         </button>
         {breadcrumbs.map((segment, i) => (
-          <span key={segment} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <span style={{ color: COLORS.textMuted }}>/</span>
+          <span key={segment} style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <span style={{ color: COLORS.textDim }}>/</span>
             <button
               type="button"
               onClick={() => navigateTo(i)}
@@ -321,8 +289,7 @@ export function BottomPanel() {
                 background: 'none',
                 border: 'none',
                 color: i < breadcrumbs.length - 1 ? COLORS.accent : COLORS.text,
-                cursor: i < breadcrumbs.length - 1 ? 'pointer' : 'default',
-                padding: '1px 3px',
+                padding: '1px 2px',
                 fontSize: 11,
                 fontFamily: 'inherit',
               }}
@@ -335,7 +302,6 @@ export function BottomPanel() {
 
       {/* Main area: file list + preview */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* File list */}
         <div
           style={{
             flex: 1,
@@ -344,14 +310,13 @@ export function BottomPanel() {
           }}
         >
           {loading ? (
-            <div style={{ padding: '10px', color: COLORS.textMuted, fontSize: 11 }}>Loading...</div>
+            <div style={{ padding: '8px 10px', color: COLORS.textMuted, fontSize: 11 }}>Loading...</div>
           ) : entries.length === 0 ? (
-            <div style={{ padding: '10px', color: COLORS.textMuted, fontSize: 11 }}>
+            <div style={{ padding: '8px 10px', color: COLORS.textMuted, fontSize: 11 }}>
               {currentPath ? 'Empty folder' : 'No assets yet. Create a game/assets/ directory to get started.'}
             </div>
           ) : (
             entries.map(entry => {
-              const { label, color } = getIcon(entry)
               const filePath = currentPath ? `${currentPath}/${entry.name}` : entry.name
               const isSelected = selectedFile === filePath
               return (
@@ -362,9 +327,9 @@ export function BottomPanel() {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    padding: '3px 10px',
-                    cursor: 'pointer',
-                    fontSize: 12,
+                    padding: '2px 10px',
+                    fontSize: 11,
+                    gap: 6,
                     background: isSelected ? COLORS.selected : 'transparent',
                     userSelect: 'none',
                   }}
@@ -377,20 +342,22 @@ export function BottomPanel() {
                 >
                   <span
                     style={{
-                      width: 28,
-                      fontSize: 9,
-                      fontWeight: 700,
-                      color,
-                      textAlign: 'center',
+                      color: getIconColor(entry),
+                      display: 'flex',
                       flexShrink: 0,
-                      letterSpacing: '-0.02em',
                     }}
                   >
-                    {label}
+                    {getAssetIcon(entry)}
                   </span>
-                  <span style={{ color: COLORS.text, marginLeft: 4 }}>{entry.name}</span>
+                  <span
+                    style={{ color: COLORS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  >
+                    {entry.name}
+                  </span>
                   {entry.type === 'file' && entry.size != null && (
-                    <span style={{ color: COLORS.textMuted, fontSize: 10, marginLeft: 'auto', paddingLeft: 8 }}>
+                    <span
+                      style={{ color: COLORS.textDim, fontSize: 10, marginLeft: 'auto', paddingLeft: 8, flexShrink: 0 }}
+                    >
                       {formatSize(entry.size)}
                     </span>
                   )}
@@ -404,7 +371,7 @@ export function BottomPanel() {
         {selectedFile && selectedEntry && (
           <div
             style={{
-              width: 160,
+              width: 150,
               borderLeft: `1px solid ${COLORS.border}`,
               background: COLORS.panelHeader,
               flexShrink: 0,
@@ -420,7 +387,7 @@ export function BottomPanel() {
       {selectedFile && (
         <div
           style={{
-            padding: '3px 10px',
+            padding: '2px 10px',
             fontSize: 10,
             color: COLORS.textMuted,
             borderTop: `1px solid ${COLORS.border}`,
@@ -431,19 +398,29 @@ export function BottomPanel() {
             justifyContent: 'space-between',
           }}
         >
-          <span>assets/{selectedFile}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            assets/{selectedFile}
+          </span>
           <button
             type="button"
             onClick={() => navigator.clipboard.writeText(`assets/${selectedFile}`)}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = COLORS.accent
+              e.currentTarget.style.color = COLORS.text
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = COLORS.border
+              e.currentTarget.style.color = COLORS.textMuted
+            }}
             style={{
               background: 'none',
               border: `1px solid ${COLORS.border}`,
               color: COLORS.textMuted,
-              cursor: 'pointer',
               padding: '1px 6px',
               fontSize: 10,
               borderRadius: 3,
               fontFamily: 'inherit',
+              flexShrink: 0,
             }}
           >
             Copy path

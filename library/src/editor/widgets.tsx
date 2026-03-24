@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 
-import { COLORS } from './colors.ts'
+import { COLORS, INPUT_STYLE } from './colors.ts'
 
 function DragNumberInput({
   value,
@@ -64,14 +64,8 @@ function DragNumberInput({
         document.addEventListener('mouseup', handleMouseUp)
       }}
       style={{
+        ...INPUT_STYLE,
         width: 80,
-        background: COLORS.input,
-        border: `1px solid ${COLORS.inputBorder}`,
-        borderRadius: 3,
-        color: COLORS.text,
-        fontSize: 11,
-        padding: '3px 4px',
-        outline: 'none',
         cursor: 'ns-resize',
         MozAppearance: 'textfield',
         ...style,
@@ -84,11 +78,11 @@ export function PanelHeader({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        padding: '6px 12px',
-        fontSize: 11,
+        padding: '5px 10px',
+        fontSize: 10,
         fontWeight: 600,
         textTransform: 'uppercase' as const,
-        letterSpacing: '0.05em',
+        letterSpacing: '0.06em',
         color: COLORS.textMuted,
         background: COLORS.panelHeader,
         borderBottom: `1px solid ${COLORS.border}`,
@@ -109,13 +103,25 @@ export function Vec3Input({
   value: [number, number, number]
   onChange: (v: [number, number, number]) => void
 }) {
+  const axisColors = ['#ef4444', '#22c55e', '#3b82f6']
   return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ color: COLORS.textMuted, fontSize: 11, marginBottom: 4 }}>{label}</div>
-      <div style={{ display: 'flex', gap: 4 }}>
+    <div style={{ marginBottom: 6 }}>
+      <div style={{ color: COLORS.textMuted, fontSize: 10, marginBottom: 3 }}>{label}</div>
+      <div style={{ display: 'flex', gap: 3 }}>
         {(['X', 'Y', 'Z'] as const).map((axis, i) => (
-          <div key={axis} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <span style={{ color: COLORS.textMuted, fontSize: 10 }}>{axis}</span>
+          <div key={axis} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 0 }}>
+            <span
+              style={{
+                color: axisColors[i],
+                fontSize: 9,
+                fontWeight: 600,
+                width: 12,
+                textAlign: 'center',
+                flexShrink: 0,
+              }}
+            >
+              {axis}
+            </span>
             <DragNumberInput
               value={value[i]}
               step={0.1}
@@ -150,7 +156,7 @@ export function NumberInput({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 6,
+        marginBottom: 4,
       }}
     >
       <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{label}</span>
@@ -174,21 +180,20 @@ export function ColorInput({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 6,
+        marginBottom: 4,
       }}
     >
       <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{label}</span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
         <input
           type="color"
           value={value}
           onChange={e => onChange(e.target.value)}
           style={{
-            width: 24,
-            height: 20,
-            border: 'none',
-            borderRadius: 3,
-            cursor: 'pointer',
+            width: 22,
+            height: 22,
+            border: `1px solid ${COLORS.inputBorder}`,
+            borderRadius: 4,
             padding: 0,
             background: 'none',
           }}
@@ -198,14 +203,10 @@ export function ColorInput({
           value={value}
           onChange={e => onChange(e.target.value)}
           style={{
-            width: 64,
-            background: COLORS.input,
-            border: `1px solid ${COLORS.inputBorder}`,
-            borderRadius: 3,
-            color: COLORS.text,
-            fontSize: 11,
-            padding: '3px 4px',
-            outline: 'none',
+            ...INPUT_STYLE,
+            width: 56,
+            fontFamily: 'monospace',
+            fontSize: 10,
           }}
         />
       </div>
@@ -230,7 +231,7 @@ export function SelectInput({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 6,
+        marginBottom: 4,
       }}
     >
       <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{label}</span>
@@ -238,14 +239,8 @@ export function SelectInput({
         value={value}
         onChange={e => onChange(e.target.value)}
         style={{
+          ...INPUT_STYLE,
           width: 100,
-          background: COLORS.input,
-          border: `1px solid ${COLORS.inputBorder}`,
-          borderRadius: 3,
-          color: COLORS.text,
-          fontSize: 11,
-          padding: '3px 4px',
-          outline: 'none',
         }}
       >
         {options.map(opt => (
@@ -275,7 +270,7 @@ export function TextInput({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 6,
+        marginBottom: 4,
       }}
     >
       <span style={{ color: COLORS.textMuted, fontSize: 11, flexShrink: 0 }}>{label}</span>
@@ -285,14 +280,8 @@ export function TextInput({
         placeholder={placeholder}
         onChange={e => onChange(e.target.value)}
         style={{
+          ...INPUT_STYLE,
           width: 120,
-          background: COLORS.input,
-          border: `1px solid ${COLORS.inputBorder}`,
-          borderRadius: 3,
-          color: COLORS.text,
-          fontSize: 11,
-          padding: '3px 4px',
-          outline: 'none',
         }}
       />
     </div>
@@ -314,11 +303,29 @@ export function CheckboxInput({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 6,
+        marginBottom: 4,
       }}
     >
       <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{label}</span>
-      <input type="checkbox" checked={value} onChange={e => onChange(e.target.checked)} />
+      <div
+        onClick={() => onChange(!value)}
+        style={{
+          width: 14,
+          height: 14,
+          borderRadius: 3,
+          border: `1.5px solid ${value ? COLORS.accent : COLORS.inputBorder}`,
+          background: value ? COLORS.accent : COLORS.input,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {value && (
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="1.5">
+            <path d="M2 5l2.5 2.5L8 3" />
+          </svg>
+        )}
+      </div>
     </div>
   )
 }
@@ -329,9 +336,11 @@ export function SectionLabel({ children }: { children: React.ReactNode }) {
       style={{
         color: COLORS.text,
         fontWeight: 500,
-        fontSize: 12,
-        marginBottom: 8,
-        marginTop: 12,
+        fontSize: 11,
+        marginBottom: 6,
+        marginTop: 10,
+        paddingBottom: 3,
+        borderBottom: `1px solid ${COLORS.border}`,
       }}
     >
       {children}

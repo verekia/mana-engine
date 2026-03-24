@@ -79,7 +79,7 @@ export function Viewport({
                     e.stopPropagation()
                     onSelectEntity?.(entity.id)
                   }}
-                  style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                  style={{ pointerEvents: 'auto' }}
                 >
                   <Component />
                 </div>
@@ -88,61 +88,6 @@ export function Viewport({
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-export function ViewportBar({
-  showUI,
-  onToggleUI,
-  showGizmos,
-  onToggleGizmos,
-}: {
-  showUI: boolean
-  onToggleUI: () => void
-  showGizmos: boolean
-  onToggleGizmos: () => void
-}) {
-  return (
-    <div
-      style={{
-        height: 28,
-        background: COLORS.panelHeader,
-        borderBottom: `1px solid ${COLORS.border}`,
-        display: 'flex',
-        alignItems: 'center',
-        padding: '0 10px',
-        gap: 10,
-        flexShrink: 0,
-        fontSize: 11,
-      }}
-    >
-      <label
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 5,
-          color: COLORS.textMuted,
-          cursor: 'pointer',
-          userSelect: 'none',
-        }}
-      >
-        <input type="checkbox" checked={showUI} onChange={onToggleUI} />
-        UI
-      </label>
-      <label
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 5,
-          color: COLORS.textMuted,
-          cursor: 'pointer',
-          userSelect: 'none',
-        }}
-      >
-        <input type="checkbox" checked={showGizmos} onChange={onToggleGizmos} />
-        Gizmos
-      </label>
     </div>
   )
 }

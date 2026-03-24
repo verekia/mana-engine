@@ -2,14 +2,14 @@ import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState }
 
 import { ManaContext } from '../scene-context.ts'
 import { BottomPanel } from './BottomPanel.tsx'
-import { COLORS } from './colors.ts'
+import { COLORS, FOCUS_STYLE } from './colors.ts'
 import { UndoHistory } from './history.ts'
 import { LeftPanel } from './LeftPanel.tsx'
 import { RightPanel } from './RightPanel.tsx'
 import { fetchSceneList, loadSceneData, saveSceneData } from './scene-api.ts'
 import { Toolbar } from './Toolbar.tsx'
 import { useEditorScene } from './use-editor-scene.ts'
-import { Viewport, ViewportBar } from './Viewport.tsx'
+import { Viewport } from './Viewport.tsx'
 
 import type { SceneData, SceneEntity, Transform } from '../scene-data.ts'
 import type { EditorCameraState, TransformMode } from '../scene.ts'
@@ -451,75 +451,80 @@ export default function Editor({
         background: COLORS.bg,
         color: COLORS.text,
         fontFamily: 'system-ui, -apple-system, sans-serif',
-        fontSize: 13,
+        fontSize: 12,
         overflow: 'hidden',
       }}
     >
-      <Toolbar
-        playing={playing}
-        onPlay={handlePlay}
-        onStop={handleStop}
-        dirty={dirty}
-        transformMode={transformMode}
-        onTransformModeChange={setTransformMode}
-        canUndo={historyRef.current.canUndo}
-        canRedo={historyRef.current.canRedo}
-        onUndo={() => {
-          if (historyRef.current.undo()) forceUpdate(n => n + 1)
-        }}
-        onRedo={() => {
-          if (historyRef.current.redo()) forceUpdate(n => n + 1)
-        }}
-      />
+      <style>{FOCUS_STYLE}</style>
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <LeftPanel
-          sceneList={sceneList}
-          activeScene={activeScene}
-          onSwitchScene={handleSwitchScene}
-          sceneData={sceneData}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          onAddEntity={handleAddEntity}
-          onDeleteEntity={handleDeleteEntity}
-          onRenameEntity={handleRenameEntity}
-        />
+        {/* Left + center column */}
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-          {!playing && (
-            <ViewportBar
-              showUI={showUI}
-              onToggleUI={() =>
-                setShowUI(s => {
-                  const next = !s
-                  localStorage.setItem('mana:showUI', String(next))
-                  return next
-                })
-              }
-              showGizmos={showGizmos}
-              onToggleGizmos={() => {
-                setShowGizmos(s => {
-                  const next = !s
-                  localStorage.setItem('mana:showGizmos', String(next))
-                  sceneRef.current?.setGizmos(next)
-                  return next
-                })
-              }}
+          {/* Top: hierarchy + viewport */}
+          <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+            <LeftPanel
+              sceneList={sceneList}
+              activeScene={activeScene}
+              onSwitchScene={handleSwitchScene}
+              sceneData={sceneData}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onAddEntity={handleAddEntity}
+              onDeleteEntity={handleDeleteEntity}
+              onRenameEntity={handleRenameEntity}
             />
-          )}
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <ManaContext.Provider value={manaContextValue}>
-              <Viewport
-                canvasRef={canvasRef}
-                uiEntities={sceneData?.entities.filter(e => e.type === 'ui') ?? []}
-                uiComponents={uiComponents}
-                showUI={showUI}
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              <Toolbar
                 playing={playing}
-                onCanvasClick={handleCanvasClick}
-                onSelectEntity={setSelectedId}
+                onPlay={handlePlay}
+                onStop={handleStop}
+                dirty={dirty}
+                transformMode={transformMode}
+                onTransformModeChange={setTransformMode}
+                canUndo={historyRef.current.canUndo}
+                canRedo={historyRef.current.canRedo}
+                onUndo={() => {
+                  if (historyRef.current.undo()) forceUpdate(n => n + 1)
+                }}
+                onRedo={() => {
+                  if (historyRef.current.redo()) forceUpdate(n => n + 1)
+                }}
+                showUI={showUI}
+                onToggleUI={() =>
+                  setShowUI(s => {
+                    const next = !s
+                    localStorage.setItem('mana:showUI', String(next))
+                    return next
+                  })
+                }
+                showGizmos={showGizmos}
+                onToggleGizmos={() => {
+                  setShowGizmos(s => {
+                    const next = !s
+                    localStorage.setItem('mana:showGizmos', String(next))
+                    sceneRef.current?.setGizmos(next)
+                    return next
+                  })
+                }}
               />
-            </ManaContext.Provider>
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <ManaContext.Provider value={manaContextValue}>
+                  <Viewport
+                    canvasRef={canvasRef}
+                    uiEntities={sceneData?.entities.filter(e => e.type === 'ui') ?? []}
+                    uiComponents={uiComponents}
+                    showUI={showUI}
+                    playing={playing}
+                    onCanvasClick={handleCanvasClick}
+                    onSelectEntity={setSelectedId}
+                  />
+                </ManaContext.Provider>
+              </div>
+            </div>
           </div>
+          {/* Bottom: asset browser (left panel + viewport width) */}
           <BottomPanel />
         </div>
+        {/* Right: inspector (full height) */}
         <RightPanel
           entity={selectedEntity}
           onUpdate={handleUpdateEntity}

@@ -1,16 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-import { COLORS } from './colors.ts'
-import {
-  CheckboxInput,
-  ColorInput,
-  NumberInput,
-  PanelHeader,
-  SectionLabel,
-  SelectInput,
-  TextInput,
-  Vec3Input,
-} from './widgets.tsx'
+import { COLORS, INPUT_STYLE } from './colors.ts'
+import { IconClose } from './icons.tsx'
+import { CheckboxInput, ColorInput, NumberInput, SectionLabel, SelectInput, TextInput, Vec3Input } from './widgets.tsx'
 
 import type { MaterialData, MeshData, SceneEntity } from '../scene-data.ts'
 import type { ManaScript } from '../script.ts'
@@ -42,6 +34,88 @@ function entityTypeLabel(type: SceneEntity['type']): string {
   }
 }
 
+function AddComponentPopover({
+  anchorRef,
+  options,
+  onClose,
+}: {
+  anchorRef: React.RefObject<HTMLButtonElement | null>
+  options: { label: string; action: () => void }[]
+  onClose: () => void
+}) {
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const pos = (() => {
+    if (!anchorRef.current) return { top: 0, left: 0 }
+    const rect = anchorRef.current.getBoundingClientRect()
+    return { top: rect.bottom + 2, left: rect.left }
+  })()
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [onClose])
+
+  return (
+    <div
+      ref={popoverRef}
+      style={{
+        position: 'fixed',
+        top: pos.top,
+        left: pos.left,
+        width: 180,
+        background: COLORS.panel,
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: 6,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+        zIndex: 1001,
+        padding: '4px 0',
+        maxHeight: 250,
+        overflow: 'auto',
+      }}
+    >
+      {options.map(opt => (
+        <button
+          key={opt.label}
+          onClick={() => {
+            opt.action()
+            onClose()
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = COLORS.hover
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'transparent'
+          }}
+          style={{
+            display: 'block',
+            width: '100%',
+            padding: '5px 10px',
+            background: 'transparent',
+            border: 'none',
+            color: COLORS.text,
+            fontSize: 11,
+            textAlign: 'left',
+          }}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function AddComponentButton({
   entity,
   availableScripts,
@@ -52,6 +126,7 @@ function AddComponentButton({
   onUpdate: (entity: SceneEntity) => void
 }) {
   const [open, setOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
 
   const options: { label: string; action: () => void }[] = []
 
@@ -88,66 +163,31 @@ function AddComponentButton({
   if (options.length === 0) return null
 
   return (
-    <div style={{ marginTop: 16 }}>
-      {!open ? (
-        <button
-          onClick={() => setOpen(true)}
-          style={{
-            width: '100%',
-            padding: '6px 0',
-            background: COLORS.panelHeader,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: 4,
-            color: COLORS.text,
-            fontSize: 11,
-            cursor: 'pointer',
-          }}
-        >
-          Add Component
-        </button>
-      ) : (
-        <div>
-          {options.map(opt => (
-            <button
-              key={opt.label}
-              onClick={() => {
-                opt.action()
-                setOpen(false)
-              }}
-              style={{
-                display: 'block',
-                width: '100%',
-                padding: '5px 8px',
-                background: 'none',
-                border: 'none',
-                borderBottom: `1px solid ${COLORS.border}`,
-                color: COLORS.text,
-                fontSize: 11,
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              {opt.label}
-            </button>
-          ))}
-          <button
-            onClick={() => setOpen(false)}
-            style={{
-              display: 'block',
-              width: '100%',
-              padding: '5px 8px',
-              background: 'none',
-              border: 'none',
-              color: COLORS.textMuted,
-              fontSize: 11,
-              cursor: 'pointer',
-              textAlign: 'left',
-            }}
-          >
-            Cancel
-          </button>
-        </div>
-      )}
+    <div style={{ marginTop: 12 }}>
+      <button
+        ref={buttonRef}
+        onClick={() => setOpen(s => !s)}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = COLORS.active
+          e.currentTarget.style.color = COLORS.text
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = COLORS.hover
+          e.currentTarget.style.color = COLORS.textMuted
+        }}
+        style={{
+          width: '100%',
+          padding: '5px 0',
+          background: COLORS.hover,
+          border: 'none',
+          borderRadius: 4,
+          color: COLORS.textMuted,
+          fontSize: 11,
+        }}
+      >
+        + Add Component
+      </button>
+      {open && <AddComponentPopover anchorRef={buttonRef} options={options} onClose={() => setOpen(false)} />}
     </div>
   )
 }
@@ -180,16 +220,13 @@ function InspectorName({ entity, onRename }: { entity: SceneEntity; onRename: (i
         if (e.key === 'Escape') setEditing(false)
       }}
       style={{
+        ...INPUT_STYLE,
         width: '100%',
-        background: COLORS.input,
-        border: `1px solid ${COLORS.inputBorder}`,
-        borderRadius: 3,
-        color: COLORS.text,
         fontWeight: 600,
         fontSize: 13,
-        marginBottom: 4,
-        padding: '1px 4px',
-        outline: 'none',
+        marginBottom: 2,
+        borderColor: COLORS.accent,
+        boxShadow: COLORS.focusRing,
       }}
     />
   ) : (
@@ -199,8 +236,7 @@ function InspectorName({ entity, onRename }: { entity: SceneEntity; onRename: (i
         color: COLORS.text,
         fontWeight: 600,
         fontSize: 13,
-        marginBottom: 4,
-        cursor: 'default',
+        marginBottom: 2,
       }}
     >
       {entity.name}
@@ -226,7 +262,7 @@ export function RightPanel({
   return (
     <div
       style={{
-        width: 280,
+        width: 260,
         background: COLORS.panel,
         borderLeft: `1px solid ${COLORS.border}`,
         display: 'flex',
@@ -235,10 +271,9 @@ export function RightPanel({
         overflow: 'hidden',
       }}
     >
-      <PanelHeader>Inspector</PanelHeader>
       <div
         style={{
-          padding: 10,
+          padding: '8px 10px',
           fontSize: 12,
           color: COLORS.textMuted,
           flex: 1,
@@ -248,9 +283,7 @@ export function RightPanel({
         {entity ? (
           <>
             <InspectorName entity={entity} onRename={onRename} />
-            <div style={{ color: COLORS.textMuted, fontSize: 10, marginBottom: 12 }}>
-              {entityTypeLabel(entity.type)}
-            </div>
+            <div style={{ color: COLORS.textDim, fontSize: 10, marginBottom: 8 }}>{entityTypeLabel(entity.type)}</div>
 
             {entity.transform && (
               <>
@@ -460,7 +493,7 @@ export function RightPanel({
                 {entity.scripts.map(entry => {
                   const def = scriptDefs[entry.name]
                   return (
-                    <div key={entry.name} style={{ marginBottom: 8 }}>
+                    <div key={entry.name} style={{ marginBottom: 6 }}>
                       <div
                         style={{
                           display: 'flex',
@@ -483,13 +516,14 @@ export function RightPanel({
                           style={{
                             background: 'none',
                             border: 'none',
-                            color: COLORS.textMuted,
-                            cursor: 'pointer',
-                            fontSize: 11,
-                            padding: '0 4px',
+                            color: COLORS.textDim,
+                            padding: '0 2px',
+                            display: 'flex',
+                            alignItems: 'center',
                           }}
+                          title="Remove script"
                         >
-                          x
+                          <IconClose />
                         </button>
                       </div>
                       {def?.params &&
@@ -515,31 +549,19 @@ export function RightPanel({
                           }
                           if (paramDef.type === 'boolean') {
                             return (
-                              <div
+                              <CheckboxInput
                                 key={key}
-                                style={{
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center',
-                                  marginBottom: 6,
-                                }}
-                              >
-                                <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{key}</span>
-                                <input
-                                  type="checkbox"
-                                  checked={value as boolean}
-                                  onChange={e =>
-                                    onUpdate({
-                                      ...entity,
-                                      scripts: entity.scripts?.map(s =>
-                                        s.name === entry.name
-                                          ? { ...s, params: { ...s.params, [key]: e.target.checked } }
-                                          : s,
-                                      ),
-                                    })
-                                  }
-                                />
-                              </div>
+                                label={key}
+                                value={value as boolean}
+                                onChange={v =>
+                                  onUpdate({
+                                    ...entity,
+                                    scripts: entity.scripts?.map(s =>
+                                      s.name === entry.name ? { ...s, params: { ...s.params, [key]: v } } : s,
+                                    ),
+                                  })
+                                }
+                              />
                             )
                           }
                           return (
@@ -549,7 +571,7 @@ export function RightPanel({
                                 display: 'flex',
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
-                                marginBottom: 6,
+                                marginBottom: 4,
                               }}
                             >
                               <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{key}</span>
@@ -567,14 +589,8 @@ export function RightPanel({
                                   })
                                 }
                                 style={{
+                                  ...INPUT_STYLE,
                                   width: 80,
-                                  background: COLORS.input,
-                                  border: `1px solid ${COLORS.inputBorder}`,
-                                  borderRadius: 3,
-                                  color: COLORS.text,
-                                  fontSize: 11,
-                                  padding: '3px 4px',
-                                  outline: 'none',
                                 }}
                               />
                             </div>
@@ -720,7 +736,19 @@ export function RightPanel({
             )}
           </>
         ) : (
-          <div style={{ color: COLORS.textMuted, fontStyle: 'italic' }}>Select an entity to inspect</div>
+          <div
+            style={{
+              color: COLORS.textDim,
+              fontSize: 11,
+              textAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
+            }}
+          >
+            No entity selected
+          </div>
         )}
       </div>
     </div>
