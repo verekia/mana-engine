@@ -12,14 +12,26 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 - Dev mode mirrors Vite-injected `<style>` tags (filtered by `data-vite-dev-id`) into the Shadow DOM via MutationObserver for dev/prod parity
 - Dev/editor HTML templates must NOT use `* { padding: 0; }` or similar unlayered CSS resets — they override Tailwind v4's `@layer`-based utilities
 
+## Project Structure & Auto-Discovery
+
+- Running `mana editor`, `mana dev`, or `mana build` in a directory auto-scaffolds a new project if no `mana.json` or `mana.config.js` exists
+- Scaffolding creates: `mana.json`, `scenes/default.json` (camera + light + cube), `scripts/`, `ui/`, `assets/` dirs, and `game.css`
+- `mana.json` is the project config: `{ "gameDir": ".", "outDir": ".mana/build", "startScene": "default" }`
+- `gameDir` defaults to `.` (project root); set to e.g. `"game"` for embedding use cases
+- The CLI auto-discovers scenes (`scenes/*.json`), scripts (`scripts/*.ts`), and UI components (`ui/*.tsx`) — no manual registration needed
+- Generated entry files in `.mana/` wire everything together: imports, maps, and the library's `Game` component
+- The `Game` component (`library/src/Game.tsx`) is part of the engine, not user code — it receives `scenes`, `scripts`, `uiComponents`, and optional `startScene` as props
+- Users only author: scene JSON (via editor), script `.ts` files, React UI `.tsx` components, and assets
+- Legacy `mana.config.js`/`mana.config.mjs` files are still supported as fallback
+
 ## Scene System
 
-- Scenes are JSON files in `game/scenes/` (e.g., `main-menu.json`, `first-world.json`)
+- Scenes are JSON files in `scenes/` (e.g., `main-menu.json`, `first-world.json`)
 - Each scene has a `background` color and an `entities` array
 - Entity types: `camera`, `mesh`, `model`, `directional-light`, `ambient-light`, `point-light`, `ui`
 - UI entities reference React components by name via `"ui": { "component": "ComponentName" }`
 - Entities can have `"scripts": ["scriptName"]` to attach behavior scripts
-- The game component imports all scene JSONs into a `scenes` map and manages scene switching via `ManaContext`
+- The `Game` component in the library manages scene switching via `ManaContext`
 
 ## Materials & Textures
 
@@ -74,7 +86,7 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 - In scene JSON, scripts are `ScriptEntry[]`: `[{ "name": "rotate", "params": { "speed": 3 } }]`
 - Params are merged at runtime: script defaults are overridden by scene JSON values, accessible via `ctx.params`
 - `fixedUpdate` runs at a fixed 60Hz timestep with accumulator
-- Scripts are registered in `game/index.tsx` as `export const scripts: Record<string, ManaScript>`
+- Scripts are auto-discovered from `scripts/` directory by the CLI — no manual registration needed
 - Scripts only run during gameplay (dev/prod/editor play mode), NOT in editor edit mode
 
 ## Input System
@@ -105,7 +117,7 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 - Cmd+S / Ctrl+S saves the current scene to disk
 - Play/Stop toolbar buttons toggle play mode:
   - Edit mode: editor manages its own canvas, scripts don't run, UI overlay has `pointerEvents: none`
-  - Play mode: mounts the actual Game component in the viewport with full interactivity
+  - Play mode: recreates the scene with scripts enabled for full interactivity
 - Transform gizmos: TransformControls from Three.js for translate/rotate/scale manipulation in the viewport
   - W key = translate, E key = rotate, R key = scale
   - Gizmo attaches to selected entity automatically
@@ -116,15 +128,7 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
   - Toolbar buttons for undo/redo with enabled/disabled state
   - Tracks: transform changes (gizmo drag), entity add/delete, rename, property updates
   - History is cleared when switching scenes
-- The editor entry imports `Game`, `uiComponents`, and `scripts` from the game's `index.tsx`
-
-## Game Component Contract
-
-The game's `index.tsx` must export:
-
-- `default` — The `Game` React component (default export)
-- `uiComponents` — `Record<string, ComponentType>` mapping names to React UI components
-- `scripts` — `Record<string, ManaScript>` mapping names to script implementations
+- The editor entry auto-imports discovered `uiComponents` and `scripts` (no `game/index.tsx` needed)
 
 ## Scene Switching API
 

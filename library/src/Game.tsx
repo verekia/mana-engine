@@ -1,33 +1,26 @@
 import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { createScene, ManaContext, type ManaScript, type SceneData } from 'mana-engine/game'
+import { ManaContext } from './scene-context.ts'
+import { createScene } from './scene.ts'
 
-import './game.css'
-import firstWorldData from './scenes/first-world.json'
-import mainMenuData from './scenes/main-menu.json'
-import rotate from './scripts/rotate'
-import HealthBar from './ui/HealthBar'
-import MainMenu from './ui/MainMenu'
-import MenuButton from './ui/MenuButton'
+import type { SceneData } from './scene-data.ts'
+import type { ManaScript } from './script.ts'
 
-export const uiComponents: Record<string, ComponentType> = {
-  HealthBar,
-  MainMenu,
-  MenuButton,
-}
-
-export const scripts: Record<string, ManaScript> = {
-  rotate,
-}
-
-const scenes: Record<string, SceneData> = {
-  'main-menu': mainMenuData as SceneData,
-  'first-world': firstWorldData as SceneData,
-}
-
-export default function Game() {
+export function Game({
+  scenes,
+  scripts,
+  uiComponents,
+  startScene,
+}: {
+  scenes: Record<string, SceneData>
+  scripts?: Record<string, ManaScript>
+  uiComponents?: Record<string, ComponentType>
+  startScene?: string
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [currentScene, setCurrentScene] = useState('main-menu')
+  const sceneNames = Object.keys(scenes)
+  const initialScene = startScene && scenes[startScene] ? startScene : (sceneNames[0] ?? '')
+  const [currentScene, setCurrentScene] = useState(initialScene)
   const sceneData = scenes[currentScene]
 
   useEffect(() => {
@@ -46,13 +39,18 @@ export default function Game() {
       disposed = true
       manaScene?.dispose()
     }
-  }, [sceneData])
+  }, [sceneData, scripts])
 
-  const loadScene = useCallback((name: string) => {
-    if (scenes[name]) setCurrentScene(name)
-  }, [])
+  const loadScene = useCallback(
+    (name: string) => {
+      if (scenes[name]) setCurrentScene(name)
+    },
+    [scenes],
+  )
 
   const contextValue = useMemo(() => ({ loadScene, currentScene }), [loadScene, currentScene])
+
+  const components = uiComponents ?? {}
 
   return (
     <ManaContext.Provider value={contextValue}>
@@ -60,7 +58,7 @@ export default function Game() {
         {sceneData?.entities
           .filter(e => e.type === 'ui')
           .map(e => {
-            const Component = uiComponents[e.ui?.component ?? '']
+            const Component = components[e.ui?.component ?? '']
             return Component ? <Component key={e.id} /> : null
           })}
         <canvas ref={canvasRef} className="size-full" />

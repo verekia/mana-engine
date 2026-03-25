@@ -1,8 +1,8 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname, resolve } from 'node:path'
+import { basename, dirname, extname, resolve } from 'node:path'
 
-import { loadConfig } from './config.ts'
+import { loadConfig, scaffoldProject } from './config.ts'
 
 const command = process.argv[2]
 
@@ -56,7 +56,82 @@ function getManaAliases(): { aliases: Record<string, string>; threePath: string 
   }
 }
 
+/** Discover files in a directory by extension, returning { name, absPath } pairs. */
+function discoverFiles(dir: string, extensions: string[]): { name: string; absPath: string }[] {
+  if (!existsSync(dir)) return []
+  const results: { name: string; absPath: string }[] = []
+  for (const file of readdirSync(dir)) {
+    const ext = extname(file)
+    if (extensions.includes(ext)) {
+      results.push({ name: basename(file, ext), absPath: resolve(dir, file) })
+    }
+  }
+  return results.toSorted((a, b) => a.name.localeCompare(b.name))
+}
+
+interface DiscoveredGame {
+  scenes: { name: string; absPath: string }[]
+  scripts: { name: string; absPath: string }[]
+  uiComponents: { name: string; absPath: string }[]
+  cssPath: string | null
+}
+
+function discoverGame(gameDir: string): DiscoveredGame {
+  return {
+    scenes: discoverFiles(resolve(gameDir, 'scenes'), ['.json']),
+    scripts: discoverFiles(resolve(gameDir, 'scripts'), ['.ts', '.js']),
+    uiComponents: discoverFiles(resolve(gameDir, 'ui'), ['.tsx', '.jsx', '.ts', '.js']),
+    cssPath: existsSync(resolve(gameDir, 'game.css')) ? resolve(gameDir, 'game.css') : null,
+  }
+}
+
+/** Generate import lines and maps for discovered scenes/scripts/ui. */
+function generateGameImports(game: DiscoveredGame, startScene?: string): string {
+  const lines: string[] = []
+
+  // CSS
+  if (game.cssPath) {
+    lines.push(`import '${game.cssPath}'`)
+  }
+
+  // Scenes
+  for (let i = 0; i < game.scenes.length; i++) {
+    lines.push(`import scene_${i} from '${game.scenes[i].absPath}'`)
+  }
+
+  // Scripts
+  for (let i = 0; i < game.scripts.length; i++) {
+    lines.push(`import script_${i} from '${game.scripts[i].absPath}'`)
+  }
+
+  // UI components
+  for (let i = 0; i < game.uiComponents.length; i++) {
+    lines.push(`import ui_${i} from '${game.uiComponents[i].absPath}'`)
+  }
+
+  lines.push('')
+
+  // Scene map
+  const sceneEntries = game.scenes.map((s, i) => `  '${s.name}': scene_${i}`).join(',\n')
+  lines.push(`const scenes = {\n${sceneEntries}\n}`)
+
+  // Script map
+  const scriptEntries = game.scripts.map((s, i) => `  '${s.name}': script_${i}`).join(',\n')
+  lines.push(`const scripts = {\n${scriptEntries}\n}`)
+
+  // UI component map
+  const uiEntries = game.uiComponents.map((s, i) => `  '${s.name}': ui_${i}`).join(',\n')
+  lines.push(`const uiComponents = {\n${uiEntries}\n}`)
+
+  if (startScene) {
+    lines.push(`const startScene = '${startScene}'`)
+  }
+
+  return lines.join('\n')
+}
+
 async function runBuild() {
+  scaffoldProject()
   const { build } = await import('vite')
   const { createBuildConfig } = await import('./create-vite-config.ts')
   const config = await loadConfig()
@@ -65,20 +140,23 @@ async function runBuild() {
   const manaDir = resolve(process.cwd(), '.mana')
   mkdirSync(manaDir, { recursive: true })
 
+  const game = discoverGame(gameDir)
+
   const entryFile = resolve(manaDir, 'build-entry.tsx')
   writeFileSync(
     entryFile,
     [
       `import { createRoot } from 'react-dom/client'`,
       `import { createElement } from 'react'`,
-      `import { setAssetManifest } from 'mana-engine/game'`,
-      `import Game from '${gameDir}/index.tsx'`,
+      `import { setAssetManifest, Game } from 'mana-engine/game'`,
+      ``,
+      generateGameImports(game, config.startScene),
       ``,
       `let root`,
       `export function mount(container, options) {`,
       `  if (options?.assetManifest) setAssetManifest(options.assetManifest)`,
       `  root = createRoot(container)`,
-      `  root.render(createElement(Game))`,
+      `  root.render(createElement(Game, { scenes, scripts, uiComponents${config.startScene ? ', startScene' : ''} }))`,
       `}`,
       `export function unmount() {`,
       `  if (root) {`,
@@ -96,6 +174,7 @@ async function runBuild() {
 }
 
 async function runDev() {
+  scaffoldProject()
   const { createServer } = await import('vite')
   const { createDevConfig } = await import('./create-vite-config.ts')
   const config = await loadConfig()
@@ -103,12 +182,16 @@ async function runDev() {
   const manaDir = resolve(process.cwd(), '.mana')
   mkdirSync(manaDir, { recursive: true })
 
+  const game = discoverGame(gameDir)
+
   writeFileSync(
     resolve(manaDir, 'dev-entry.tsx'),
     [
       `import { createRoot } from 'react-dom/client'`,
       `import { createElement } from 'react'`,
-      `import Game from '${gameDir}/index.tsx'`,
+      `import { Game } from 'mana-engine/game'`,
+      ``,
+      generateGameImports(game, config.startScene),
       ``,
       `const host = document.getElementById('game')!`,
       `const shadow = host.attachShadow({ mode: 'open' })`,
@@ -131,7 +214,7 @@ async function runDev() {
       `new MutationObserver(mirrorStyles).observe(document.head, { childList: true, subtree: true, characterData: true })`,
       `mirrorStyles()`,
       ``,
-      `createRoot(container).render(createElement(Game))`,
+      `createRoot(container).render(createElement(Game, { scenes, scripts, uiComponents${config.startScene ? ', startScene' : ''} }))`,
     ].join('\n'),
   )
 
@@ -164,6 +247,7 @@ async function runDev() {
 }
 
 async function runEditor() {
+  scaffoldProject()
   const { createServer } = await import('vite')
   const { createEditorConfig } = await import('./create-vite-config.ts')
   const config = await loadConfig()
@@ -175,16 +259,18 @@ async function runEditor() {
   const manaRoot = resolve(dirname(new URL(import.meta.url).pathname), '..')
   const editorComponent = resolve(manaRoot, 'src/editor/Editor.tsx')
 
+  const game = discoverGame(gameDir)
+
   writeFileSync(
     resolve(manaDir, 'editor-entry.tsx'),
     [
       `import { createRoot } from 'react-dom/client'`,
       `import { createElement } from 'react'`,
       `import Editor from '${editorComponent}'`,
-      `import Game, { uiComponents, scripts } from '${gameDir}/index.tsx'`,
-      `import '${gameDir}/game.css'`,
       ``,
-      `createRoot(document.getElementById('editor')!).render(createElement(Editor, { Game, uiComponents, scripts }))`,
+      generateGameImports(game),
+      ``,
+      `createRoot(document.getElementById('editor')!).render(createElement(Editor, { uiComponents, scripts }))`,
     ].join('\n'),
   )
 
