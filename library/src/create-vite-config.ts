@@ -33,7 +33,7 @@ function cssInlinePlugin(): Plugin {
       if (id === VIRTUAL_CSS) return RESOLVED_CSS
     },
     load(id) {
-      if (id === RESOLVED_CSS) return `export const css = "${CSS_PLACEHOLDER}"`
+      if (id === RESOLVED_CSS) return { code: `export const css = "${CSS_PLACEHOLDER}"`, moduleType: 'js' }
     },
     generateBundle(_, bundle) {
       let css = ''
@@ -116,7 +116,8 @@ function manaAssetsPlugin(assetsDir: string, scenesDir: string): Plugin {
       if (id === VIRTUAL_ASSETS) return RESOLVED_ASSETS
     },
     load(id) {
-      if (id === RESOLVED_ASSETS) return `export const assetManifest = "${ASSETS_PLACEHOLDER}"`
+      if (id === RESOLVED_ASSETS)
+        return { code: `export const assetManifest = "${ASSETS_PLACEHOLDER}"`, moduleType: 'js' }
     },
     buildStart() {
       const allFiles = scanDir(assetsDir, '')
@@ -188,7 +189,7 @@ export function createBuildConfig(
       },
       outDir,
       emptyOutDir: true,
-      rollupOptions: {
+      rolldownOptions: {
         output: {
           assetFileNames: '[name]-[hash].[ext]',
         },
