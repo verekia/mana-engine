@@ -149,6 +149,8 @@ async function runBuild() {
       `import { createRoot } from 'react-dom/client'`,
       `import { createElement } from 'react'`,
       `import { setAssetManifest, Game } from 'mana-engine/game'`,
+      `export { css } from 'virtual:mana-css'`,
+      `export { assetManifest } from 'virtual:mana-asset-manifest'`,
       ``,
       generateGameImports(game, config.startScene),
       ``,
