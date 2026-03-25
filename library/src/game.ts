@@ -1,5 +1,5 @@
 export { resolveAsset, setAssetManifest } from './assets.ts'
-export { Game } from './Game.tsx'
+export { Game } from './GameComponent.tsx'
 export { createScene } from './scene.ts'
 export type {
   CreateSceneOptions,
