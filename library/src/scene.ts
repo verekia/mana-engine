@@ -24,6 +24,7 @@ import {
 
 import {
   applyMaterialData,
+  applyModelMaterialOverride,
   applyShadowProps,
   applyTransform,
   createColliderWireframe,
@@ -612,6 +613,9 @@ export async function createScene(
         }
       }
       if (entity.type === 'model' && obj instanceof Group) {
+        if (entity.model?.material) {
+          applyModelMaterialOverride(obj, entity.model.material, renderer)
+        }
         applyShadowProps(obj, entity)
       }
     },

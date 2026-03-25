@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { COLORS, INPUT_STYLE } from './colors.ts'
 import { IconClose } from './icons.tsx'
@@ -14,6 +14,97 @@ const TEXTURE_MAP_FIELDS: { label: string; key: keyof MaterialData }[] = [
   { label: 'Metalness Map', key: 'metalnessMap' },
   { label: 'Emissive Map', key: 'emissiveMap' },
 ]
+
+const LS_KEY = 'mana:inspectorCollapsed'
+
+function loadCollapsed(): Record<string, string[]> {
+  try {
+    return JSON.parse(localStorage.getItem(LS_KEY) ?? '{}')
+  } catch {
+    return {}
+  }
+}
+
+function saveCollapsed(data: Record<string, string[]>) {
+  localStorage.setItem(LS_KEY, JSON.stringify(data))
+}
+
+/** Remove entries for entities/sections that no longer exist. */
+function cleanupCollapsed(entityIds: Set<string>) {
+  const data = loadCollapsed()
+  let changed = false
+  for (const key of Object.keys(data)) {
+    if (!entityIds.has(key)) {
+      delete data[key]
+      changed = true
+    }
+  }
+  if (changed) saveCollapsed(data)
+}
+
+function useCollapsedSections(entityId: string | null) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    if (!entityId) return new Set()
+    const data = loadCollapsed()
+    return new Set(data[entityId] ?? [])
+  })
+
+  useEffect(() => {
+    if (!entityId) return
+    const data = loadCollapsed()
+    setCollapsed(new Set(data[entityId] ?? []))
+  }, [entityId])
+
+  const toggle = useCallback(
+    (section: string) => {
+      if (!entityId) return
+      setCollapsed(prev => {
+        const next = new Set(prev)
+        if (next.has(section)) next.delete(section)
+        else next.add(section)
+        const data = loadCollapsed()
+        data[entityId] = [...next]
+        if (next.size === 0) delete data[entityId]
+        saveCollapsed(data)
+        return next
+      })
+    },
+    [entityId],
+  )
+
+  const setAll = useCallback(
+    (isCollapsed: boolean, sections: string[]) => {
+      if (!entityId) return
+      setCollapsed(() => {
+        const next = isCollapsed ? new Set(sections) : new Set<string>()
+        const data = loadCollapsed()
+        if (next.size === 0) delete data[entityId]
+        else data[entityId] = [...next]
+        saveCollapsed(data)
+        return next
+      })
+    },
+    [entityId],
+  )
+
+  const removeSection = useCallback(
+    (section: string) => {
+      if (!entityId) return
+      setCollapsed(prev => {
+        const next = new Set(prev)
+        next.delete(section)
+        const data = loadCollapsed()
+        if (next.size === 0) delete data[entityId]
+        else data[entityId] = [...next]
+        saveCollapsed(data)
+        return next
+      })
+    },
+    [entityId],
+  )
+
+  return { collapsed, toggle, setAll, removeSection }
+}
 
 function entityTypeLabel(type: SceneEntity['type']): string {
   switch (type) {
@@ -55,9 +146,7 @@ function AddComponentPopover({
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        onClose()
-      }
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) onClose()
     }
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -139,6 +228,15 @@ function AddComponentButton({
       action: () => onUpdate({ ...entity, mesh: { geometry: 'box', material: { color: '#4488ff' } } }),
     })
   }
+  if (entity.type === 'model' && entity.model && !entity.model.material) {
+    options.push({
+      label: 'Material Override',
+      action: () => {
+        const model = entity.model
+        if (model) onUpdate({ ...entity, model: { ...model, material: { color: '#888888' } } })
+      },
+    })
+  }
   if (!entity.rigidBody) {
     options.push({
       label: 'Rigid Body',
@@ -217,7 +315,7 @@ function InspectorName({ entity, onRename }: { entity: SceneEntity; onRename: (i
   useEffect(() => {
     setValue(entity.name)
     setEditing(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only on entity switch, not name edits
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only on entity switch
   }, [entity.id])
 
   return editing ? (
@@ -241,8 +339,7 @@ function InspectorName({ entity, onRename }: { entity: SceneEntity; onRename: (i
         ...INPUT_STYLE,
         width: '100%',
         fontWeight: 600,
-        fontSize: 13,
-        marginBottom: 2,
+        fontSize: 12,
         borderColor: COLORS.accent,
         boxShadow: COLORS.focusRing,
       }}
@@ -253,8 +350,10 @@ function InspectorName({ entity, onRename }: { entity: SceneEntity; onRename: (i
       style={{
         color: COLORS.text,
         fontWeight: 600,
-        fontSize: 13,
-        marginBottom: 2,
+        fontSize: 12,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
       }}
     >
       {entity.name}
@@ -270,6 +369,7 @@ export function RightPanel({
   availableScripts,
   availableUiComponents,
   scriptDefs,
+  allEntityIds,
 }: {
   width: number
   entity: SceneEntity | null
@@ -278,7 +378,37 @@ export function RightPanel({
   availableScripts: string[]
   availableUiComponents: string[]
   scriptDefs: Record<string, ManaScript>
+  allEntityIds: Set<string>
 }) {
+  const { collapsed, toggle, setAll, removeSection } = useCollapsedSections(entity?.id ?? null)
+
+  // Cleanup stale localStorage entries when entity list changes
+  useEffect(() => {
+    cleanupCollapsed(allEntityIds)
+  }, [allEntityIds])
+
+  // Collect active section names for this entity
+  const activeSections: string[] = []
+  if (entity) {
+    if (entity.transform) activeSections.push('transform')
+    if (entity.camera) activeSections.push('camera')
+    if (entity.mesh) activeSections.push('mesh')
+    if (entity.model) activeSections.push('model')
+    if (entity.model?.material) activeSections.push('materialOverride')
+    if (entity.ui) activeSections.push('ui')
+    if (entity.scripts && entity.scripts.length > 0) activeSections.push('scripts')
+    if (entity.rigidBody) activeSections.push('rigidBody')
+    if (entity.collider) activeSections.push('collider')
+    if (entity.light) activeSections.push('light')
+  }
+
+  const allCollapsed = activeSections.length > 0 && activeSections.every(s => collapsed.has(s))
+
+  const s = (section: string) => ({
+    collapsed: collapsed.has(section),
+    onToggle: () => toggle(section),
+  })
+
   return (
     <div
       style={{
@@ -291,9 +421,72 @@ export function RightPanel({
         overflow: 'hidden',
       }}
     >
+      {/* Header: name + type + collapse toggle */}
+      {entity && (
+        <div
+          style={{
+            height: 32,
+            padding: '0 10px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            flexShrink: 0,
+            borderBottom: `1px solid ${COLORS.border}`,
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <InspectorName entity={entity} onRename={onRename} />
+          </div>
+          <span style={{ color: COLORS.textDim, fontSize: 10, flexShrink: 0 }}>{entityTypeLabel(entity.type)}</span>
+          {activeSections.length > 0 && (
+            <button
+              onClick={() => setAll(!allCollapsed, activeSections)}
+              title={allCollapsed ? 'Expand all' : 'Collapse all'}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: COLORS.textDim,
+                padding: '2px',
+                display: 'flex',
+                alignItems: 'center',
+                flexShrink: 0,
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.color = COLORS.text
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.color = COLORS.textDim
+              }}
+            >
+              <svg
+                width={12}
+                height={12}
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                {allCollapsed ? (
+                  <>
+                    <path d="M4 4l4 4 4-4" />
+                    <path d="M4 9l4 4 4-4" />
+                  </>
+                ) : (
+                  <>
+                    <path d="M4 7l4-4 4 4" />
+                    <path d="M4 12l4-4 4 4" />
+                  </>
+                )}
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
       <div
         style={{
-          padding: '8px 10px',
+          padding: '0 10px 8px',
           fontSize: 12,
           color: COLORS.textMuted,
           flex: 1,
@@ -302,433 +495,401 @@ export function RightPanel({
       >
         {entity ? (
           <>
-            <InspectorName entity={entity} onRename={onRename} />
-            <div style={{ color: COLORS.textDim, fontSize: 10, marginBottom: 8 }}>{entityTypeLabel(entity.type)}</div>
-
+            {/* Transform */}
             {entity.transform && (
               <>
-                <SectionLabel>Transform</SectionLabel>
-                {entity.transform.position && (
-                  <Vec3Input
-                    label="Position"
-                    value={entity.transform.position}
-                    onChange={v =>
-                      onUpdate({
-                        ...entity,
-                        transform: { ...entity.transform, position: v },
-                      })
-                    }
-                  />
-                )}
-                {entity.transform.rotation && (
-                  <Vec3Input
-                    label="Rotation"
-                    value={entity.transform.rotation}
-                    onChange={v =>
-                      onUpdate({
-                        ...entity,
-                        transform: { ...entity.transform, rotation: v },
-                      })
-                    }
-                  />
-                )}
-                {entity.transform.scale && (
-                  <Vec3Input
-                    label="Scale"
-                    value={entity.transform.scale}
-                    onChange={v =>
-                      onUpdate({
-                        ...entity,
-                        transform: { ...entity.transform, scale: v },
-                      })
-                    }
-                  />
+                <SectionLabel {...s('transform')}>Transform</SectionLabel>
+                {!collapsed.has('transform') && (
+                  <>
+                    {entity.transform.position && (
+                      <Vec3Input
+                        label="Position"
+                        value={entity.transform.position}
+                        onChange={v => onUpdate({ ...entity, transform: { ...entity.transform, position: v } })}
+                      />
+                    )}
+                    {entity.transform.rotation && (
+                      <Vec3Input
+                        label="Rotation"
+                        value={entity.transform.rotation}
+                        onChange={v => onUpdate({ ...entity, transform: { ...entity.transform, rotation: v } })}
+                      />
+                    )}
+                    {entity.transform.scale && (
+                      <Vec3Input
+                        label="Scale"
+                        value={entity.transform.scale}
+                        onChange={v => onUpdate({ ...entity, transform: { ...entity.transform, scale: v } })}
+                      />
+                    )}
+                  </>
                 )}
               </>
             )}
 
+            {/* Camera */}
             {entity.camera && (
               <>
-                <SectionLabel>Camera</SectionLabel>
-                <NumberInput
-                  label="FOV"
-                  value={entity.camera.fov ?? 50}
-                  step={1}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      camera: { ...entity.camera, fov: v },
-                    })
-                  }
-                />
-                <NumberInput
-                  label="Near"
-                  value={entity.camera.near ?? 0.1}
-                  step={0.01}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      camera: { ...entity.camera, near: v },
-                    })
-                  }
-                />
-                <NumberInput
-                  label="Far"
-                  value={entity.camera.far ?? 100}
-                  step={1}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      camera: { ...entity.camera, far: v },
-                    })
-                  }
-                />
+                <SectionLabel {...s('camera')}>Camera</SectionLabel>
+                {!collapsed.has('camera') && (
+                  <>
+                    <NumberInput
+                      label="FOV"
+                      value={entity.camera.fov ?? 50}
+                      step={1}
+                      onChange={v => onUpdate({ ...entity, camera: { ...entity.camera, fov: v } })}
+                    />
+                    <NumberInput
+                      label="Near"
+                      value={entity.camera.near ?? 0.1}
+                      step={0.01}
+                      onChange={v => onUpdate({ ...entity, camera: { ...entity.camera, near: v } })}
+                    />
+                    <NumberInput
+                      label="Far"
+                      value={entity.camera.far ?? 100}
+                      step={1}
+                      onChange={v => onUpdate({ ...entity, camera: { ...entity.camera, far: v } })}
+                    />
+                  </>
+                )}
               </>
             )}
 
+            {/* Mesh (includes material + shadows) */}
             {entity.mesh && (
               <>
-                <SectionLabel>Mesh</SectionLabel>
-                <SelectInput
-                  label="Geometry"
-                  value={entity.mesh.geometry ?? 'box'}
-                  options={['box', 'sphere', 'plane', 'cylinder', 'capsule']}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      mesh: { ...entity.mesh, geometry: v as MeshData['geometry'] },
-                    })
-                  }
-                />
-                <SectionLabel>Material</SectionLabel>
-                <ColorInput
-                  label="Color"
-                  value={entity.mesh.material?.color ?? '#4488ff'}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      mesh: {
-                        ...entity.mesh,
-                        material: { ...entity.mesh?.material, color: v },
-                      },
-                    })
-                  }
-                />
-                <NumberInput
-                  label="Roughness"
-                  value={entity.mesh.material?.roughness ?? 1}
-                  step={0.05}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      mesh: {
-                        ...entity.mesh,
-                        material: { ...entity.mesh?.material, roughness: v },
-                      },
-                    })
-                  }
-                />
-                <NumberInput
-                  label="Metalness"
-                  value={entity.mesh.material?.metalness ?? 0}
-                  step={0.05}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      mesh: {
-                        ...entity.mesh,
-                        material: { ...entity.mesh?.material, metalness: v },
-                      },
-                    })
-                  }
-                />
-                <ColorInput
-                  label="Emissive"
-                  value={entity.mesh.material?.emissive ?? '#000000'}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      mesh: {
-                        ...entity.mesh,
-                        material: { ...entity.mesh?.material, emissive: v },
-                      },
-                    })
-                  }
-                />
-                {TEXTURE_MAP_FIELDS.map(({ label, key }) => (
-                  <TextInput
-                    key={key}
-                    label={label}
-                    value={(entity.mesh?.material?.[key] as string) ?? ''}
-                    onChange={v =>
-                      onUpdate({
-                        ...entity,
-                        mesh: {
-                          ...entity.mesh,
-                          material: { ...entity.mesh?.material, [key]: v || undefined },
-                        },
-                      })
-                    }
-                  />
-                ))}
+                <SectionLabel {...s('mesh')} onRemove={() => onUpdate({ ...entity, mesh: undefined })}>
+                  Mesh
+                </SectionLabel>
+                {!collapsed.has('mesh') && (
+                  <>
+                    <SelectInput
+                      label="Geometry"
+                      value={entity.mesh.geometry ?? 'box'}
+                      options={['box', 'sphere', 'plane', 'cylinder', 'capsule']}
+                      onChange={v =>
+                        onUpdate({ ...entity, mesh: { ...entity.mesh, geometry: v as MeshData['geometry'] } })
+                      }
+                    />
+                    <div
+                      style={{ color: COLORS.textMuted, fontSize: 10, fontWeight: 500, marginTop: 6, marginBottom: 4 }}
+                    >
+                      Material
+                    </div>
+                    <ColorInput
+                      label="Color"
+                      value={entity.mesh.material?.color ?? '#4488ff'}
+                      onChange={v =>
+                        onUpdate({
+                          ...entity,
+                          mesh: { ...entity.mesh, material: { ...entity.mesh?.material, color: v } },
+                        })
+                      }
+                    />
+                    <NumberInput
+                      label="Roughness"
+                      value={entity.mesh.material?.roughness ?? 1}
+                      step={0.05}
+                      onChange={v =>
+                        onUpdate({
+                          ...entity,
+                          mesh: { ...entity.mesh, material: { ...entity.mesh?.material, roughness: v } },
+                        })
+                      }
+                    />
+                    <NumberInput
+                      label="Metalness"
+                      value={entity.mesh.material?.metalness ?? 0}
+                      step={0.05}
+                      onChange={v =>
+                        onUpdate({
+                          ...entity,
+                          mesh: { ...entity.mesh, material: { ...entity.mesh?.material, metalness: v } },
+                        })
+                      }
+                    />
+                    <ColorInput
+                      label="Emissive"
+                      value={entity.mesh.material?.emissive ?? '#000000'}
+                      onChange={v =>
+                        onUpdate({
+                          ...entity,
+                          mesh: { ...entity.mesh, material: { ...entity.mesh?.material, emissive: v } },
+                        })
+                      }
+                    />
+                    {TEXTURE_MAP_FIELDS.map(({ label, key }) => (
+                      <TextInput
+                        key={key}
+                        label={label}
+                        value={(entity.mesh?.material?.[key] as string) ?? ''}
+                        onChange={v =>
+                          onUpdate({
+                            ...entity,
+                            mesh: { ...entity.mesh, material: { ...entity.mesh?.material, [key]: v || undefined } },
+                          })
+                        }
+                      />
+                    ))}
+                    <CheckboxInput
+                      label="Cast Shadow"
+                      value={entity.castShadow ?? false}
+                      onChange={v => onUpdate({ ...entity, castShadow: v })}
+                    />
+                    <CheckboxInput
+                      label="Receive Shadow"
+                      value={entity.receiveShadow ?? false}
+                      onChange={v => onUpdate({ ...entity, receiveShadow: v })}
+                    />
+                  </>
+                )}
               </>
             )}
 
+            {/* Model (includes shadows) */}
             {entity.model && (
               <>
-                <SectionLabel>Model</SectionLabel>
-                <TextInput
-                  label="Source"
-                  value={entity.model.src ?? ''}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      model: { ...entity.model, src: v },
-                    })
-                  }
-                />
+                <SectionLabel {...s('model')}>Model</SectionLabel>
+                {!collapsed.has('model') && (
+                  <>
+                    <TextInput
+                      label="Source"
+                      value={entity.model.src ?? ''}
+                      onChange={v => onUpdate({ ...entity, model: { ...entity.model, src: v } })}
+                    />
+                    <CheckboxInput
+                      label="Cast Shadow"
+                      value={entity.castShadow ?? false}
+                      onChange={v => onUpdate({ ...entity, castShadow: v })}
+                    />
+                    <CheckboxInput
+                      label="Receive Shadow"
+                      value={entity.receiveShadow ?? false}
+                      onChange={v => onUpdate({ ...entity, receiveShadow: v })}
+                    />
+                  </>
+                )}
               </>
             )}
 
-            {entity.ui && (
+            {/* Material Override (model only) */}
+            {entity.model?.material && (
               <>
-                <SectionLabel>UI</SectionLabel>
-                <SelectInput
-                  label="Component"
-                  value={entity.ui.component}
-                  options={availableUiComponents}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      ui: { ...entity.ui, component: v },
-                    })
-                  }
-                />
-              </>
-            )}
-
-            {entity.scripts && entity.scripts.length > 0 && (
-              <>
-                <SectionLabel>Scripts</SectionLabel>
-                {entity.scripts.map(entry => {
-                  const def = scriptDefs[entry.name]
-                  return (
-                    <div key={entry.name} style={{ marginBottom: 6 }}>
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          padding: '3px 0',
-                          fontSize: 11,
-                          color: COLORS.text,
-                          fontFamily: 'monospace',
-                        }}
-                      >
-                        {entry.name}
-                        <button
-                          onClick={() =>
+                <SectionLabel
+                  {...s('materialOverride')}
+                  onRemove={() => {
+                    const model = entity.model
+                    if (model) {
+                      const { material: _, ...rest } = model
+                      onUpdate({ ...entity, model: rest as typeof model })
+                      removeSection('materialOverride')
+                    }
+                  }}
+                >
+                  Material Override
+                </SectionLabel>
+                {!collapsed.has('materialOverride') && (
+                  <>
+                    <ColorInput
+                      label="Color"
+                      value={entity.model.material?.color ?? '#888888'}
+                      onChange={v => {
+                        const model = entity.model
+                        if (model)
+                          onUpdate({ ...entity, model: { ...model, material: { ...model.material, color: v } } })
+                      }}
+                    />
+                    <NumberInput
+                      label="Roughness"
+                      value={entity.model.material?.roughness ?? 1}
+                      step={0.05}
+                      onChange={v => {
+                        const model = entity.model
+                        if (model)
+                          onUpdate({ ...entity, model: { ...model, material: { ...model.material, roughness: v } } })
+                      }}
+                    />
+                    <NumberInput
+                      label="Metalness"
+                      value={entity.model.material?.metalness ?? 0}
+                      step={0.05}
+                      onChange={v => {
+                        const model = entity.model
+                        if (model)
+                          onUpdate({ ...entity, model: { ...model, material: { ...model.material, metalness: v } } })
+                      }}
+                    />
+                    <ColorInput
+                      label="Emissive"
+                      value={entity.model.material?.emissive ?? '#000000'}
+                      onChange={v => {
+                        const model = entity.model
+                        if (model)
+                          onUpdate({ ...entity, model: { ...model, material: { ...model.material, emissive: v } } })
+                      }}
+                    />
+                    {TEXTURE_MAP_FIELDS.map(({ label, key }) => (
+                      <TextInput
+                        key={key}
+                        label={label}
+                        value={(entity.model?.material?.[key] as string) ?? ''}
+                        onChange={v => {
+                          const model = entity.model
+                          if (model)
                             onUpdate({
                               ...entity,
-                              scripts: entity.scripts?.filter(x => x.name !== entry.name),
+                              model: { ...model, material: { ...model.material, [key]: v || undefined } },
                             })
-                          }
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: COLORS.textDim,
-                            padding: '0 2px',
-                            display: 'flex',
-                            alignItems: 'center',
-                          }}
-                          title="Remove script"
-                        >
-                          <IconClose />
-                        </button>
-                      </div>
-                      {def?.params &&
-                        Object.entries(def.params).map(([key, paramDef]) => {
-                          const value = entry.params?.[key] ?? paramDef.default
-                          if (paramDef.type === 'number') {
-                            return (
-                              <NumberInput
-                                key={key}
-                                label={key}
-                                value={value as number}
-                                step={0.1}
-                                onChange={v =>
-                                  onUpdate({
-                                    ...entity,
-                                    scripts: entity.scripts?.map(s =>
-                                      s.name === entry.name ? { ...s, params: { ...s.params, [key]: v } } : s,
-                                    ),
-                                  })
-                                }
-                              />
-                            )
-                          }
-                          if (paramDef.type === 'boolean') {
-                            return (
-                              <CheckboxInput
-                                key={key}
-                                label={key}
-                                value={value as boolean}
-                                onChange={v =>
-                                  onUpdate({
-                                    ...entity,
-                                    scripts: entity.scripts?.map(s =>
-                                      s.name === entry.name ? { ...s, params: { ...s.params, [key]: v } } : s,
-                                    ),
-                                  })
-                                }
-                              />
-                            )
-                          }
-                          return (
-                            <div
-                              key={key}
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                marginBottom: 4,
-                              }}
-                            >
-                              <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{key}</span>
-                              <input
-                                type="text"
-                                value={value as string}
-                                onChange={e =>
-                                  onUpdate({
-                                    ...entity,
-                                    scripts: entity.scripts?.map(s =>
-                                      s.name === entry.name
-                                        ? { ...s, params: { ...s.params, [key]: e.target.value } }
-                                        : s,
-                                    ),
-                                  })
-                                }
-                                style={{
-                                  ...INPUT_STYLE,
-                                  width: 80,
-                                }}
-                              />
-                            </div>
-                          )
-                        })}
-                    </div>
-                  )
-                })}
+                        }}
+                      />
+                    ))}
+                  </>
+                )}
               </>
             )}
 
+            {/* UI */}
+            {entity.ui && (
+              <>
+                <SectionLabel {...s('ui')}>UI</SectionLabel>
+                {!collapsed.has('ui') && (
+                  <SelectInput
+                    label="Component"
+                    value={entity.ui.component}
+                    options={availableUiComponents}
+                    onChange={v => onUpdate({ ...entity, ui: { ...entity.ui, component: v } })}
+                  />
+                )}
+              </>
+            )}
+
+            {/* Scripts */}
+            {entity.scripts && entity.scripts.length > 0 && (
+              <>
+                <SectionLabel {...s('scripts')}>Scripts</SectionLabel>
+                {!collapsed.has('scripts') &&
+                  entity.scripts.map(entry => {
+                    const def = scriptDefs[entry.name]
+                    return (
+                      <div key={entry.name} style={{ marginBottom: 6 }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '3px 0',
+                            fontSize: 11,
+                            color: COLORS.text,
+                            fontFamily: 'monospace',
+                          }}
+                        >
+                          {entry.name}
+                          <button
+                            onClick={() =>
+                              onUpdate({ ...entity, scripts: entity.scripts?.filter(x => x.name !== entry.name) })
+                            }
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: COLORS.textDim,
+                              padding: '0 2px',
+                              display: 'flex',
+                              alignItems: 'center',
+                            }}
+                            title="Remove script"
+                          >
+                            <IconClose />
+                          </button>
+                        </div>
+                        {def?.params &&
+                          Object.entries(def.params).map(([key, paramDef]) => {
+                            const value = entry.params?.[key] ?? paramDef.default
+                            if (paramDef.type === 'number') {
+                              return (
+                                <NumberInput
+                                  key={key}
+                                  label={key}
+                                  value={value as number}
+                                  step={0.1}
+                                  onChange={v =>
+                                    onUpdate({
+                                      ...entity,
+                                      scripts: entity.scripts?.map(sc =>
+                                        sc.name === entry.name ? { ...sc, params: { ...sc.params, [key]: v } } : sc,
+                                      ),
+                                    })
+                                  }
+                                />
+                              )
+                            }
+                            if (paramDef.type === 'boolean') {
+                              return (
+                                <CheckboxInput
+                                  key={key}
+                                  label={key}
+                                  value={value as boolean}
+                                  onChange={v =>
+                                    onUpdate({
+                                      ...entity,
+                                      scripts: entity.scripts?.map(sc =>
+                                        sc.name === entry.name ? { ...sc, params: { ...sc.params, [key]: v } } : sc,
+                                      ),
+                                    })
+                                  }
+                                />
+                              )
+                            }
+                            return (
+                              <div
+                                key={key}
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  marginBottom: 4,
+                                }}
+                              >
+                                <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{key}</span>
+                                <input
+                                  type="text"
+                                  value={value as string}
+                                  onChange={e =>
+                                    onUpdate({
+                                      ...entity,
+                                      scripts: entity.scripts?.map(sc =>
+                                        sc.name === entry.name
+                                          ? { ...sc, params: { ...sc.params, [key]: e.target.value } }
+                                          : sc,
+                                      ),
+                                    })
+                                  }
+                                  style={{ ...INPUT_STYLE, width: 80 }}
+                                />
+                              </div>
+                            )
+                          })}
+                      </div>
+                    )
+                  })}
+              </>
+            )}
+
+            {/* Rigid Body */}
             {entity.rigidBody && (
               <>
-                <SectionLabel>Rigid Body</SectionLabel>
-                <SelectInput
-                  label="Type"
-                  value={entity.rigidBody.type}
-                  options={['dynamic', 'fixed', 'kinematic']}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      rigidBody: { ...entity.rigidBody, type: v as 'dynamic' | 'fixed' | 'kinematic' },
-                    })
-                  }
-                />
-              </>
-            )}
-
-            {entity.collider && (
-              <>
-                <SectionLabel>Collider</SectionLabel>
-                <SelectInput
-                  label="Shape"
-                  value={entity.collider.shape}
-                  options={['box', 'sphere', 'capsule', 'cylinder', 'plane']}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      collider: { ...entity.collider, shape: v as 'box' | 'sphere' | 'capsule' | 'cylinder' | 'plane' },
-                    })
-                  }
-                />
-                {(entity.collider.shape === 'box' || entity.collider.shape === 'plane' || !entity.collider.shape) && (
-                  <Vec3Input
-                    label="Half Extents"
-                    value={entity.collider.halfExtents ?? [0.5, 0.5, 0.5]}
-                    onChange={v => {
-                      const shape = entity.collider?.shape ?? 'box'
-                      onUpdate({
-                        ...entity,
-                        collider: { shape, ...entity.collider, halfExtents: v },
-                      })
-                    }}
-                  />
-                )}
-                {entity.collider.shape !== 'box' && entity.collider.shape !== 'plane' && (
-                  <NumberInput
-                    label="Radius"
-                    value={entity.collider.radius ?? 0.5}
-                    step={0.1}
-                    onChange={v => {
-                      const shape = entity.collider?.shape ?? 'box'
-                      onUpdate({
-                        ...entity,
-                        collider: { shape, ...entity.collider, radius: v },
-                      })
-                    }}
-                  />
-                )}
-                {(entity.collider.shape === 'capsule' || entity.collider.shape === 'cylinder') && (
-                  <NumberInput
-                    label="Half Height"
-                    value={entity.collider.halfHeight ?? 0.5}
-                    step={0.1}
-                    onChange={v => {
-                      const shape = entity.collider?.shape ?? 'box'
-                      onUpdate({
-                        ...entity,
-                        collider: { shape, ...entity.collider, halfHeight: v },
-                      })
-                    }}
-                  />
-                )}
-              </>
-            )}
-
-            {entity.light && (
-              <>
-                <SectionLabel>Light</SectionLabel>
-                <ColorInput
-                  label="Color"
-                  value={entity.light.color ?? '#ffffff'}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      light: { ...entity.light, color: v },
-                    })
-                  }
-                />
-                <NumberInput
-                  label="Intensity"
-                  value={entity.light.intensity ?? 1}
-                  step={0.1}
-                  onChange={v =>
-                    onUpdate({
-                      ...entity,
-                      light: { ...entity.light, intensity: v },
-                    })
-                  }
-                />
-                {(entity.type === 'directional-light' || entity.type === 'point-light') && (
-                  <CheckboxInput
-                    label="Cast Shadow"
-                    value={entity.light.castShadow ?? false}
+                <SectionLabel {...s('rigidBody')} onRemove={() => onUpdate({ ...entity, rigidBody: undefined })}>
+                  Rigid Body
+                </SectionLabel>
+                {!collapsed.has('rigidBody') && (
+                  <SelectInput
+                    label="Type"
+                    value={entity.rigidBody.type}
+                    options={['dynamic', 'fixed', 'kinematic']}
                     onChange={v =>
                       onUpdate({
                         ...entity,
-                        light: { ...entity.light, castShadow: v },
+                        rigidBody: { ...entity.rigidBody, type: v as 'dynamic' | 'fixed' | 'kinematic' },
                       })
                     }
                   />
@@ -736,21 +897,96 @@ export function RightPanel({
               </>
             )}
 
-            {(entity.type === 'mesh' || entity.type === 'model') && (
+            {/* Collider */}
+            {entity.collider && (
               <>
-                <SectionLabel>Shadows</SectionLabel>
-                <CheckboxInput
-                  label="Cast Shadow"
-                  value={entity.castShadow ?? false}
-                  onChange={v => onUpdate({ ...entity, castShadow: v })}
-                />
-                <CheckboxInput
-                  label="Receive Shadow"
-                  value={entity.receiveShadow ?? false}
-                  onChange={v => onUpdate({ ...entity, receiveShadow: v })}
-                />
+                <SectionLabel {...s('collider')} onRemove={() => onUpdate({ ...entity, collider: undefined })}>
+                  Collider
+                </SectionLabel>
+                {!collapsed.has('collider') && (
+                  <>
+                    <SelectInput
+                      label="Shape"
+                      value={entity.collider.shape}
+                      options={['box', 'sphere', 'capsule', 'cylinder', 'plane']}
+                      onChange={v =>
+                        onUpdate({
+                          ...entity,
+                          collider: {
+                            ...entity.collider,
+                            shape: v as 'box' | 'sphere' | 'capsule' | 'cylinder' | 'plane',
+                          },
+                        })
+                      }
+                    />
+                    {(entity.collider.shape === 'box' ||
+                      entity.collider.shape === 'plane' ||
+                      !entity.collider.shape) && (
+                      <Vec3Input
+                        label="Half Extents"
+                        value={entity.collider.halfExtents ?? [0.5, 0.5, 0.5]}
+                        onChange={v => {
+                          const shape = entity.collider?.shape ?? 'box'
+                          onUpdate({ ...entity, collider: { shape, ...entity.collider, halfExtents: v } })
+                        }}
+                      />
+                    )}
+                    {entity.collider.shape !== 'box' && entity.collider.shape !== 'plane' && (
+                      <NumberInput
+                        label="Radius"
+                        value={entity.collider.radius ?? 0.5}
+                        step={0.1}
+                        onChange={v => {
+                          const shape = entity.collider?.shape ?? 'box'
+                          onUpdate({ ...entity, collider: { shape, ...entity.collider, radius: v } })
+                        }}
+                      />
+                    )}
+                    {(entity.collider.shape === 'capsule' || entity.collider.shape === 'cylinder') && (
+                      <NumberInput
+                        label="Half Height"
+                        value={entity.collider.halfHeight ?? 0.5}
+                        step={0.1}
+                        onChange={v => {
+                          const shape = entity.collider?.shape ?? 'box'
+                          onUpdate({ ...entity, collider: { shape, ...entity.collider, halfHeight: v } })
+                        }}
+                      />
+                    )}
+                  </>
+                )}
               </>
             )}
+
+            {/* Light */}
+            {entity.light && (
+              <>
+                <SectionLabel {...s('light')}>Light</SectionLabel>
+                {!collapsed.has('light') && (
+                  <>
+                    <ColorInput
+                      label="Color"
+                      value={entity.light.color ?? '#ffffff'}
+                      onChange={v => onUpdate({ ...entity, light: { ...entity.light, color: v } })}
+                    />
+                    <NumberInput
+                      label="Intensity"
+                      value={entity.light.intensity ?? 1}
+                      step={0.1}
+                      onChange={v => onUpdate({ ...entity, light: { ...entity.light, intensity: v } })}
+                    />
+                    {(entity.type === 'directional-light' || entity.type === 'point-light') && (
+                      <CheckboxInput
+                        label="Cast Shadow"
+                        value={entity.light.castShadow ?? false}
+                        onChange={v => onUpdate({ ...entity, light: { ...entity.light, castShadow: v } })}
+                      />
+                    )}
+                  </>
+                )}
+              </>
+            )}
+
             {entity.type !== 'ui' && (
               <AddComponentButton entity={entity} availableScripts={availableScripts} onUpdate={onUpdate} />
             )}

@@ -66,7 +66,6 @@ function DragNumberInput({
       style={{
         ...INPUT_STYLE,
         width: 80,
-        cursor: 'ns-resize',
         MozAppearance: 'textfield',
         ...style,
       }}
@@ -330,20 +329,100 @@ export function CheckboxInput({
   )
 }
 
-export function SectionLabel({ children }: { children: React.ReactNode }) {
+export function SectionLabel({
+  children,
+  onRemove,
+  collapsed,
+  onToggle,
+}: {
+  children: React.ReactNode
+  onRemove?: () => void
+  collapsed?: boolean
+  onToggle?: () => void
+}) {
   return (
     <div
       style={{
         color: COLORS.text,
         fontWeight: 500,
         fontSize: 11,
-        marginBottom: 6,
+        marginBottom: collapsed ? 0 : 6,
         marginTop: 10,
         paddingBottom: 3,
         borderBottom: `1px solid ${COLORS.border}`,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        userSelect: 'none',
       }}
     >
-      {children}
+      {onToggle && (
+        <button
+          onClick={onToggle}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: COLORS.textDim,
+            padding: 0,
+            display: 'flex',
+            alignItems: 'center',
+          }}
+        >
+          <svg
+            width={10}
+            height={10}
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.1s' }}
+          >
+            <path d="M4 6l4 4 4-4" />
+          </svg>
+        </button>
+      )}
+      <span style={{ flex: 1 }} onClick={onToggle}>
+        {children}
+      </span>
+      {onRemove && (
+        <button
+          onClick={e => {
+            e.stopPropagation()
+            onRemove()
+          }}
+          title="Remove component"
+          style={{
+            background: 'none',
+            border: 'none',
+            color: COLORS.textDim,
+            padding: '0 2px',
+            display: 'flex',
+            alignItems: 'center',
+            fontSize: 10,
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.color = COLORS.danger
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.color = COLORS.textDim
+          }}
+        >
+          <svg
+            width={10}
+            height={10}
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M4 4l8 8M12 4l-8 8" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 }

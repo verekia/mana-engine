@@ -2,7 +2,7 @@ import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState }
 
 import { ManaContext } from '../scene-context.ts'
 import { BottomPanel } from './BottomPanel.tsx'
-import { COLORS, FOCUS_STYLE } from './colors.ts'
+import { COLORS, EDITOR_CSS } from './colors.ts'
 import { UndoHistory } from './history.ts'
 import { LeftPanel } from './LeftPanel.tsx'
 import { ResizeHandle } from './ResizeHandle.tsx'
@@ -515,7 +515,7 @@ export default function Editor({
         overflow: 'hidden',
       }}
     >
-      <style>{FOCUS_STYLE}</style>
+      <style>{EDITOR_CSS}</style>
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Left + center column */}
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
@@ -627,6 +627,7 @@ export default function Editor({
           availableScripts={Object.keys(scripts)}
           availableUiComponents={Object.keys(uiComponents)}
           scriptDefs={scripts}
+          allEntityIds={useMemo(() => new Set(sceneData?.entities.map(e => e.id) ?? []), [sceneData])}
         />
       </div>
     </div>

@@ -140,6 +140,13 @@
         "material": {
           "color": "#888888"
         }
+      },
+      "rigidBody": {
+        "type": "dynamic"
+      },
+      "collider": {
+        "shape": "sphere",
+        "radius": 0.5
       }
     },
     {
@@ -159,16 +166,23 @@
       }
     },
     {
-      "id": "8mmkgwun",
+      "id": "qmrkfowh",
       "name": "Model",
       "type": "model",
       "transform": {
-        "position": [1.725, 1.714, -4.598],
-        "rotation": [0, 0, 0],
+        "position": [0.789, 4.329, -3.926],
+        "rotation": [0, 0.1, 0.3],
         "scale": [1, 1, 1]
       },
       "model": {
-        "src": "assets/models/megaxe-z-up.glb"
+        "src": "assets/models/megaxe.glb"
+      },
+      "rigidBody": {
+        "type": "dynamic"
+      },
+      "collider": {
+        "shape": "box",
+        "halfExtents": [0.5, 3.9, 0.5]
       }
     }
   ]

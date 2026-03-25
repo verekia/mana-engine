@@ -147,6 +147,24 @@ export function applyMaterialData(material: MeshStandardMaterial, mat?: Material
   if (mat.emissiveMap) loadTexture(mat.emissiveMap, material, 'emissiveMap', renderer)
 }
 
+/** Apply a material override to all meshes in a model group — only overrides fields that are explicitly set. */
+export function applyModelMaterialOverride(group: Group, mat: MaterialData, renderer?: WebGPURenderer) {
+  group.traverse(child => {
+    if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
+      const m = child.material
+      if (mat.color) m.color.set(mat.color)
+      if (mat.roughness !== undefined) m.roughness = mat.roughness
+      if (mat.metalness !== undefined) m.metalness = mat.metalness
+      if (mat.emissive) m.emissive.set(mat.emissive)
+      if (mat.map) loadTexture(mat.map, m, 'map', renderer)
+      if (mat.normalMap) loadTexture(mat.normalMap, m, 'normalMap', renderer)
+      if (mat.roughnessMap) loadTexture(mat.roughnessMap, m, 'roughnessMap', renderer)
+      if (mat.metalnessMap) loadTexture(mat.metalnessMap, m, 'metalnessMap', renderer)
+      if (mat.emissiveMap) loadTexture(mat.emissiveMap, m, 'emissiveMap', renderer)
+    }
+  })
+}
+
 function disposeMaterial(material: MeshStandardMaterial) {
   material.map?.dispose()
   material.normalMap?.dispose()
@@ -232,6 +250,9 @@ export function createEntityObject(
               resolveAsset(modelSrc),
               gltf => {
                 group.add(gltf.scene)
+                if (entity.model?.material) {
+                  applyModelMaterialOverride(group, entity.model.material, options.renderer)
+                }
                 applyShadowProps(group, entity)
               },
               undefined,

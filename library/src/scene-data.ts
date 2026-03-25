@@ -29,6 +29,7 @@ export interface MeshData {
 
 export interface ModelData {
   src: string
+  material?: MaterialData
 }
 
 export interface LightData {

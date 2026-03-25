@@ -37,12 +37,13 @@ export function ResizeHandle({
         document.addEventListener('mousemove', handleMove)
         document.addEventListener('mouseup', handleUp)
       }}
+      data-resize={isH ? 'col' : 'row'}
       style={{
         flexShrink: 0,
         background: COLORS.border,
         ...(isH
-          ? { width: 1, cursor: 'col-resize', padding: '0 1px', margin: '0 -1px', zIndex: 10 }
-          : { height: 1, cursor: 'row-resize', padding: '1px 0', margin: '-1px 0', zIndex: 10 }),
+          ? { width: 1, padding: '0 1px', margin: '0 -1px', zIndex: 10 }
+          : { height: 1, padding: '1px 0', margin: '-1px 0', zIndex: 10 }),
       }}
     >
       <div

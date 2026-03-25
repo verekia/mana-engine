@@ -31,9 +31,19 @@ export const INPUT_STYLE: React.CSSProperties = {
   outline: 'none',
 }
 
-export const FOCUS_STYLE = `
+export const EDITOR_CSS = `
+  *, *::before, *::after { cursor: default; }
+  input[type="text"], input[type="search"], textarea { cursor: text; }
+  input[type="text"][inputmode="decimal"] { cursor: ns-resize; }
+  [data-resize="col"] { cursor: col-resize !important; }
+  [data-resize="row"] { cursor: row-resize !important; }
   input:focus, select:focus, textarea:focus {
     box-shadow: ${COLORS.focusRing} !important;
     border-color: ${COLORS.accent} !important;
   }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: ${COLORS.inputBorder}; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: ${COLORS.textDim}; }
+  ::-webkit-scrollbar-corner { background: transparent; }
 `

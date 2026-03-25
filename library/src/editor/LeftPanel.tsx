@@ -322,11 +322,13 @@ export function LeftPanel({
       {/* Scene selector */}
       <div
         style={{
-          padding: '4px 6px',
+          height: 32,
+          padding: '0 8px',
           borderBottom: `1px solid ${COLORS.border}`,
           display: 'flex',
           alignItems: 'center',
           gap: 4,
+          flexShrink: 0,
         }}
       >
         <div style={{ flex: 1, position: 'relative' }}>
