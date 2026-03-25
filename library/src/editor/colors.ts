@@ -46,4 +46,5 @@ export const EDITOR_CSS = `
   ::-webkit-scrollbar-thumb { background: ${COLORS.inputBorder}; border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: ${COLORS.textDim}; }
   ::-webkit-scrollbar-corner { background: transparent; }
+  div:hover > .entity-vis-toggle { opacity: 1 !important; }
 `

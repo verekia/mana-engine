@@ -12,6 +12,7 @@ export function Viewport({
   playing,
   onCanvasClick,
   onSelectEntity,
+  hiddenEntities,
 }: {
   canvasRef: React.RefObject<HTMLCanvasElement | null>
   uiEntities: SceneEntity[]
@@ -20,6 +21,7 @@ export function Viewport({
   playing: boolean
   onCanvasClick?: (e: React.MouseEvent<HTMLCanvasElement>) => void
   onSelectEntity?: (id: string) => void
+  hiddenEntities?: Set<string>
 }) {
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null)
 
@@ -70,6 +72,7 @@ export function Viewport({
             {uiEntities.map(entity => {
               const Component = uiComponents[entity.ui?.component ?? '']
               if (!Component) return null
+              const hidden = hiddenEntities?.has(entity.id)
               return playing ? (
                 <Component key={entity.id} />
               ) : (
@@ -79,7 +82,10 @@ export function Viewport({
                     e.stopPropagation()
                     onSelectEntity?.(entity.id)
                   }}
-                  style={{ pointerEvents: 'auto' }}
+                  style={{
+                    pointerEvents: hidden ? 'none' : 'auto',
+                    opacity: hidden ? 0 : 1,
+                  }}
                 >
                   <Component />
                 </div>

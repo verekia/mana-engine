@@ -66,6 +66,8 @@ export interface ManaScene {
   setTransformMode(mode: TransformMode): void
   /** Attach transform gizmo to entity, or detach if id is null. Editor mode only. */
   setTransformTarget(id: string | null): void
+  /** Show or hide an entity in the viewport. For lights, only hides the gizmo helper. */
+  setEntityVisible(id: string, visible: boolean): void
 }
 
 export interface CreateSceneOptions {
@@ -644,6 +646,25 @@ export async function createScene(
         }
       } else {
         transformControls.detach()
+      }
+    },
+    setEntityVisible(id: string, visible: boolean) {
+      const obj = entityObjects.get(id)
+      if (!obj) return
+      const isLight = obj instanceof DirectionalLight || obj instanceof AmbientLight || obj instanceof PointLight
+      // For lights: keep the light itself visible, only toggle the helper gizmo
+      if (isLight) {
+        const helper = gizmoHelpers.get(id)
+        if (helper) helper.visible = visible
+      } else {
+        obj.visible = visible
+      }
+      // Always toggle wireframes and helpers for non-lights
+      if (!isLight) {
+        const wireframe = debugWireframes.get(id)
+        if (wireframe) wireframe.visible = visible
+        const helper = gizmoHelpers.get(id)
+        if (helper) helper.visible = visible
       }
     },
   }

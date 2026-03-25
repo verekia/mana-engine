@@ -46,6 +46,18 @@ export default function Editor({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [savedSceneJson, setSavedSceneJson] = useState('')
 
+  // Hidden entities per scene (editor-only, persisted to localStorage)
+  const [hiddenEntities, setHiddenEntities] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('mana:hiddenEntities')
+      const data = saved ? JSON.parse(saved) : {}
+      const scene = localStorage.getItem('mana:activeScene') ?? ''
+      return new Set<string>(data[scene] ?? [])
+    } catch {
+      return new Set<string>()
+    }
+  })
+
   // Panel sizes (persisted to localStorage)
   const [leftWidth, setLeftWidth] = useState(() => Number(localStorage.getItem('mana:leftWidth')) || 220)
   const [rightWidth, setRightWidth] = useState(() => Number(localStorage.getItem('mana:rightWidth')) || 260)
@@ -150,6 +162,25 @@ export default function Editor({
     onTransformEnd: handleTransformEnd,
   })
 
+  const handleToggleEntityVisibility = useCallback(
+    (id: string) => {
+      setHiddenEntities(prev => {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        try {
+          const data = JSON.parse(localStorage.getItem('mana:hiddenEntities') ?? '{}')
+          data[activeSceneRef.current] = [...next]
+          if (next.size === 0) delete data[activeSceneRef.current]
+          localStorage.setItem('mana:hiddenEntities', JSON.stringify(data))
+        } catch {}
+        sceneRef.current?.setEntityVisible(id, !next.has(id))
+        return next
+      })
+    },
+    [sceneRef],
+  )
+
   // Fetch scene list on mount, then load the saved or first scene
   useEffect(() => {
     fetchSceneList().then(list => {
@@ -178,6 +209,14 @@ export default function Editor({
       historyRef.current.clear()
       forceUpdate(n => n + 1)
 
+      // Load hidden entities for the new scene
+      let sceneHidden = new Set<string>()
+      try {
+        const data = JSON.parse(localStorage.getItem('mana:hiddenEntities') ?? '{}')
+        sceneHidden = new Set<string>(data[name] ?? [])
+      } catch {}
+      setHiddenEntities(sceneHidden)
+
       // Dispose old Three.js scene
       if (sceneRef.current) {
         sceneRef.current.dispose()
@@ -192,6 +231,11 @@ export default function Editor({
 
           // Create new Three.js scene
           await recreateScene(data, false)
+
+          // Apply visibility state
+          for (const id of sceneHidden) {
+            sceneRef.current?.setEntityVisible(id, false)
+          }
         })
         .catch(err => log(`Error loading scene: ${err.message}`))
     },
@@ -449,6 +493,21 @@ export default function Editor({
     sceneRef.current?.setTransformTarget(selectedId)
   }, [selectedId, sceneRef])
 
+  // Apply hidden entity visibility when scene is created/recreated
+  const hiddenEntitiesRef = useRef(hiddenEntities)
+  hiddenEntitiesRef.current = hiddenEntities
+  useEffect(() => {
+    if (!sceneData) return
+    // Small delay to ensure Three.js scene is ready after async creation
+    const t = setTimeout(() => {
+      for (const id of hiddenEntitiesRef.current) {
+        sceneRef.current?.setEntityVisible(id, false)
+      }
+    }, 100)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- apply once per scene load
+  }, [sceneData, sceneRef])
+
   // Debounced undo for inspector property edits — collapses rapid changes into one undo entry
   const updateUndoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const updateUndoBeforeRef = useRef<SceneEntity | null>(null)
@@ -535,6 +594,8 @@ export default function Editor({
               onAddEntity={handleAddEntity}
               onDeleteEntity={handleDeleteEntity}
               onRenameEntity={handleRenameEntity}
+              hiddenEntities={hiddenEntities}
+              onToggleVisibility={handleToggleEntityVisibility}
             />
             <ResizeHandle
               direction="horizontal"
@@ -590,6 +651,7 @@ export default function Editor({
                     playing={playing}
                     onCanvasClick={handleCanvasClick}
                     onSelectEntity={setSelectedId}
+                    hiddenEntities={hiddenEntities}
                   />
                 </ManaContext.Provider>
               </div>
