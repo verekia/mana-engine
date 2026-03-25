@@ -254,17 +254,6 @@ export function BottomPanel({ height }: { height: number }) {
           flexShrink: 0,
         }}
       >
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 600,
-            color: COLORS.textMuted,
-            letterSpacing: '0.04em',
-            marginRight: 6,
-          }}
-        >
-          ASSETS
-        </span>
         <button
           type="button"
           onClick={() => navigateTo(-1)}
@@ -279,9 +268,9 @@ export function BottomPanel({ height }: { height: number }) {
         >
           assets
         </button>
+        <span style={{ color: COLORS.textDim }}>/</span>
         {breadcrumbs.map((segment, i) => (
           <span key={segment} style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <span style={{ color: COLORS.textDim }}>/</span>
             <button
               type="button"
               onClick={() => navigateTo(i)}
@@ -296,6 +285,7 @@ export function BottomPanel({ height }: { height: number }) {
             >
               {segment}
             </button>
+            <span style={{ color: COLORS.textDim }}>/</span>
           </span>
         ))}
       </div>

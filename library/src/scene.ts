@@ -26,6 +26,7 @@ import {
   applyMaterialData,
   applyShadowProps,
   applyTransform,
+  createColliderWireframe,
   createEntityObject,
   disposeEntityObject,
   snapshotTransform,
@@ -578,11 +579,23 @@ export async function createScene(
       const obj = entityObjects.get(id)
       if (!obj) return
       applyTransform(obj, entity.transform)
-      const wireframe = debugWireframes.get(id)
-      if (wireframe) {
-        wireframe.position.copy(obj.position)
-        wireframe.rotation.copy(obj.rotation)
-        wireframe.scale.copy(obj.scale)
+      // Recreate collider wireframe if collider data changed
+      const oldWireframe = debugWireframes.get(id)
+      if (entity.collider && debugPhysics) {
+        if (oldWireframe) {
+          scene.remove(oldWireframe)
+          oldWireframe.geometry.dispose()
+          ;(oldWireframe.material as LineBasicMaterial).dispose()
+        }
+        const newWireframe = createColliderWireframe(entity.collider)
+        newWireframe.position.copy(obj.position)
+        newWireframe.rotation.copy(obj.rotation)
+        scene.add(newWireframe)
+        debugWireframes.set(id, newWireframe)
+      } else if (oldWireframe) {
+        oldWireframe.position.copy(obj.position)
+        oldWireframe.rotation.copy(obj.rotation)
+        oldWireframe.scale.copy(obj.scale)
       }
       if (entity.type === 'mesh' && obj instanceof Mesh) {
         applyMaterialData(obj.material as MeshStandardMaterial, entity.mesh?.material, renderer)

@@ -7,7 +7,14 @@ import { UndoHistory } from './history.ts'
 import { LeftPanel } from './LeftPanel.tsx'
 import { ResizeHandle } from './ResizeHandle.tsx'
 import { RightPanel } from './RightPanel.tsx'
-import { fetchSceneList, loadSceneData, saveSceneData } from './scene-api.ts'
+import {
+  createScene as apiCreateScene,
+  deleteScene as apiDeleteScene,
+  fetchSceneList,
+  loadSceneData,
+  renameScene as apiRenameScene,
+  saveSceneData,
+} from './scene-api.ts'
 import { Toolbar } from './Toolbar.tsx'
 import { useEditorScene } from './use-editor-scene.ts'
 import { Viewport } from './Viewport.tsx'
@@ -189,6 +196,53 @@ export default function Editor({
         .catch(err => log(`Error loading scene: ${err.message}`))
     },
     [log, sceneRef, recreateScene],
+  )
+
+  const handleCreateScene = useCallback(
+    (name: string) => {
+      apiCreateScene(name)
+        .then(() => {
+          setSceneList(prev => [...prev, name])
+          handleSwitchScene(name)
+          log(`Created scene: ${name}`)
+        })
+        .catch(err => log(`Error creating scene: ${err.message}`))
+    },
+    [handleSwitchScene, log],
+  )
+
+  const handleDeleteScene = useCallback(
+    (name: string) => {
+      apiDeleteScene(name)
+        .then(() => {
+          setSceneList(prev => {
+            const next = prev.filter(s => s !== name)
+            if (activeSceneRef.current === name && next.length > 0) {
+              handleSwitchScene(next[0])
+            }
+            return next
+          })
+          log(`Deleted scene: ${name}`)
+        })
+        .catch(err => log(`Error deleting scene: ${err.message}`))
+    },
+    [handleSwitchScene, log],
+  )
+
+  const handleRenameScene = useCallback(
+    (oldName: string, newName: string) => {
+      apiRenameScene(oldName, newName)
+        .then(() => {
+          setSceneList(prev => prev.map(s => (s === oldName ? newName : s)))
+          if (activeSceneRef.current === oldName) {
+            setActiveScene(newName)
+            localStorage.setItem('mana:activeScene', newName)
+          }
+          log(`Renamed scene: ${oldName} → ${newName}`)
+        })
+        .catch(err => log(`Error renaming scene: ${err.message}`))
+    },
+    [log],
   )
 
   const handlePlay = useCallback(async () => {
@@ -472,6 +526,9 @@ export default function Editor({
               sceneList={sceneList}
               activeScene={activeScene}
               onSwitchScene={handleSwitchScene}
+              onCreateScene={handleCreateScene}
+              onDeleteScene={handleDeleteScene}
+              onRenameScene={handleRenameScene}
               sceneData={sceneData}
               selectedId={selectedId}
               onSelect={setSelectedId}

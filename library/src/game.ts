@@ -1,3 +1,4 @@
+export { resolveAsset, setAssetManifest } from './assets.ts'
 export { createScene } from './scene.ts'
 export type {
   CreateSceneOptions,

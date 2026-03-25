@@ -40,8 +40,19 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 - The loaded GLTF scene is added as a child of the entity `Group`
 - Shadow properties (`castShadow`/`receiveShadow`) are applied recursively to all child meshes
 - Editor "Add Entity" menu includes a "GLTF Model" preset
-- Model entity icon in hierarchy: package emoji
+- Model entity icon in hierarchy: SVG model icon
 - Raycast selection works on model entities by traversing child meshes
+
+## Asset Pipeline
+
+- `assets.ts` provides `resolveAsset(path)` — resolves asset paths for both dev and production
+- In dev mode: paths are served via `/assets/` middleware (Vite plugin in `create-vite-config.ts`)
+- In production: `manaAssetsPlugin` scans `game/assets/` at build time, emits files through Rollup with content hashes
+- The asset manifest (original path → hashed filename) is appended as `assetManifest` export on the entry chunk
+- `mountGame()` reads `bundle.assetManifest` and calls `setAssetManifest()` to configure the runtime resolver
+- `resolveAsset()` is used in `entity.ts` for both model loading (`GLTFLoader`) and texture loading (`TextureLoader`, `KTX2Loader`)
+- Asset paths in scene JSON should be relative to `game/assets/` (e.g., `models/megaxe.glb`, `textures/grass.ktx2`)
+- The `assets/` prefix is optional and stripped automatically by the resolver
 
 ## Shadow Mapping
 
@@ -80,7 +91,7 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 ## Editor
 
 - `mana editor` launches a full editor with hierarchy, inspector, viewport, and asset browser panels
-- Editor source is split into modular components: `Editor.tsx` (main), `Toolbar.tsx`, `Viewport.tsx`, `LeftPanel.tsx`, `RightPanel.tsx`, `BottomPanel.tsx`, `widgets.tsx`, `colors.ts`, `scene-api.ts`, `history.ts`
+- Editor source is split into modular components: `Editor.tsx` (main), `Toolbar.tsx`, `Viewport.tsx`, `LeftPanel.tsx`, `RightPanel.tsx`, `BottomPanel.tsx`, `widgets.tsx`, `colors.ts`, `icons.tsx`, `ResizeHandle.tsx`, `scene-api.ts`, `history.ts`
 - Editor reads/writes scene JSON files via a Vite middleware API (`/__mana/scenes/:name`)
 - Asset browser in bottom panel browses `game/assets/` via `/__mana/assets?path=` API
 - `assetsApiPlugin` lists files/folders with type detection, path traversal prevention, and sorted output (folders first)

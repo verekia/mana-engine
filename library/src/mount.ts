@@ -1,7 +1,8 @@
 export interface GameBundle {
-  mount(container: HTMLElement): void
+  mount(container: HTMLElement, options?: { assetManifest?: Record<string, string> }): void
   unmount(): void
   css: string
+  assetManifest?: Record<string, string>
 }
 
 export function mountGame(element: HTMLElement, bundle: GameBundle): () => void {
@@ -17,7 +18,7 @@ export function mountGame(element: HTMLElement, bundle: GameBundle): () => void 
   container.style.height = '100%'
   shadow.appendChild(container)
 
-  bundle.mount(container)
+  bundle.mount(container, { assetManifest: bundle.assetManifest })
 
   return () => {
     bundle.unmount()

@@ -176,10 +176,13 @@ function AddEntityPopover({
   onClose: () => void
 }) {
   const popoverRef = useRef<HTMLDivElement>(null)
+  const popoverHeight = 320
   const pos = (() => {
     if (!anchorRef.current) return { top: 0, left: 0 }
     const rect = anchorRef.current.getBoundingClientRect()
-    return { top: rect.bottom + 2, left: rect.right - 180 }
+    const spaceBelow = window.innerHeight - rect.bottom
+    const top = spaceBelow < popoverHeight ? rect.top - popoverHeight - 2 : rect.bottom + 2
+    return { top: Math.max(4, top), left: Math.max(4, rect.right - 180) }
   })()
 
   useEffect(() => {
@@ -272,6 +275,9 @@ export function LeftPanel({
   sceneList,
   activeScene,
   onSwitchScene,
+  onCreateScene,
+  onDeleteScene,
+  onRenameScene,
   sceneData,
   selectedId,
   onSelect,
@@ -283,6 +289,9 @@ export function LeftPanel({
   sceneList: string[]
   activeScene: string
   onSwitchScene: (name: string) => void
+  onCreateScene: (name: string) => void
+  onDeleteScene: (name: string) => void
+  onRenameScene: (oldName: string, newName: string) => void
   sceneData: SceneData | null
   selectedId: string | null
   onSelect: (id: string) => void
@@ -295,6 +304,9 @@ export function LeftPanel({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entityId: string } | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [sceneContextMenu, setSceneContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [renamingScene, setRenamingScene] = useState(false)
+  const [sceneRenameValue, setSceneRenameValue] = useState('')
   return (
     <div
       style={{
@@ -310,50 +322,185 @@ export function LeftPanel({
       {/* Scene selector */}
       <div
         style={{
-          padding: '6px 8px',
+          padding: '4px 6px',
           borderBottom: `1px solid ${COLORS.border}`,
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
+          gap: 4,
         }}
       >
-        <span
-          style={{ fontSize: 10, fontWeight: 600, color: COLORS.textMuted, letterSpacing: '0.04em', flexShrink: 0 }}
-        >
-          SCENE
-        </span>
         <div style={{ flex: 1, position: 'relative' }}>
-          <select
-            value={activeScene}
-            onChange={e => onSwitchScene(e.target.value)}
-            style={{
-              ...INPUT_STYLE,
-              width: '100%',
-              paddingRight: 18,
-              appearance: 'none',
-            }}
-          >
-            {sceneList.map(name => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-          <span
-            style={{
-              position: 'absolute',
-              right: 5,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              pointerEvents: 'none',
-              color: COLORS.textMuted,
-              display: 'flex',
-            }}
-          >
-            <IconChevronDown />
-          </span>
+          {renamingScene ? (
+            <input
+              autoFocus
+              value={sceneRenameValue}
+              onFocus={e => e.target.select()}
+              onChange={e => setSceneRenameValue(e.target.value)}
+              onBlur={() => {
+                const v = sceneRenameValue.trim()
+                if (v && v !== activeScene && /^[a-zA-Z0-9_-]+$/.test(v)) {
+                  onRenameScene(activeScene, v)
+                }
+                setRenamingScene(false)
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  const v = sceneRenameValue.trim()
+                  if (v && v !== activeScene && /^[a-zA-Z0-9_-]+$/.test(v)) {
+                    onRenameScene(activeScene, v)
+                  }
+                  setRenamingScene(false)
+                }
+                if (e.key === 'Escape') setRenamingScene(false)
+              }}
+              style={{
+                ...INPUT_STYLE,
+                width: '100%',
+                borderColor: COLORS.accent,
+                boxShadow: COLORS.focusRing,
+              }}
+            />
+          ) : (
+            <>
+              <select
+                value={activeScene}
+                onChange={e => onSwitchScene(e.target.value)}
+                onContextMenu={e => {
+                  e.preventDefault()
+                  setSceneContextMenu({ x: e.clientX, y: e.clientY })
+                }}
+                style={{
+                  ...INPUT_STYLE,
+                  width: '100%',
+                  paddingRight: 18,
+                  appearance: 'none',
+                }}
+              >
+                {sceneList.map(name => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              <span
+                style={{
+                  position: 'absolute',
+                  right: 5,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  pointerEvents: 'none',
+                  color: COLORS.textMuted,
+                  display: 'flex',
+                }}
+              >
+                <IconChevronDown />
+              </span>
+            </>
+          )}
         </div>
+        <button
+          onClick={() => {
+            const name = prompt('New scene name (letters, numbers, - and _ only):')
+            if (name && /^[a-zA-Z0-9_-]+$/.test(name)) {
+              onCreateScene(name)
+            }
+          }}
+          title="New scene"
+          style={{
+            background: 'none',
+            border: 'none',
+            color: COLORS.textMuted,
+            padding: 0,
+            display: 'flex',
+            alignItems: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <IconPlus />
+        </button>
       </div>
+
+      {/* Scene context menu */}
+      {sceneContextMenu && (
+        <>
+          <div
+            onClick={() => setSceneContextMenu(null)}
+            onContextMenu={e => {
+              e.preventDefault()
+              setSceneContextMenu(null)
+            }}
+            style={{ position: 'fixed', inset: 0, zIndex: 1000 }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              left: sceneContextMenu.x,
+              top: sceneContextMenu.y,
+              background: COLORS.panel,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: 6,
+              padding: '4px 0',
+              zIndex: 1001,
+              minWidth: 120,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            }}
+          >
+            <button
+              onClick={() => {
+                setSceneRenameValue(activeScene)
+                setRenamingScene(true)
+                setSceneContextMenu(null)
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = COLORS.hover
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent'
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '5px 12px',
+                background: 'transparent',
+                border: 'none',
+                color: COLORS.text,
+                fontSize: 11,
+                textAlign: 'left',
+              }}
+            >
+              Rename
+            </button>
+            <button
+              onClick={() => {
+                if (sceneList.length <= 1) {
+                  alert('Cannot delete the last scene.')
+                } else if (confirm(`Delete scene "${activeScene}"?`)) {
+                  onDeleteScene(activeScene)
+                }
+                setSceneContextMenu(null)
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(239,68,68,0.15)'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent'
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '5px 12px',
+                background: 'transparent',
+                border: 'none',
+                color: COLORS.danger,
+                fontSize: 11,
+                textAlign: 'left',
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        </>
+      )}
 
       {/* Entity list */}
       <div

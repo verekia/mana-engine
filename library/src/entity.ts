@@ -24,6 +24,8 @@ import {
   type WebGPURenderer,
 } from 'three/webgpu'
 
+import { resolveAsset } from './assets.ts'
+
 import type { ColliderData, MaterialData, SceneEntity, Transform } from './scene-data.ts'
 
 export interface EntityMaps {
@@ -74,7 +76,7 @@ function createGeometry(type?: string) {
   }
 }
 
-function createColliderWireframe(collider: ColliderData): LineSegments {
+export function createColliderWireframe(collider: ColliderData): LineSegments {
   let geometry: EdgesGeometry
   switch (collider.shape) {
     case 'sphere': {
@@ -115,19 +117,20 @@ function loadTexture(
   slot: keyof MeshStandardMaterial,
   renderer?: WebGPURenderer,
 ) {
+  const url = resolveAsset(path)
   if (path.endsWith('.ktx2')) {
     if (renderer && !ktx2DetectedSupport) {
       ktx2Loader.detectSupport(renderer)
       ktx2DetectedSupport = true
     }
-    ktx2Loader.load(path, texture => {
+    ktx2Loader.load(url, texture => {
       // biome-ignore lint: dynamic slot assignment
       ;(material as any)[slot] = texture
       material.needsUpdate = true
     })
   } else {
     // biome-ignore lint: dynamic slot assignment
-    ;(material as any)[slot] = textureLoader.load(path)
+    ;(material as any)[slot] = textureLoader.load(url)
   }
 }
 
@@ -226,7 +229,7 @@ export function createEntityObject(
           .then(({ GLTFLoader }) => {
             const loader = new GLTFLoader()
             loader.load(
-              modelSrc,
+              resolveAsset(modelSrc),
               gltf => {
                 group.add(gltf.scene)
                 applyShadowProps(group, entity)

@@ -71,10 +71,12 @@ async function runBuild() {
     [
       `import { createRoot } from 'react-dom/client'`,
       `import { createElement } from 'react'`,
+      `import { setAssetManifest } from 'mana-engine/game'`,
       `import Game from '${gameDir}/index.tsx'`,
       ``,
       `let root`,
-      `export function mount(container) {`,
+      `export function mount(container, options) {`,
+      `  if (options?.assetManifest) setAssetManifest(options.assetManifest)`,
       `  root = createRoot(container)`,
       `  root.render(createElement(Game))`,
       `}`,

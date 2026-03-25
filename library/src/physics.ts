@@ -58,6 +58,11 @@ export async function setupPhysics(
         case 'cylinder':
           colliderDesc = RAPIER.ColliderDesc.cylinder(entity.collider.halfHeight ?? 0.5, entity.collider.radius ?? 0.5)
           break
+        case 'plane': {
+          const he = entity.collider.halfExtents ?? [5, 0.01, 5]
+          colliderDesc = RAPIER.ColliderDesc.cuboid(he[0], he[1], he[2])
+          break
+        }
         default: {
           const he = entity.collider.halfExtents ?? [0.5, 0.5, 0.5]
           colliderDesc = RAPIER.ColliderDesc.cuboid(he[0], he[1], he[2])

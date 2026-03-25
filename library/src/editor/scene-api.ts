@@ -37,3 +37,19 @@ export async function saveSceneData(name: string, data: SceneData): Promise<void
   })
   if (!res.ok) throw new Error(`Failed to save scene: ${name}`)
 }
+
+export async function createScene(name: string): Promise<void> {
+  const data: SceneData = { background: '#222222', entities: [] }
+  await saveSceneData(name, data)
+}
+
+export async function deleteScene(name: string): Promise<void> {
+  const res = await fetch(`/__mana/scenes/${name}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`Failed to delete scene: ${name}`)
+}
+
+export async function renameScene(oldName: string, newName: string): Promise<void> {
+  const data = await loadSceneData(oldName)
+  await saveSceneData(newName, data)
+  await deleteScene(oldName)
+}

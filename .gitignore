@@ -1,4 +1,5 @@
 node_modules
 dist
 .mana
+public/game-assets
 tsconfig.tsbuildinfo

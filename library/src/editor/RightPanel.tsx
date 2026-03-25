@@ -44,10 +44,13 @@ function AddComponentPopover({
   onClose: () => void
 }) {
   const popoverRef = useRef<HTMLDivElement>(null)
+  const popoverHeight = 250
   const pos = (() => {
     if (!anchorRef.current) return { top: 0, left: 0 }
     const rect = anchorRef.current.getBoundingClientRect()
-    return { top: rect.bottom + 2, left: rect.left }
+    const spaceBelow = window.innerHeight - rect.bottom
+    const top = spaceBelow < popoverHeight ? rect.top - popoverHeight - 2 : rect.bottom + 2
+    return { top: Math.max(4, top), left: rect.left }
   })()
 
   useEffect(() => {
@@ -143,9 +146,24 @@ function AddComponentButton({
     })
   }
   if (!entity.collider) {
+    const meshGeo = entity.mesh?.geometry
+    const colliderForGeo = (): import('../scene-data.ts').ColliderData => {
+      switch (meshGeo) {
+        case 'sphere':
+          return { shape: 'sphere', radius: 0.5 }
+        case 'capsule':
+          return { shape: 'capsule', radius: 0.5, halfHeight: 0.5 }
+        case 'cylinder':
+          return { shape: 'cylinder', radius: 0.5, halfHeight: 0.5 }
+        case 'plane':
+          return { shape: 'plane', halfExtents: [5, 0.01, 5] }
+        default:
+          return { shape: 'box', halfExtents: [0.5, 0.5, 0.5] }
+      }
+    }
     options.push({
       label: 'Collider',
-      action: () => onUpdate({ ...entity, collider: { shape: 'box', halfExtents: [0.5, 0.5, 0.5] } }),
+      action: () => onUpdate({ ...entity, collider: colliderForGeo() }),
     })
   }
 
@@ -627,15 +645,15 @@ export function RightPanel({
                 <SelectInput
                   label="Shape"
                   value={entity.collider.shape}
-                  options={['box', 'sphere', 'capsule', 'cylinder']}
+                  options={['box', 'sphere', 'capsule', 'cylinder', 'plane']}
                   onChange={v =>
                     onUpdate({
                       ...entity,
-                      collider: { ...entity.collider, shape: v as 'box' | 'sphere' | 'capsule' | 'cylinder' },
+                      collider: { ...entity.collider, shape: v as 'box' | 'sphere' | 'capsule' | 'cylinder' | 'plane' },
                     })
                   }
                 />
-                {(entity.collider.shape === 'box' || !entity.collider.shape) && (
+                {(entity.collider.shape === 'box' || entity.collider.shape === 'plane' || !entity.collider.shape) && (
                   <Vec3Input
                     label="Half Extents"
                     value={entity.collider.halfExtents ?? [0.5, 0.5, 0.5]}
@@ -648,7 +666,7 @@ export function RightPanel({
                     }}
                   />
                 )}
-                {entity.collider.shape !== 'box' && (
+                {entity.collider.shape !== 'box' && entity.collider.shape !== 'plane' && (
                   <NumberInput
                     label="Radius"
                     value={entity.collider.radius ?? 0.5}

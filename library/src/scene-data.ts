@@ -46,7 +46,7 @@ export interface RigidBodyData {
 }
 
 export interface ColliderData {
-  shape: 'box' | 'sphere' | 'capsule' | 'cylinder'
+  shape: 'box' | 'sphere' | 'capsule' | 'cylinder' | 'plane'
   halfExtents?: [number, number, number]
   radius?: number
   halfHeight?: number
