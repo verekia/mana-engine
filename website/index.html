@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mana Engine — React + Three.js Game Engine</title>
+    <meta
+      name="description"
+      content="Compile React + Three.js + Tailwind games into self-contained ES modules. Visual editor, PBR materials, physics, scripts, and Shadow DOM isolation."
+    />
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      /* Critical above-fold inline styles */
+      .hero {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Floating particles -->
+    <div class="particles">
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="nav">
+      <a href="#" class="nav-logo">
+        <!-- Mana crystal logo -->
+        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 2L28 12L22 28H10L4 12L16 2Z" stroke="url(#logo-grad)" stroke-width="1.5" fill="none" />
+          <path d="M16 6L24 13L20 26H12L8 13L16 6Z" fill="url(#logo-fill)" opacity="0.15" />
+          <path d="M16 2V28M4 12H28M10 28L24 12M22 28L8 12" stroke="url(#logo-grad)" stroke-width="0.5" opacity="0.4" />
+          <circle cx="16" cy="15" r="3" fill="url(#logo-grad)" opacity="0.6" />
+          <defs>
+            <linearGradient id="logo-grad" x1="4" y1="2" x2="28" y2="28">
+              <stop stop-color="#00e5ff" />
+              <stop offset="1" stop-color="#00ffc8" />
+            </linearGradient>
+            <linearGradient id="logo-fill" x1="8" y1="6" x2="24" y2="26">
+              <stop stop-color="#00e5ff" />
+              <stop offset="1" stop-color="#a855f7" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <span>Mana Engine</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#editor">Editor</a></li>
+        <li><a href="#code">Scripts</a></li>
+        <li><a href="#stack">Stack</a></li>
+        <li><a href="https://github.com/verekia/mana-engine" class="nav-cta">GitHub</a></li>
+      </ul>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-content">
+        <div class="hero-icon animate-in delay-1">
+          <!-- Large mana crystal -->
+          <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M40 4L68 24L56 72H24L12 24L40 4Z" stroke="url(#crystal-outer)" stroke-width="1.5" />
+            <path d="M40 12L60 27L51 64H29L20 27L40 12Z" stroke="url(#crystal-mid)" stroke-width="1" opacity="0.6" />
+            <path d="M40 20L52 30L46 56H34L28 30L40 20Z" fill="url(#crystal-core)" opacity="0.12" />
+            <path
+              d="M40 4V72M12 24H68M24 72L60 27M56 72L20 27"
+              stroke="url(#crystal-lines)"
+              stroke-width="0.5"
+              opacity="0.25"
+            />
+            <circle cx="40" cy="36" r="6" fill="url(#crystal-center)" opacity="0.5" />
+            <circle cx="40" cy="36" r="10" stroke="url(#crystal-center)" stroke-width="0.5" opacity="0.3" />
+            <circle cx="40" cy="36" r="16" stroke="url(#crystal-center)" stroke-width="0.3" opacity="0.15" />
+            <defs>
+              <linearGradient id="crystal-outer" x1="12" y1="4" x2="68" y2="72">
+                <stop stop-color="#00e5ff" />
+                <stop offset="0.5" stop-color="#00ffc8" />
+                <stop offset="1" stop-color="#a855f7" />
+              </linearGradient>
+              <linearGradient id="crystal-mid" x1="20" y1="12" x2="60" y2="64">
+                <stop stop-color="#00e5ff" />
+                <stop offset="1" stop-color="#00ffc8" />
+              </linearGradient>
+              <radialGradient id="crystal-core" cx="40" cy="36" r="20" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#00e5ff" />
+                <stop offset="1" stop-color="#a855f7" stop-opacity="0" />
+              </radialGradient>
+              <linearGradient id="crystal-lines" x1="12" y1="4" x2="68" y2="72">
+                <stop stop-color="#00e5ff" />
+                <stop offset="1" stop-color="#a855f7" />
+              </linearGradient>
+              <radialGradient id="crystal-center" cx="40" cy="36" r="8" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#ffffff" stop-opacity="0.9" />
+                <stop offset="0.5" stop-color="#00e5ff" />
+                <stop offset="1" stop-color="#00e5ff" stop-opacity="0" />
+              </radialGradient>
+            </defs>
+          </svg>
+        </div>
+
+        <div class="hero-tag animate-in delay-2">Game Engine</div>
+
+        <h1 class="animate-in delay-3"><span class="gradient-text">Mana</span> Engine</h1>
+
+        <p class="hero-sub animate-in delay-4">React + Three.js + Tailwind</p>
+
+        <p class="hero-desc animate-in delay-5">
+          Compile your game directory into a self-contained ES module. PBR rendering, physics, visual editor, and Shadow
+          DOM isolation — all wired up.
+        </p>
+
+        <div class="hero-actions animate-in delay-6">
+          <a href="https://github.com/verekia/mana-engine" class="btn btn-primary">
+            <!-- Arrow icon -->
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+            Get Started
+          </a>
+          <a href="#features" class="btn btn-secondary">
+            <!-- Bolt icon -->
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+            </svg>
+            Explore
+          </a>
+        </div>
+      </div>
+
+      <div class="scroll-hint">
+        <span>Scroll</span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- Highlights -->
+    <section>
+      <div class="container">
+        <div class="highlights">
+          <div class="highlight-item animate-in delay-1">
+            <div class="highlight-value">7</div>
+            <div class="highlight-label">Entity Types</div>
+          </div>
+          <div class="highlight-item animate-in delay-2">
+            <div class="highlight-value">60Hz</div>
+            <div class="highlight-label">Fixed Timestep</div>
+          </div>
+          <div class="highlight-item animate-in delay-3">
+            <div class="highlight-value">WebGPU</div>
+            <div class="highlight-label">Renderer</div>
+          </div>
+          <div class="highlight-item animate-in delay-4">
+            <div class="highlight-value">PBR</div>
+            <div class="highlight-label">Materials</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- Features -->
+    <section id="features">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-label">// Core Systems</span>
+          <h2 class="section-title">Everything You Need to Ship</h2>
+          <p class="section-desc">
+            A full-featured engine that compiles down to a single ES module you can mount anywhere.
+          </p>
+        </div>
+
+        <div class="features-grid">
+          <!-- Scene System -->
+          <div class="feature-card animate-in delay-1">
+            <div class="feature-icon">
+              <svg
+                viewBox="0 0 32 32"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="4" y="4" width="24" height="24" rx="2" />
+                <path d="M4 12H28M12 4V28" />
+                <circle cx="20" cy="20" r="4" />
+              </svg>
+            </div>
+            <h3>Scene System</h3>
+            <p>
+              JSON-based scenes with 7 entity types — camera, mesh, model, lights, and UI. Switch scenes at runtime with
+              a single hook call.
+            </p>
+          </div>
+
+          <!-- Materials & Textures -->
+          <div class="feature-card animate-in delay-2">
+            <div class="feature-icon">
+              <svg
+                viewBox="0 0 32 32"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="16" cy="16" r="11" />
+                <ellipse cx="16" cy="16" rx="11" ry="5" transform="rotate(45 16 16)" />
+                <ellipse cx="16" cy="16" rx="11" ry="5" transform="rotate(-45 16 16)" />
+                <circle cx="16" cy="16" r="3" />
+              </svg>
+            </div>
+            <h3>PBR Materials</h3>
+            <p>
+              Full physically-based rendering with albedo, normal, roughness, metalness, and emissive maps. KTX2
+              GPU-compressed textures supported.
+            </p>
+          </div>
+
+          <!-- Scripts -->
+          <div class="feature-card animate-in delay-3">
+            <div class="feature-icon">
+              <svg
+                viewBox="0 0 32 32"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M10 8L4 16L10 24" />
+                <path d="M22 8L28 16L22 24" />
+                <line x1="18" y1="6" x2="14" y2="26" />
+              </svg>
+            </div>
+            <h3>Script System</h3>
+            <p>
+              Unity-like lifecycle with init, update, fixedUpdate, and dispose. Typed parameters, 60Hz fixed timestep,
+              and full input access.
+            </p>
+          </div>
+
+          <!-- Physics -->
+          <div class="feature-card animate-in delay-4">
+            <div class="feature-icon">
+              <svg
+                viewBox="0 0 32 32"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="16" cy="12" r="6" />
+                <path d="M10 24C10 20 22 20 22 24" />
+                <path d="M8 28C8 26 24 26 24 28" />
+                <path d="M16 18V22" />
+              </svg>
+            </div>
+            <h3>Rapier Physics</h3>
+            <p>
+              Dynamic, fixed, and kinematic rigid bodies with box, sphere, capsule, and cylinder colliders. Collider
+              wireframe gizmos in the editor.
+            </p>
+          </div>
+
+          <!-- Lighting -->
+          <div class="feature-card animate-in delay-5">
+            <div class="feature-icon">
+              <svg
+                viewBox="0 0 32 32"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="16" cy="14" r="6" />
+                <line x1="16" y1="2" x2="16" y2="5" />
+                <line x1="16" y1="23" x2="16" y2="26" />
+                <line x1="5" y1="14" x2="8" y2="14" />
+                <line x1="24" y1="14" x2="27" y2="14" />
+                <line x1="8.5" y1="6.5" x2="10.6" y2="8.6" />
+                <line x1="21.4" y1="19.4" x2="23.5" y2="21.5" />
+                <line x1="23.5" y1="6.5" x2="21.4" y2="8.6" />
+                <line x1="10.6" y1="19.4" x2="8.5" y2="21.5" />
+                <path d="M12 26H20" />
+                <path d="M13 29H19" />
+              </svg>
+            </div>
+            <h3>Lighting & Shadows</h3>
+            <p>
+              Directional, point, and ambient lights with configurable shadow mapping. Per-entity castShadow and
+              receiveShadow controls.
+            </p>
+          </div>
+
+          <!-- Shadow DOM -->
+          <div class="feature-card animate-in delay-6">
+            <div class="feature-icon">
+              <svg
+                viewBox="0 0 32 32"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="3" y="6" width="26" height="20" rx="2" />
+                <path d="M3 12H29" />
+                <circle cx="7" cy="9" r="1" fill="currentColor" />
+                <circle cx="11" cy="9" r="1" fill="currentColor" />
+                <circle cx="15" cy="9" r="1" fill="currentColor" />
+                <path d="M8 18L12 22L20 16" />
+              </svg>
+            </div>
+            <h3>Shadow DOM Isolation</h3>
+            <p>
+              Your game compiles into a single ES module mounted via Shadow DOM. Styles never leak. Drop it into any
+              page.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- Editor -->
+    <section id="editor">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-label">// Visual Editing</span>
+          <h2 class="section-title">Built-in Editor</h2>
+          <p class="section-desc">Hierarchy, inspector, viewport, asset browser — launch with a single command.</p>
+        </div>
+
+        <div class="editor-showcase animate-in delay-2">
+          <div class="editor-topbar">
+            <div class="editor-topbar-left">
+              <span class="code-dot"></span>
+              <span class="code-dot"></span>
+              <span class="code-dot"></span>
+              <span class="editor-topbar-title">mana editor — first-world.json</span>
+            </div>
+            <div class="editor-topbar-actions">
+              <div class="editor-topbar-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+                Play
+              </div>
+              <div class="editor-topbar-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                  <polyline points="17 21 17 13 7 13 7 21" />
+                </svg>
+                Save
+              </div>
+            </div>
+          </div>
+          <div class="editor-layout">
+            <!-- Hierarchy -->
+            <div class="editor-hierarchy">
+              <div class="editor-panel-label">Hierarchy</div>
+              <div class="editor-entity">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h6l2 3h9a2 2 0 012 2z" />
+                </svg>
+                first-world
+              </div>
+              <div class="editor-entity" style="padding-left: 1.2rem">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M20 4v.01M4 20v.01" />
+                </svg>
+                Camera
+              </div>
+              <div class="editor-entity" style="padding-left: 1.2rem">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="4" />
+                  <line x1="12" y1="20" x2="12" y2="23" />
+                </svg>
+                Sun Light
+              </div>
+              <div class="editor-entity selected" style="padding-left: 1.2rem">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="1" />
+                </svg>
+                Player Cube
+              </div>
+              <div class="editor-entity" style="padding-left: 1.2rem">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path
+                    d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"
+                  />
+                </svg>
+                Ground Plane
+              </div>
+              <div class="editor-entity" style="padding-left: 1.2rem">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="3" width="20" height="14" rx="2" />
+                  <line x1="8" y1="21" x2="16" y2="21" />
+                  <line x1="12" y1="17" x2="12" y2="21" />
+                </svg>
+                Health Bar
+              </div>
+            </div>
+
+            <!-- Viewport -->
+            <div class="editor-viewport">
+              <div class="viewport-scene">
+                <div class="viewport-grid"></div>
+                <div class="viewport-cube">
+                  <div class="viewport-cube-face"></div>
+                  <div class="viewport-cube-face"></div>
+                  <div class="viewport-cube-face"></div>
+                  <div class="viewport-cube-face"></div>
+                  <div class="viewport-cube-face"></div>
+                  <div class="viewport-cube-face"></div>
+                </div>
+                <div class="viewport-outline"></div>
+                <!-- Transform gizmo arrows -->
+                <svg class="viewport-gizmo" viewBox="0 0 80 80" fill="none">
+                  <line x1="40" y1="40" x2="40" y2="12" stroke="#27c93f" stroke-width="2" />
+                  <polygon points="40,8 37,15 43,15" fill="#27c93f" />
+                  <line x1="40" y1="40" x2="66" y2="40" stroke="#ff5f56" stroke-width="2" />
+                  <polygon points="70,40 63,37 63,43" fill="#ff5f56" />
+                  <line x1="40" y1="40" x2="56" y2="56" stroke="#4488ff" stroke-width="2" />
+                  <polygon points="59,59 53,54 58,53" fill="#4488ff" />
+                </svg>
+              </div>
+            </div>
+
+            <!-- Inspector -->
+            <div class="editor-inspector">
+              <div class="editor-panel-label">Inspector</div>
+
+              <div class="inspector-group">
+                <div class="inspector-group-label">Transform</div>
+                <div class="inspector-row">
+                  <span class="inspector-label">pos x</span>
+                  <span class="inspector-value">0.00</span>
+                </div>
+                <div class="inspector-row">
+                  <span class="inspector-label">pos y</span>
+                  <span class="inspector-value">1.50</span>
+                </div>
+                <div class="inspector-row">
+                  <span class="inspector-label">pos z</span>
+                  <span class="inspector-value">0.00</span>
+                </div>
+              </div>
+
+              <div class="inspector-group">
+                <div class="inspector-group-label">Mesh</div>
+                <div class="inspector-row">
+                  <span class="inspector-label">type</span>
+                  <span class="inspector-value">box</span>
+                </div>
+              </div>
+
+              <div class="inspector-group">
+                <div class="inspector-group-label">Material</div>
+                <div class="inspector-row">
+                  <span class="inspector-label">color</span>
+                  <span class="inspector-value color-swatch" style="background: #4488ff"></span>
+                </div>
+                <div class="inspector-row">
+                  <span class="inspector-label">rough</span>
+                  <span class="inspector-value">0.40</span>
+                </div>
+                <div class="inspector-row">
+                  <span class="inspector-label">metal</span>
+                  <span class="inspector-value">0.80</span>
+                </div>
+              </div>
+
+              <div class="inspector-group">
+                <div class="inspector-group-label">Scripts</div>
+                <div class="inspector-row">
+                  <span class="inspector-label">0</span>
+                  <span class="inspector-value">rotate</span>
+                </div>
+              </div>
+
+              <div class="inspector-group">
+                <div class="inspector-group-label">Shadows</div>
+                <div class="inspector-row">
+                  <span class="inspector-label">cast</span>
+                  <span class="inspector-value">true</span>
+                </div>
+                <div class="inspector-row">
+                  <span class="inspector-label">recv</span>
+                  <span class="inspector-value">true</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Asset Browser -->
+            <div class="editor-assets">
+              <div class="editor-panel-label">Assets — game/assets/</div>
+              <div class="assets-row">
+                <div class="asset-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+                  </svg>
+                  <span>textures</span>
+                </div>
+                <div class="asset-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+                  </svg>
+                  <span>models</span>
+                </div>
+                <div class="asset-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+                  </svg>
+                  <span>audio</span>
+                </div>
+                <div class="asset-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
+                  <span>env.hdr</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- Code / Scripts -->
+    <section id="code">
+      <div class="container">
+        <div class="code-section">
+          <div class="code-block animate-in delay-1">
+            <div class="code-header">
+              <span class="code-dot"></span>
+              <span class="code-dot"></span>
+              <span class="code-dot"></span>
+              <span>rotate.ts</span>
+            </div>
+            <div class="code-body">
+              <pre><span class="kw">import</span> <span class="kw">type</span> { <span class="fn">ManaScript</span> } <span class="kw">from</span> <span class="str">'mana-engine/game'</span>
+
+<span class="kw">export default</span> {
+  <span class="prop">params</span>: {
+    <span class="prop">speed</span>: { <span class="prop">type</span>: <span class="str">'number'</span>, <span class="prop">default</span>: <span class="nr">1</span> },
+  },
+
+  <span class="fn">update</span>({ <span class="op">entity</span>, <span class="op">dt</span>, <span class="op">params</span> }) {
+    entity.<span class="prop">rotation</span>.<span class="prop">y</span> += dt * params.<span class="prop">speed</span>
+  },
+} <span class="kw">satisfies</span> <span class="fn">ManaScript</span></pre>
+            </div>
+          </div>
+
+          <div class="code-info animate-in delay-3">
+            <h3>Scripts That Feel Familiar</h3>
+            <p>
+              If you've used Unity or Godot, you'll feel right at home. TypeScript scripts with lifecycle hooks, typed
+              parameters, and full access to Three.js objects.
+            </p>
+            <ul>
+              <li>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                init &middot; update &middot; fixedUpdate &middot; dispose
+              </li>
+              <li>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Keyboard, mouse, and axis input
+              </li>
+              <li>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Editable params in the inspector
+              </li>
+              <li>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Rapier rigid body access via ctx
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- Stack -->
+    <section id="stack">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-label">// Technology</span>
+          <h2 class="section-title">Modern Stack, Zero Compromise</h2>
+          <p class="section-desc">Built on the latest tools — fast builds, fast runtime, fast iteration.</p>
+        </div>
+
+        <div class="stack-grid">
+          <div class="stack-item">
+            <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="16" cy="16" r="4" />
+              <ellipse cx="16" cy="16" rx="14" ry="6" />
+              <ellipse cx="16" cy="16" rx="14" ry="6" transform="rotate(60 16 16)" />
+              <ellipse cx="16" cy="16" rx="14" ry="6" transform="rotate(120 16 16)" />
+            </svg>
+            <span>React 19</span>
+          </div>
+
+          <div class="stack-item">
+            <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M16 4L4 10V22L16 28L28 22V10L16 4Z" />
+              <path d="M4 10L16 16M16 16L28 10M16 16V28" />
+            </svg>
+            <span>Three.js</span>
+          </div>
+
+          <div class="stack-item">
+            <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M6 16H26M16 6V26" />
+              <path d="M10 10L22 22M22 10L10 22" opacity="0.4" />
+              <circle cx="16" cy="16" r="12" />
+            </svg>
+            <span>Tailwind v4</span>
+          </div>
+
+          <div class="stack-item">
+            <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+              <polygon points="16,3 28,9 28,23 16,29 4,23 4,9" />
+              <polygon points="16,8 24,12 24,20 16,24 8,20 8,12" />
+            </svg>
+            <span>Vite</span>
+          </div>
+
+          <div class="stack-item">
+            <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="4" y="4" width="24" height="24" rx="4" />
+              <path d="M10 16L14 20L22 12" />
+            </svg>
+            <span>TypeScript</span>
+          </div>
+
+          <div class="stack-item">
+            <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="16" cy="16" r="12" />
+              <path d="M10 12H22L16 24Z" />
+            </svg>
+            <span>Rapier 3D</span>
+          </div>
+
+          <div class="stack-item">
+            <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path
+                d="M8 6C8 6 14 4 16 8C18 4 24 6 24 6C24 6 28 10 24 16C20 22 16 26 16 26C16 26 12 22 8 16C4 10 8 6 8 6Z"
+              />
+            </svg>
+            <span>Bun</span>
+          </div>
+
+          <div class="stack-item">
+            <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="4" y="8" width="24" height="16" rx="2" />
+              <path d="M4 14H28" />
+              <path d="M10 20H14" />
+            </svg>
+            <span>WebGPU</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- CTA -->
+    <section class="cta-section" id="cta">
+      <div class="container">
+        <h2 class="cta-title animate-in delay-1">Channel the <span class="gradient-text">Mana</span></h2>
+        <p class="cta-desc animate-in delay-2">Clone the repo, install, and start building your game in seconds.</p>
+
+        <div class="cta-code animate-in delay-3">
+          <span class="prompt">$</span> git clone https://github.com/verekia/mana-engine && bun install
+        </div>
+
+        <div class="hero-actions animate-in delay-4">
+          <a href="https://github.com/verekia/mana-engine" class="btn btn-primary">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"
+              />
+            </svg>
+            View on GitHub
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-inner">
+        <div class="footer-left">
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M16 2L28 12L22 28H10L4 12L16 2Z"
+              stroke="currentColor"
+              stroke-width="1.5"
+              fill="none"
+              opacity="0.5"
+            />
+            <circle cx="16" cy="15" r="3" fill="currentColor" opacity="0.3" />
+          </svg>
+          <span>Mana Engine</span>
+        </div>
+        <ul class="footer-links">
+          <li><a href="https://github.com/verekia/mana-engine">GitHub</a></li>
+          <li><a href="https://github.com/verekia/mana-engine/issues">Issues</a></li>
+          <li><a href="https://github.com/verekia/mana-engine#readme">Docs</a></li>
+        </ul>
+      </div>
+    </footer>
+
+    <!-- Scroll-triggered animation observer -->
+    <script>
+      const observer = new IntersectionObserver(
+        entries => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              entry.target.style.animationPlayState = 'running'
+            }
+          })
+        },
+        { threshold: 0.1 },
+      )
+
+      document.querySelectorAll('.animate-in').forEach(el => {
+        // Pause animations until visible (except hero which is always visible)
+        if (!el.closest('.hero')) {
+          el.style.animationPlayState = 'paused'
+        }
+        observer.observe(el)
+      })
+    </script>
+  </body>
+</html>
