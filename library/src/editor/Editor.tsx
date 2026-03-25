@@ -24,11 +24,9 @@ import type { EditorCameraState, TransformMode } from '../scene.ts'
 import type { ManaScript } from '../script.ts'
 
 export default function Editor({
-  Game: _Game,
   uiComponents = {},
   scripts = {},
 }: {
-  Game: ComponentType
   uiComponents?: Record<string, ComponentType>
   scripts?: Record<string, ManaScript>
 }) {

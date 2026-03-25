@@ -79,31 +79,46 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 ## Quick Start
 
 ```bash
-bun install
-bun run dev:game    # Dev server with hot reload
-bun run editor      # Open the visual editor
-bun run build       # Production build
+mkdir my-game && cd my-game
+bun add mana-engine
+bunx mana editor    # Scaffolds project + opens the editor
 ```
+
+Running `mana editor` (or `mana dev` / `mana build`) in an empty directory automatically creates the project structure with a default scene containing a camera, light, and cube.
 
 ## Project Structure
 
 ```
-game/
-  index.tsx           # Game component, uiComponents & scripts registries
-  game.css            # Tailwind entry
-  assets/             # Static assets (textures, models, audio)
-    textures/
-    models/
-    audio/
-  scenes/
-    main-menu.json    # Scene definitions
-    first-world.json
-  scripts/
-    rotate.ts         # Behavior scripts (ManaScript)
-  ui/
-    MainMenu.tsx      # React UI components
-    HealthBar.tsx
+mana.json             # Project config (auto-created)
+game.css              # Tailwind entry (auto-created)
+scenes/
+  default.json        # Scene definitions (auto-created with a cube)
+scripts/
+  rotate.ts           # Behavior scripts (ManaScript)
+ui/
+  MainMenu.tsx        # React UI components
+  HealthBar.tsx
+assets/               # Static assets (textures, models, audio)
+  textures/
+  models/
+  audio/
 ```
+
+Scenes, scripts, and UI components are **auto-discovered** — no manual registration or `index.tsx` needed. Just create files in the right directories and they're available.
+
+### `mana.json`
+
+```json
+{
+  "gameDir": ".",
+  "outDir": ".mana/build",
+  "startScene": "default"
+}
+```
+
+- `gameDir` — Directory containing `scenes/`, `scripts/`, `ui/`, `assets/` (default: `.`)
+- `outDir` — Production build output directory (default: `.mana/build`)
+- `startScene` — Scene to load on startup (default: first scene alphabetically)
 
 ## Scenes
 
@@ -178,18 +193,6 @@ The built-in editor (`mana editor`) provides:
 - **Scene selector** — Switch between scene files
 - **Play/Stop** — Toggle play mode to test the game with full interactivity
 - **Cmd+S / Ctrl+S** — Save scene changes to disk
-
-## Game Component
-
-The game's `index.tsx` exports:
-
-```typescript
-export default function Game() {
-  /* ... */
-}
-export const uiComponents: Record<string, ComponentType> = { HealthBar, MainMenu }
-export const scripts: Record<string, ManaScript> = { rotate }
-```
 
 ## Stack
 

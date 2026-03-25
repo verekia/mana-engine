@@ -21,10 +21,20 @@ function tailwindResolvePlugin(tailwindPath: string): Plugin {
   }
 }
 
+const VIRTUAL_CSS = 'virtual:mana-css'
+const RESOLVED_CSS = '\0virtual:mana-css'
+const CSS_PLACEHOLDER = '__MANA_CSS_PLACEHOLDER__'
+
 function cssInlinePlugin(): Plugin {
   return {
     name: 'mana-css-inline',
     enforce: 'post',
+    resolveId(id) {
+      if (id === VIRTUAL_CSS) return RESOLVED_CSS
+    },
+    load(id) {
+      if (id === RESOLVED_CSS) return { code: `export const css = "${CSS_PLACEHOLDER}"`, moduleType: 'js' }
+    },
     generateBundle(_, bundle) {
       let css = ''
       const cssKeys: string[] = []
@@ -40,9 +50,10 @@ function cssInlinePlugin(): Plugin {
         delete bundle[key]
       }
 
+      const serialized = JSON.stringify(css)
       for (const chunk of Object.values(bundle)) {
-        if (chunk.type === 'chunk' && chunk.isEntry) {
-          chunk.code += `\nexport const css = ${JSON.stringify(css)};`
+        if (chunk.type === 'chunk' && chunk.code.includes(CSS_PLACEHOLDER)) {
+          chunk.code = chunk.code.replace(`"${CSS_PLACEHOLDER}"`, serialized)
         }
       }
     },
@@ -90,6 +101,9 @@ function findReferencedAssets(scenesDir: string, allAssets: Set<string>): Set<st
 }
 
 const ASSET_PUBLIC_DIR = 'game-assets'
+const VIRTUAL_ASSETS = 'virtual:mana-asset-manifest'
+const RESOLVED_ASSETS = '\0virtual:mana-asset-manifest'
+const ASSETS_PLACEHOLDER = '__MANA_ASSET_MANIFEST_PLACEHOLDER__'
 
 function manaAssetsPlugin(assetsDir: string, scenesDir: string): Plugin {
   // Map from relative path (key in manifest) to Rollup referenceId
@@ -98,6 +112,13 @@ function manaAssetsPlugin(assetsDir: string, scenesDir: string): Plugin {
   return {
     name: 'mana-assets',
     enforce: 'post',
+    resolveId(id) {
+      if (id === VIRTUAL_ASSETS) return RESOLVED_ASSETS
+    },
+    load(id) {
+      if (id === RESOLVED_ASSETS)
+        return { code: `export const assetManifest = "${ASSETS_PLACEHOLDER}"`, moduleType: 'js' }
+    },
     buildStart() {
       const allFiles = scanDir(assetsDir, '')
       const allSet = new Set(allFiles)
@@ -114,23 +135,28 @@ function manaAssetsPlugin(assetsDir: string, scenesDir: string): Plugin {
       }
     },
     generateBundle(_, bundle) {
-      // Build the manifest and copy assets to public/game-assets/
-      const publicDir = resolve(process.cwd(), 'public', ASSET_PUBLIC_DIR)
-      mkdirSync(publicDir, { recursive: true })
       const manifest: Record<string, string> = {}
       for (const [relPath, refId] of refIds) {
         const fileName = this.getFileName(refId)
         manifest[relPath] = `/${ASSET_PUBLIC_DIR}/${fileName}`
+      }
+
+      const serialized = JSON.stringify(manifest)
+      for (const chunk of Object.values(bundle)) {
+        if (chunk.type === 'chunk' && chunk.code.includes(ASSETS_PLACEHOLDER)) {
+          chunk.code = chunk.code.replace(`"${ASSETS_PLACEHOLDER}"`, serialized)
+        }
+      }
+    },
+    writeBundle(_, bundle) {
+      if (refIds.size === 0) return
+      const publicDir = resolve(process.cwd(), 'public', ASSET_PUBLIC_DIR)
+      mkdirSync(publicDir, { recursive: true })
+      for (const [, refId] of refIds) {
+        const fileName = this.getFileName(refId)
         const asset = bundle[fileName]
         if (asset && asset.type === 'asset') {
           writeFileSync(resolve(publicDir, fileName), asset.source)
-        }
-      }
-
-      // Append asset manifest as a named export on the entry chunk
-      for (const chunk of Object.values(bundle)) {
-        if (chunk.type === 'chunk' && chunk.isEntry) {
-          chunk.code += `\nexport const assetManifest = ${JSON.stringify(manifest)};\n`
         }
       }
     },
@@ -163,7 +189,7 @@ export function createBuildConfig(
       },
       outDir,
       emptyOutDir: true,
-      rollupOptions: {
+      rolldownOptions: {
         output: {
           assetFileNames: '[name]-[hash].[ext]',
         },

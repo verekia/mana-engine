@@ -1,0 +1,5 @@
+{
+  "gameDir": "game",
+  "outDir": ".mana/build",
+  "startScene": "main-menu"
+}

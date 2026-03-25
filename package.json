@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@typescript/native-preview": "7.0.0-dev.20260322.1",
-    "oxfmt": "0.41.0",
-    "oxlint": "1.56.0"
+    "oxfmt": "0.42.0",
+    "oxlint": "1.57.0"
   }
 }
