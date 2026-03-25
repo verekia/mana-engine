@@ -270,7 +270,7 @@ async function runEditor() {
       `import { createElement } from 'react'`,
       `import Editor from '${editorComponent}'`,
       ``,
-      generateGameImports(game),
+      generateGameImports({ ...game, scenes: [] }),
       ``,
       `createRoot(document.getElementById('editor')!).render(createElement(Editor, { uiComponents, scripts }))`,
     ].join('\n'),
