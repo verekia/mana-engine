@@ -560,6 +560,7 @@ export default function Editor({
 
   return (
     <div
+      onContextMenu={e => e.preventDefault()}
       style={{
         width: '100vw',
         height: '100vh',

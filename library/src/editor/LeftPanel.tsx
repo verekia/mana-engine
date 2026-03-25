@@ -168,17 +168,24 @@ const ADD_OBJECT_OPTIONS: { label: string; category: string; icon: React.ReactNo
 
 function AddEntityPopover({
   anchorRef,
+  position,
   onAdd,
   onClose,
 }: {
-  anchorRef: React.RefObject<HTMLButtonElement | null>
+  anchorRef?: React.RefObject<HTMLButtonElement | null>
+  position?: { x: number; y: number }
   onAdd: (entity: SceneEntity) => void
   onClose: () => void
 }) {
   const popoverRef = useRef<HTMLDivElement>(null)
   const popoverHeight = 320
   const pos = (() => {
-    if (!anchorRef.current) return { top: 0, left: 0 }
+    if (position) {
+      const spaceBelow = window.innerHeight - position.y
+      const top = spaceBelow < popoverHeight ? position.y - popoverHeight : position.y
+      return { top: Math.max(4, top), left: Math.max(4, position.x) }
+    }
+    if (!anchorRef?.current) return { top: 0, left: 0 }
     const rect = anchorRef.current.getBoundingClientRect()
     const spaceBelow = window.innerHeight - rect.bottom
     const top = spaceBelow < popoverHeight ? rect.top - popoverHeight - 2 : rect.bottom + 2
@@ -304,6 +311,7 @@ export function LeftPanel({
   onToggleVisibility: (id: string) => void
 }) {
   const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const [addMenuPos, setAddMenuPos] = useState<{ x: number; y: number } | null>(null)
   const addButtonRef = useRef<HTMLButtonElement>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entityId: string } | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -510,6 +518,11 @@ export function LeftPanel({
 
       {/* Entity list */}
       <div
+        onContextMenu={e => {
+          e.preventDefault()
+          setAddMenuOpen(false)
+          setAddMenuPos({ x: e.clientX, y: e.clientY })
+        }}
         style={{
           flex: 1,
           overflow: 'auto',
@@ -527,6 +540,7 @@ export function LeftPanel({
               }}
               onContextMenu={e => {
                 e.preventDefault()
+                e.stopPropagation()
                 onSelect(entity.id)
                 setContextMenu({ x: e.clientX, y: e.clientY, entityId: entity.id })
               }}
@@ -660,7 +674,10 @@ export function LeftPanel({
       <div style={{ padding: '4px 6px', borderTop: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
         <button
           ref={addButtonRef}
-          onClick={() => setAddMenuOpen(s => !s)}
+          onClick={() => {
+            setAddMenuPos(null)
+            setAddMenuOpen(s => !s)
+          }}
           onMouseEnter={e => {
             e.currentTarget.style.background = COLORS.active
             e.currentTarget.style.color = COLORS.text
@@ -691,6 +708,8 @@ export function LeftPanel({
       {addMenuOpen && (
         <AddEntityPopover anchorRef={addButtonRef} onAdd={onAddEntity} onClose={() => setAddMenuOpen(false)} />
       )}
+
+      {addMenuPos && <AddEntityPopover position={addMenuPos} onAdd={onAddEntity} onClose={() => setAddMenuPos(null)} />}
 
       {/* Context menu */}
       {contextMenu && (

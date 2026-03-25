@@ -127,17 +127,24 @@ function entityTypeLabel(type: SceneEntity['type']): string {
 
 function AddComponentPopover({
   anchorRef,
+  position,
   options,
   onClose,
 }: {
-  anchorRef: React.RefObject<HTMLButtonElement | null>
+  anchorRef?: React.RefObject<HTMLButtonElement | null>
+  position?: { x: number; y: number }
   options: { label: string; action: () => void }[]
   onClose: () => void
 }) {
   const popoverRef = useRef<HTMLDivElement>(null)
   const popoverHeight = 250
   const pos = (() => {
-    if (!anchorRef.current) return { top: 0, left: 0 }
+    if (position) {
+      const spaceBelow = window.innerHeight - position.y
+      const top = spaceBelow < popoverHeight ? position.y - popoverHeight : position.y
+      return { top: Math.max(4, top), left: Math.max(4, position.x) }
+    }
+    if (!anchorRef?.current) return { top: 0, left: 0 }
     const rect = anchorRef.current.getBoundingClientRect()
     const spaceBelow = window.innerHeight - rect.bottom
     const top = spaceBelow < popoverHeight ? rect.top - popoverHeight - 2 : rect.bottom + 2
@@ -208,18 +215,11 @@ function AddComponentPopover({
   )
 }
 
-function AddComponentButton({
-  entity,
-  availableScripts,
-  onUpdate,
-}: {
-  entity: SceneEntity
-  availableScripts: string[]
-  onUpdate: (entity: SceneEntity) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-
+function getAddComponentOptions(
+  entity: SceneEntity,
+  availableScripts: string[],
+  onUpdate: (entity: SceneEntity) => void,
+): { label: string; action: () => void }[] {
   const options: { label: string; action: () => void }[] = []
 
   if (!entity.mesh && entity.type === 'mesh') {
@@ -266,7 +266,7 @@ function AddComponentButton({
   }
 
   const attachedScripts = entity.scripts ?? []
-  const attachedNames = attachedScripts.map(s => s.name)
+  const attachedNames = attachedScripts.map(sc => sc.name)
   for (const name of availableScripts) {
     if (!attachedNames.includes(name)) {
       options.push({
@@ -275,6 +275,23 @@ function AddComponentButton({
       })
     }
   }
+
+  return options
+}
+
+function AddComponentButton({
+  entity,
+  availableScripts,
+  onUpdate,
+}: {
+  entity: SceneEntity
+  availableScripts: string[]
+  onUpdate: (entity: SceneEntity) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+
+  const options = getAddComponentOptions(entity, availableScripts, onUpdate)
 
   if (options.length === 0) return null
 
@@ -380,6 +397,7 @@ export function RightPanel({
   scriptDefs: Record<string, ManaScript>
   allEntityIds: Set<string>
 }) {
+  const [addComponentPos, setAddComponentPos] = useState<{ x: number; y: number } | null>(null)
   const { collapsed, toggle, setAll, removeSection } = useCollapsedSections(entity?.id ?? null)
 
   // Cleanup stale localStorage entries when entity list changes
@@ -485,6 +503,14 @@ export function RightPanel({
         </div>
       )}
       <div
+        onContextMenu={e => {
+          if (!entity || entity.type === 'ui') return
+          if ((e.target as HTMLElement).closest('input, select, button')) return
+          const options = getAddComponentOptions(entity, availableScripts, onUpdate)
+          if (options.length === 0) return
+          e.preventDefault()
+          setAddComponentPos({ x: e.clientX, y: e.clientY })
+        }}
         style={{
           padding: '0 10px 8px',
           fontSize: 12,
@@ -1007,6 +1033,20 @@ export function RightPanel({
           </div>
         )}
       </div>
+      {addComponentPos &&
+        entity &&
+        entity.type !== 'ui' &&
+        (() => {
+          const options = getAddComponentOptions(entity, availableScripts, onUpdate)
+          if (options.length === 0) return null
+          return (
+            <AddComponentPopover
+              position={addComponentPos}
+              options={options}
+              onClose={() => setAddComponentPos(null)}
+            />
+          )
+        })()}
     </div>
   )
 }
