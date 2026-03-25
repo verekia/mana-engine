@@ -15,22 +15,23 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 ## Project Structure & Auto-Discovery
 
 - Running `mana editor`, `mana dev`, or `mana build` in a directory auto-scaffolds a new project if no `mana.json` or `mana.config.js` exists
-- Scaffolding creates: `mana.json`, `scenes/default.json` (camera + light + cube), `scripts/`, `ui/`, `assets/` dirs, and `game.css`
+- Scaffolding creates: `mana.json`, `scenes/default.yaml` (camera + light + cube), `scripts/`, `ui/`, `assets/` dirs, and `game.css`
 - `mana.json` is the project config: `{ "gameDir": ".", "outDir": ".mana/build", "startScene": "default" }`
 - `gameDir` defaults to `.` (project root); set to e.g. `"game"` for embedding use cases
-- The CLI auto-discovers scenes (`scenes/*.json`), scripts (`scripts/*.ts`), and UI components (`ui/*.tsx`) — no manual registration needed
+- The CLI auto-discovers scenes (`scenes/*.yaml`), scripts (`scripts/*.ts`), and UI components (`ui/*.tsx`) — no manual registration needed
 - Generated entry files in `.mana/` wire everything together: imports, maps, and the library's `Game` component
 - The `Game` component (`library/src/Game.tsx`) is part of the engine, not user code — it receives `scenes`, `scripts`, `uiComponents`, and optional `startScene` as props
-- Users only author: scene JSON (via editor), script `.ts` files, React UI `.tsx` components, and assets
+- Users only author: scene YAML (via editor), script `.ts` files, React UI `.tsx` components, and assets
 - Legacy `mana.config.js`/`mana.config.mjs` files are still supported as fallback
 
 ## Scene System
 
-- Scenes are JSON files in `scenes/` (e.g., `main-menu.json`, `first-world.json`)
+- Scenes are YAML files in `scenes/` (e.g., `main-menu.yaml`, `first-world.yaml`)
+- YAML is used for authoring; at build time a Vite plugin (`yamlPlugin`) transforms `.yaml` imports into JSON so `js-yaml` stays out of the production bundle
 - Each scene has a `background` color and an `entities` array
 - Entity types: `camera`, `mesh`, `model`, `directional-light`, `ambient-light`, `point-light`, `ui`
-- UI entities reference React components by name via `"ui": { "component": "ComponentName" }`
-- Entities can have `"scripts": ["scriptName"]` to attach behavior scripts
+- UI entities reference React components by name via `ui: { component: ComponentName }`
+- Entities can have `scripts: [scriptName]` to attach behavior scripts
 - The `Game` component in the library manages scene switching via `ManaContext`
 
 ## Materials & Textures
@@ -63,7 +64,7 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 - The asset manifest (original path → hashed filename) is appended as `assetManifest` export on the entry chunk
 - `mountGame()` reads `bundle.assetManifest` and calls `setAssetManifest()` to configure the runtime resolver
 - `resolveAsset()` is used in `entity.ts` for both model loading (`GLTFLoader`) and texture loading (`TextureLoader`, `KTX2Loader`)
-- Asset paths in scene JSON should be relative to `game/assets/` (e.g., `models/megaxe.glb`, `textures/grass.ktx2`)
+- Asset paths in scene YAML should be relative to `game/assets/` (e.g., `models/megaxe.glb`, `textures/grass.ktx2`)
 - The `assets/` prefix is optional and stripped automatically by the resolver
 
 ## Shadow Mapping
@@ -83,8 +84,8 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 - `ScriptContext` provides: `entity` (Object3D), `scene` (Scene), `dt` (delta seconds), `time` (elapsed seconds), `rigidBody?` (RapierRigidBody), `input` (Input), `params` (configured values)
 - Scripts can declare `params: Record<string, ScriptParamDef>` to expose editable parameters in the editor
 - `ScriptParamDef` has `type` (`'number' | 'string' | 'boolean'`) and `default` value
-- In scene JSON, scripts are `ScriptEntry[]`: `[{ "name": "rotate", "params": { "speed": 3 } }]`
-- Params are merged at runtime: script defaults are overridden by scene JSON values, accessible via `ctx.params`
+- In scene YAML, scripts are `ScriptEntry[]`: `[{ name: rotate, params: { speed: 3 } }]`
+- Params are merged at runtime: script defaults are overridden by scene YAML values, accessible via `ctx.params`
 - `fixedUpdate` runs at a fixed 60Hz timestep with accumulator
 - Scripts are auto-discovered from `scripts/` directory by the CLI — no manual registration needed
 - Scripts only run during gameplay (dev/prod/editor play mode), NOT in editor edit mode
@@ -104,7 +105,7 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 
 - `mana editor` launches a full editor with hierarchy, inspector, viewport, and asset browser panels
 - Editor source is split into modular components: `Editor.tsx` (main), `Toolbar.tsx`, `Viewport.tsx`, `LeftPanel.tsx`, `RightPanel.tsx`, `BottomPanel.tsx`, `widgets.tsx`, `colors.ts`, `icons.tsx`, `ResizeHandle.tsx`, `scene-api.ts`, `history.ts`
-- Editor reads/writes scene JSON files via a Vite middleware API (`/__mana/scenes/:name`)
+- Editor reads/writes scene YAML files via a Vite middleware API (`/__mana/scenes/:name`) — the API speaks JSON over the wire, the server converts to/from YAML at the file I/O boundary
 - Asset browser in bottom panel browses `game/assets/` via `/__mana/assets?path=` API
 - `assetsApiPlugin` lists files/folders with type detection, path traversal prevention, and sorted output (folders first)
 - Asset file serving via `/__mana/assets/file?path=` for previews (images, audio, KTX2)
@@ -164,4 +165,4 @@ Always run `bun install` first to ensure dependencies (including CLI tools like 
 
 ## Note
 
-Whenever important changes are done in this rapidly evolving project, update CLAUDE.md and README.md with relevant information. Any new feature added to the engine must be documented in both CLAUDE.md (architecture/implementation details) and README.md (user-facing feature list). If a planned feature from the README is implemented, move it from the "Planned Features" section into the appropriate feature section.
+Whenever important changes are done in this rapidly evolving project, update CLAUDE.md, README.md, website/index.html with relevant information. Any new feature added to the engine must be documented in both CLAUDE.md (architecture/implementation details), README.md and website/index.html (user-facing feature lists). If a planned feature from the README is implemented, move it from the "Planned Features" section into the appropriate feature section.

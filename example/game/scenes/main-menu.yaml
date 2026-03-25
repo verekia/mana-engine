@@ -1,0 +1,6 @@
+background: '#1a1a2e'
+entities:
+  - id: main-menu
+    name: Main Menu
+    type: ui
+    ui: { component: MainMenu }

@@ -78,7 +78,7 @@ interface DiscoveredGame {
 
 function discoverGame(gameDir: string): DiscoveredGame {
   return {
-    scenes: discoverFiles(resolve(gameDir, 'scenes'), ['.json']),
+    scenes: discoverFiles(resolve(gameDir, 'scenes'), ['.yaml']),
     scripts: discoverFiles(resolve(gameDir, 'scripts'), ['.ts', '.js']),
     uiComponents: discoverFiles(resolve(gameDir, 'ui'), ['.tsx', '.jsx', '.ts', '.js']),
     cssPath: existsSync(resolve(gameDir, 'game.css')) ? resolve(gameDir, 'game.css') : null,

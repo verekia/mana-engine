@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
+import { dump, load } from 'js-yaml'
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, extname, join, resolve } from 'node:path'
 
@@ -17,6 +18,18 @@ function tailwindResolvePlugin(tailwindPath: string): Plugin {
       if (!id.endsWith('.css')) return
       if (!code.includes('tailwindcss')) return
       return code.replace(/@import\s+['"]tailwindcss['"]/g, `@import '${tailwindPath}/index.css'`)
+    },
+  }
+}
+
+/** Transforms .yaml imports into JSON at build/dev time so js-yaml stays out of the production bundle. */
+function yamlPlugin(): Plugin {
+  return {
+    name: 'mana-yaml',
+    transform(code, id) {
+      if (!id.endsWith('.yaml')) return
+      const data = load(code)
+      return { code: `export default ${JSON.stringify(data)}`, map: null }
     },
   }
 }
@@ -84,13 +97,13 @@ function collectStrings(value: unknown): string[] {
   return []
 }
 
-/** Find asset paths referenced in scene JSON files. */
+/** Find asset paths referenced in scene YAML files. */
 function findReferencedAssets(scenesDir: string, allAssets: Set<string>): Set<string> {
   const referenced = new Set<string>()
   if (!existsSync(scenesDir)) return referenced
   for (const file of readdirSync(scenesDir)) {
-    if (!file.endsWith('.json')) continue
-    const data = JSON.parse(readFileSync(resolve(scenesDir, file), 'utf-8'))
+    if (!file.endsWith('.yaml')) continue
+    const data = load(readFileSync(resolve(scenesDir, file), 'utf-8'))
     for (const str of collectStrings(data)) {
       // Strip optional "assets/" prefix to match against the asset set
       const key = str.replace(/^assets\//, '')
@@ -175,6 +188,7 @@ export function createBuildConfig(
   const scenesDir = resolve(gameDir, 'scenes')
   return {
     plugins: [
+      yamlPlugin(),
       tailwindResolvePlugin(tailwindPath),
       react(),
       tailwindcss(),
@@ -212,6 +226,7 @@ export function createDevConfig(
   return {
     root,
     plugins: [
+      yamlPlugin(),
       tailwindResolvePlugin(tailwindPath),
       react(),
       tailwindcss(),
@@ -243,8 +258,8 @@ function sceneApiPlugin(scenesDir: string): Plugin {
             return
           }
           const files = readdirSync(scenesDir)
-            .filter(f => extname(f) === '.json')
-            .map(f => basename(f, '.json'))
+            .filter(f => extname(f) === '.yaml')
+            .map(f => basename(f, '.yaml'))
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify(files))
           return
@@ -258,7 +273,7 @@ function sceneApiPlugin(scenesDir: string): Plugin {
           res.end('Invalid scene name')
           return
         }
-        const filePath = resolve(scenesDir, `${sceneName}.json`)
+        const filePath = resolve(scenesDir, `${sceneName}.yaml`)
 
         if (req.method === 'GET') {
           if (!existsSync(filePath)) {
@@ -266,8 +281,9 @@ function sceneApiPlugin(scenesDir: string): Plugin {
             res.end('Scene not found')
             return
           }
+          const data = load(readFileSync(filePath, 'utf-8'))
           res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(readFileSync(filePath, 'utf-8'))
+          res.end(JSON.stringify(data))
           return
         }
 
@@ -278,7 +294,8 @@ function sceneApiPlugin(scenesDir: string): Plugin {
           })
           req.on('end', () => {
             mkdirSync(scenesDir, { recursive: true })
-            writeFileSync(filePath, body)
+            const data = JSON.parse(body)
+            writeFileSync(filePath, dump(data, { lineWidth: -1, quotingType: '"', flowLevel: 3 }))
             res.writeHead(200, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({ ok: true }))
           })
@@ -467,6 +484,7 @@ export function createEditorConfig(
   return {
     root,
     plugins: [
+      yamlPlugin(),
       tailwindResolvePlugin(tailwindPath),
       react(),
       tailwindcss(),

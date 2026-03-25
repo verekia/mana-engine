@@ -1,3 +1,4 @@
+import { dump } from 'js-yaml'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -97,7 +98,10 @@ export function scaffoldProject(): void {
       },
     ],
   }
-  writeFileSync(resolve(cwd, 'scenes/default.json'), JSON.stringify(defaultScene, null, 2) + '\n')
+  writeFileSync(
+    resolve(cwd, 'scenes/default.yaml'),
+    dump(defaultScene, { lineWidth: -1, quotingType: '"', flowLevel: 3 }),
+  )
 
   // Create game.css for Tailwind
   writeFileSync(resolve(cwd, 'game.css'), "@import 'tailwindcss';\n@source './';\n")

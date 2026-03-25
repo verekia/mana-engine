@@ -6,7 +6,7 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 
 ### Scene System
 
-- **JSON-based scenes** — Scenes defined as JSON files in `game/scenes/` with a background color and an entities array
+- **YAML-based scenes** — Scenes defined as YAML files in `game/scenes/`, converted to JSON at build time (no YAML parser shipped in production)
 - **7 entity types** — `camera`, `mesh`, `model`, `directional-light`, `ambient-light`, `point-light`, `ui`
 - **Multi-scene support** — Switch between scenes at runtime with `useMana().loadScene()`
 
@@ -92,7 +92,7 @@ Running `mana editor` (or `mana dev` / `mana build`) in an empty directory autom
 mana.json             # Project config (auto-created)
 game.css              # Tailwind entry (auto-created)
 scenes/
-  default.json        # Scene definitions (auto-created with a cube)
+  default.yaml        # Scene definitions (auto-created with a cube)
 scripts/
   rotate.ts           # Behavior scripts (ManaScript)
 ui/
@@ -122,28 +122,21 @@ Scenes, scripts, and UI components are **auto-discovered** — no manual registr
 
 ## Scenes
 
-Scenes are JSON files with a background color and an array of entities:
+Scenes are YAML files with a background color and an array of entities:
 
-```json
-{
-  "background": "#111111",
-  "entities": [
-    {
-      "id": "cube",
-      "name": "Cube",
-      "type": "mesh",
-      "transform": { "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
-      "mesh": { "geometry": "box", "material": { "color": "#4488ff" } },
-      "scripts": ["rotate"]
-    },
-    {
-      "id": "health-bar",
-      "name": "Health Bar",
-      "type": "ui",
-      "ui": { "component": "HealthBar" }
-    }
-  ]
-}
+```yaml
+background: '#111111'
+entities:
+  - id: cube
+    name: Cube
+    type: mesh
+    transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }
+    mesh: { geometry: box, material: { color: '#4488ff' } }
+    scripts: [{ name: rotate }]
+  - id: health-bar
+    name: Health Bar
+    type: ui
+    ui: { component: HealthBar }
 ```
 
 Entity types: `camera`, `mesh`, `directional-light`, `ambient-light`, `ui`
