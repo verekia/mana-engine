@@ -321,6 +321,7 @@ export function createEntityObject(
   }
 
   if (obj) {
+    if (entity.name) obj.name = entity.name
     maps.entityObjects.set(entity.id, obj)
   }
 

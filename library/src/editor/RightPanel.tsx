@@ -846,17 +846,47 @@ export function RightPanel({
                   Rigid Body
                 </SectionLabel>
                 {!collapsed.has('rigidBody') && (
-                  <SelectInput
-                    label="Type"
-                    value={entity.rigidBody.type}
-                    options={['dynamic', 'fixed', 'kinematic']}
-                    onChange={v =>
-                      onUpdate({
-                        ...entity,
-                        rigidBody: { ...entity.rigidBody, type: v as 'dynamic' | 'fixed' | 'kinematic' },
-                      })
-                    }
-                  />
+                  <>
+                    <SelectInput
+                      label="Type"
+                      value={entity.rigidBody.type}
+                      options={['dynamic', 'fixed', 'kinematic']}
+                      onChange={v =>
+                        onUpdate({
+                          ...entity,
+                          rigidBody: { ...entity.rigidBody, type: v as 'dynamic' | 'fixed' | 'kinematic' },
+                        })
+                      }
+                    />
+                    <div className="flex items-center gap-2 pt-1 pl-1">
+                      <span className="w-24 shrink-0 text-xs text-neutral-400">Lock Rotation</span>
+                      <div className="flex gap-2">
+                        {(['X', 'Y', 'Z'] as const).map((axis, i) => (
+                          <CheckboxInput
+                            key={axis}
+                            label={axis}
+                            value={entity.rigidBody?.lockRotation?.[i] ?? false}
+                            onChange={v => {
+                              const lr: [boolean, boolean, boolean] = [
+                                entity.rigidBody?.lockRotation?.[0] ?? false,
+                                entity.rigidBody?.lockRotation?.[1] ?? false,
+                                entity.rigidBody?.lockRotation?.[2] ?? false,
+                              ]
+                              lr[i] = v
+                              onUpdate({
+                                ...entity,
+                                rigidBody: {
+                                  type: entity.rigidBody?.type ?? 'dynamic',
+                                  ...entity.rigidBody,
+                                  lockRotation: lr,
+                                },
+                              })
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </>
                 )}
               </>
             )}

@@ -44,6 +44,7 @@ export interface UiData {
 
 export interface RigidBodyData {
   type: 'dynamic' | 'fixed' | 'kinematic'
+  lockRotation?: [boolean, boolean, boolean]
 }
 
 export interface ColliderData {

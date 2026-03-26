@@ -1,0 +1,6 @@
+background: '#0f0f1a'
+entities:
+  - id: settings-ui
+    name: Settings
+    type: ui
+    ui: { component: Settings }

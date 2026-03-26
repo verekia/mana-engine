@@ -1,6 +1,6 @@
-background: '#1a1a2e'
+background: '#0f0f1a'
 entities:
-  - id: main-menu
+  - id: main-menu-ui
     name: Main Menu
     type: ui
     ui: { component: MainMenu }

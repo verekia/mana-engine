@@ -44,6 +44,11 @@ export async function setupPhysics(
     bodyDesc.setTranslation(obj.position.x, obj.position.y, obj.position.z)
     bodyDesc.setRotation({ x: obj.quaternion.x, y: obj.quaternion.y, z: obj.quaternion.z, w: obj.quaternion.w })
 
+    if (entity.rigidBody.lockRotation) {
+      const [lx, ly, lz] = entity.rigidBody.lockRotation
+      bodyDesc.enabledRotations(!lx, !ly, !lz)
+    }
+
     const rigidBody = world.createRigidBody(bodyDesc)
 
     if (entity.collider) {

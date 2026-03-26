@@ -1,0 +1,124 @@
+background: '#87ceeb'
+entities:
+  # Camera
+  - id: camera
+    name: Camera
+    type: camera
+    transform: { position: [0, 4, 8] }
+    camera: { fov: 50, near: 0.1, far: 200 }
+    scripts: [{ name: camera-follow }]
+
+  # Lights
+  - id: sun
+    name: Sun
+    type: directional-light
+    transform: { position: [5, 10, 5] }
+    light: { color: '#fff5e6', intensity: 2 }
+    castShadow: true
+  - id: ambient
+    name: Ambient Light
+    type: ambient-light
+    light: { color: '#b0d4f1', intensity: 0.6 }
+
+  # Player (capsule)
+  - id: player
+    name: Player
+    type: mesh
+    transform: { position: [0, 2, 0] }
+    mesh: { geometry: capsule, material: { color: '#e84057', roughness: 0.4, metalness: 0.1 } }
+    rigidBody: { type: dynamic, lockRotation: [true, true, true] }
+    collider: { shape: capsule, radius: 0.5, halfHeight: 0.5 }
+    castShadow: true
+    scripts:
+      - { name: player-controller, params: { moveSpeed: 6, jumpForce: 8 } }
+      - { name: fall-reset, params: { minY: -10, resetX: 0, resetY: 3 } }
+
+  # Starting platform
+  - id: platform-start
+    name: Start Platform
+    type: mesh
+    transform: { position: [0, -0.5, 0], scale: [6, 1, 3] }
+    mesh: { geometry: box, material: { color: '#4a6741' } }
+    rigidBody: { type: fixed }
+    collider: { shape: box, halfExtents: [3, 0.5, 1.5] }
+    receiveShadow: true
+
+  # Platform 2
+  - id: platform-2
+    name: Platform 2
+    type: mesh
+    transform: { position: [5, 0.5, 0], scale: [4, 1, 3] }
+    mesh: { geometry: box, material: { color: '#5a7751' } }
+    rigidBody: { type: fixed }
+    collider: { shape: box, halfExtents: [2, 0.5, 1.5] }
+    receiveShadow: true
+
+  # Platform 3 (higher)
+  - id: platform-3
+    name: Platform 3
+    type: mesh
+    transform: { position: [10, 2, 0], scale: [4, 1, 3] }
+    mesh: { geometry: box, material: { color: '#4a6741' } }
+    rigidBody: { type: fixed }
+    collider: { shape: box, halfExtents: [2, 0.5, 1.5] }
+    receiveShadow: true
+
+  # Platform 4 (gap jump)
+  - id: platform-4
+    name: Platform 4
+    type: mesh
+    transform: { position: [16, 1.5, 0], scale: [3, 1, 3] }
+    mesh: { geometry: box, material: { color: '#5a7751' } }
+    rigidBody: { type: fixed }
+    collider: { shape: box, halfExtents: [1.5, 0.5, 1.5] }
+    receiveShadow: true
+
+  # Platform 5 (small)
+  - id: platform-5
+    name: Platform 5
+    type: mesh
+    transform: { position: [20, 3, 0], scale: [2, 1, 3] }
+    mesh: { geometry: box, material: { color: '#4a6741' } }
+    rigidBody: { type: fixed }
+    collider: { shape: box, halfExtents: [1, 0.5, 1.5] }
+    receiveShadow: true
+
+  # Platform 6 (descent)
+  - id: platform-6
+    name: Platform 6
+    type: mesh
+    transform: { position: [25, 1, 0], scale: [4, 1, 3] }
+    mesh: { geometry: box, material: { color: '#5a7751' } }
+    rigidBody: { type: fixed }
+    collider: { shape: box, halfExtents: [2, 0.5, 1.5] }
+    receiveShadow: true
+
+  # Final platform (goal)
+  - id: platform-end
+    name: End Platform
+    type: mesh
+    transform: { position: [31, 0, 0], scale: [6, 1, 3] }
+    mesh: { geometry: box, material: { color: '#d4af37' } }
+    rigidBody: { type: fixed }
+    collider: { shape: box, halfExtents: [3, 0.5, 1.5] }
+    receiveShadow: true
+
+  # Win zone marker (golden sphere)
+  - id: win-zone
+    name: Win Zone
+    type: mesh
+    transform: { position: [31, 2, 0], scale: [0.6, 0.6, 0.6] }
+    mesh: { geometry: sphere, material: { color: '#ffd700', emissive: '#ffd700', metalness: 0.8, roughness: 0.2 } }
+    scripts: [{ name: win-zone }]
+
+  # HUD
+  - id: hud
+    name: HUD
+    type: ui
+    ui: { component: LevelHud }
+
+  # Level complete overlay
+  - id: level-complete
+    name: Level Complete
+    type: ui
+    ui: { component: LevelComplete }
