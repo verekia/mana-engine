@@ -125,6 +125,43 @@ function entityTypeLabel(type: SceneEntity['type']): string {
   }
 }
 
+function MaterialEditor({ material, onChange }: { material: MaterialData; onChange: (mat: MaterialData) => void }) {
+  return (
+    <>
+      <ColorInput
+        label="Color"
+        value={material.color ?? '#888888'}
+        onChange={v => onChange({ ...material, color: v })}
+      />
+      <NumberInput
+        label="Roughness"
+        value={material.roughness ?? 1}
+        step={0.05}
+        onChange={v => onChange({ ...material, roughness: v })}
+      />
+      <NumberInput
+        label="Metalness"
+        value={material.metalness ?? 0}
+        step={0.05}
+        onChange={v => onChange({ ...material, metalness: v })}
+      />
+      <ColorInput
+        label="Emissive"
+        value={material.emissive ?? '#000000'}
+        onChange={v => onChange({ ...material, emissive: v })}
+      />
+      {TEXTURE_MAP_FIELDS.map(({ label, key }) => (
+        <TextInput
+          key={key}
+          label={label}
+          value={(material[key] as string) ?? ''}
+          onChange={v => onChange({ ...material, [key]: v || undefined })}
+        />
+      ))}
+    </>
+  )
+}
+
 function AddComponentPopover({
   anchorRef,
   position,
@@ -603,61 +640,10 @@ export function RightPanel({
                     >
                       Material
                     </div>
-                    <ColorInput
-                      label="Color"
-                      value={entity.mesh.material?.color ?? '#4488ff'}
-                      onChange={v =>
-                        onUpdate({
-                          ...entity,
-                          mesh: { ...entity.mesh, material: { ...entity.mesh?.material, color: v } },
-                        })
-                      }
+                    <MaterialEditor
+                      material={entity.mesh.material ?? { color: '#4488ff' }}
+                      onChange={mat => onUpdate({ ...entity, mesh: { ...entity.mesh, material: mat } })}
                     />
-                    <NumberInput
-                      label="Roughness"
-                      value={entity.mesh.material?.roughness ?? 1}
-                      step={0.05}
-                      onChange={v =>
-                        onUpdate({
-                          ...entity,
-                          mesh: { ...entity.mesh, material: { ...entity.mesh?.material, roughness: v } },
-                        })
-                      }
-                    />
-                    <NumberInput
-                      label="Metalness"
-                      value={entity.mesh.material?.metalness ?? 0}
-                      step={0.05}
-                      onChange={v =>
-                        onUpdate({
-                          ...entity,
-                          mesh: { ...entity.mesh, material: { ...entity.mesh?.material, metalness: v } },
-                        })
-                      }
-                    />
-                    <ColorInput
-                      label="Emissive"
-                      value={entity.mesh.material?.emissive ?? '#000000'}
-                      onChange={v =>
-                        onUpdate({
-                          ...entity,
-                          mesh: { ...entity.mesh, material: { ...entity.mesh?.material, emissive: v } },
-                        })
-                      }
-                    />
-                    {TEXTURE_MAP_FIELDS.map(({ label, key }) => (
-                      <TextInput
-                        key={key}
-                        label={label}
-                        value={(entity.mesh?.material?.[key] as string) ?? ''}
-                        onChange={v =>
-                          onUpdate({
-                            ...entity,
-                            mesh: { ...entity.mesh, material: { ...entity.mesh?.material, [key]: v || undefined } },
-                          })
-                        }
-                      />
-                    ))}
                     <CheckboxInput
                       label="Cast Shadow"
                       value={entity.castShadow ?? false}
@@ -715,62 +701,14 @@ export function RightPanel({
                 >
                   Material Override
                 </SectionLabel>
-                {!collapsed.has('materialOverride') && (
-                  <>
-                    <ColorInput
-                      label="Color"
-                      value={entity.model.material?.color ?? '#888888'}
-                      onChange={v => {
-                        const model = entity.model
-                        if (model)
-                          onUpdate({ ...entity, model: { ...model, material: { ...model.material, color: v } } })
-                      }}
-                    />
-                    <NumberInput
-                      label="Roughness"
-                      value={entity.model.material?.roughness ?? 1}
-                      step={0.05}
-                      onChange={v => {
-                        const model = entity.model
-                        if (model)
-                          onUpdate({ ...entity, model: { ...model, material: { ...model.material, roughness: v } } })
-                      }}
-                    />
-                    <NumberInput
-                      label="Metalness"
-                      value={entity.model.material?.metalness ?? 0}
-                      step={0.05}
-                      onChange={v => {
-                        const model = entity.model
-                        if (model)
-                          onUpdate({ ...entity, model: { ...model, material: { ...model.material, metalness: v } } })
-                      }}
-                    />
-                    <ColorInput
-                      label="Emissive"
-                      value={entity.model.material?.emissive ?? '#000000'}
-                      onChange={v => {
-                        const model = entity.model
-                        if (model)
-                          onUpdate({ ...entity, model: { ...model, material: { ...model.material, emissive: v } } })
-                      }}
-                    />
-                    {TEXTURE_MAP_FIELDS.map(({ label, key }) => (
-                      <TextInput
-                        key={key}
-                        label={label}
-                        value={(entity.model?.material?.[key] as string) ?? ''}
-                        onChange={v => {
-                          const model = entity.model
-                          if (model)
-                            onUpdate({
-                              ...entity,
-                              model: { ...model, material: { ...model.material, [key]: v || undefined } },
-                            })
-                        }}
-                      />
-                    ))}
-                  </>
+                {!collapsed.has('materialOverride') && entity.model?.material && (
+                  <MaterialEditor
+                    material={entity.model.material}
+                    onChange={mat => {
+                      const model = entity.model
+                      if (model) onUpdate({ ...entity, model: { ...model, material: mat } })
+                    }}
+                  />
                 )}
               </>
             )}

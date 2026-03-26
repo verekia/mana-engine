@@ -70,7 +70,10 @@ export default function Editor({
   selectedIdRef.current = selectedId
   const dirtyRef = useRef(false)
 
-  const dirty = sceneData ? JSON.stringify(sceneData) !== savedSceneJson : false
+  const dirty = useMemo(
+    () => (sceneData ? JSON.stringify(sceneData) !== savedSceneJson : false),
+    [sceneData, savedSceneJson],
+  )
   dirtyRef.current = dirty
 
   const prePlaySceneRef = useRef('')

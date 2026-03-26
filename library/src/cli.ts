@@ -91,40 +91,40 @@ function generateGameImports(game: DiscoveredGame, startScene?: string): string 
 
   // CSS
   if (game.cssPath) {
-    lines.push(`import '${game.cssPath}'`)
+    lines.push(`import ${JSON.stringify(game.cssPath)}`)
   }
 
   // Scenes
   for (let i = 0; i < game.scenes.length; i++) {
-    lines.push(`import scene_${i} from '${game.scenes[i].absPath}'`)
+    lines.push(`import scene_${i} from ${JSON.stringify(game.scenes[i].absPath)}`)
   }
 
   // Scripts
   for (let i = 0; i < game.scripts.length; i++) {
-    lines.push(`import script_${i} from '${game.scripts[i].absPath}'`)
+    lines.push(`import script_${i} from ${JSON.stringify(game.scripts[i].absPath)}`)
   }
 
   // UI components
   for (let i = 0; i < game.uiComponents.length; i++) {
-    lines.push(`import ui_${i} from '${game.uiComponents[i].absPath}'`)
+    lines.push(`import ui_${i} from ${JSON.stringify(game.uiComponents[i].absPath)}`)
   }
 
   lines.push('')
 
   // Scene map
-  const sceneEntries = game.scenes.map((s, i) => `  '${s.name}': scene_${i}`).join(',\n')
+  const sceneEntries = game.scenes.map((s, i) => `  ${JSON.stringify(s.name)}: scene_${i}`).join(',\n')
   lines.push(`const scenes = {\n${sceneEntries}\n}`)
 
   // Script map
-  const scriptEntries = game.scripts.map((s, i) => `  '${s.name}': script_${i}`).join(',\n')
+  const scriptEntries = game.scripts.map((s, i) => `  ${JSON.stringify(s.name)}: script_${i}`).join(',\n')
   lines.push(`const scripts = {\n${scriptEntries}\n}`)
 
   // UI component map
-  const uiEntries = game.uiComponents.map((s, i) => `  '${s.name}': ui_${i}`).join(',\n')
+  const uiEntries = game.uiComponents.map((s, i) => `  ${JSON.stringify(s.name)}: ui_${i}`).join(',\n')
   lines.push(`const uiComponents = {\n${uiEntries}\n}`)
 
   if (startScene) {
-    lines.push(`const startScene = '${startScene}'`)
+    lines.push(`const startScene = ${JSON.stringify(startScene)}`)
   }
 
   return lines.join('\n')
@@ -268,7 +268,7 @@ async function runEditor() {
     [
       `import { createRoot } from 'react-dom/client'`,
       `import { createElement } from 'react'`,
-      `import Editor from '${editorComponent}'`,
+      `import Editor from ${JSON.stringify(editorComponent)}`,
       ``,
       generateGameImports({ ...game, scenes: [] }),
       ``,
