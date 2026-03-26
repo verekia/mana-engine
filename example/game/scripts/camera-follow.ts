@@ -4,31 +4,43 @@ let playerEntity: THREE.Object3D | null = null
 
 export default {
   params: {
-    offsetX: { type: 'number', default: 0 },
-    offsetY: { type: 'number', default: 3 },
     offsetZ: { type: 'number', default: 8 },
-    smoothing: { type: 'number', default: 5 },
+    deadZoneX: { type: 'number', default: 2 },
+    deadZoneY: { type: 'number', default: 1.5 },
   },
-  init({ scene }) {
+  init({ scene, entity, params }) {
     playerEntity = scene.getObjectByName('Player') ?? null
+    // Reset rotation to look straight down -Z (undo the engine's default lookAt)
+    entity.rotation.set(0, 0, 0)
+    if (playerEntity) {
+      entity.position.x = playerEntity.position.x
+      entity.position.y = playerEntity.position.y
+      entity.position.z = params.offsetZ as number
+    }
   },
-  update({ entity, params, dt }) {
+  update({ entity, params }) {
     if (!playerEntity) return
 
-    const ox = params.offsetX as number
-    const oy = params.offsetY as number
     const oz = params.offsetZ as number
-    const smoothing = params.smoothing as number
+    const dzX = params.deadZoneX as number
+    const dzY = params.deadZoneY as number
 
-    const targetX = playerEntity.position.x + ox
-    const targetY = playerEntity.position.y + oy
-    const targetZ = playerEntity.position.z + oz
+    const playerX = playerEntity.position.x
+    const playerY = playerEntity.position.y
 
-    const t = 1 - Math.exp(-smoothing * dt)
-    entity.position.x += (targetX - entity.position.x) * t
-    entity.position.y += (targetY - entity.position.y) * t
-    entity.position.z += (targetZ - entity.position.z) * t
+    // Push camera when player exits the dead zone
+    if (playerX > entity.position.x + dzX) {
+      entity.position.x = playerX - dzX
+    } else if (playerX < entity.position.x - dzX) {
+      entity.position.x = playerX + dzX
+    }
 
-    entity.lookAt(playerEntity.position.x, playerEntity.position.y + 0.5, playerEntity.position.z)
+    if (playerY > entity.position.y + dzY) {
+      entity.position.y = playerY - dzY
+    } else if (playerY < entity.position.y - dzY) {
+      entity.position.y = playerY + dzY
+    }
+
+    entity.position.z = oz
   },
 } satisfies ManaScript

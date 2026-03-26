@@ -300,6 +300,7 @@ export default function Editor({
     setPlaying(true)
     setSelectedId(null)
     await recreateScene(data, true)
+    canvasRef.current?.focus()
     log('Play mode started')
   }, [log, sceneRef, recreateScene])
 

@@ -57,7 +57,8 @@ export function Viewport({
               }
             : undefined
         }
-        style={{ width: '100%', height: '100%', display: 'block' }}
+        tabIndex={playing ? 0 : undefined}
+        style={{ width: '100%', height: '100%', display: 'block', outline: 'none' }}
       />
       {showUI && uiEntities.length > 0 && (
         <div
