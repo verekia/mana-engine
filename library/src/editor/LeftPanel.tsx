@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 
 import { COLORS, INPUT_STYLE } from './colors.ts'
 import {
@@ -277,6 +277,151 @@ function AddEntityPopover({
   )
 }
 
+const EntityRow = memo(function EntityRow({
+  entity,
+  isSelected,
+  isHidden,
+  isRenaming,
+  renameValue,
+  onSelect,
+  onDoubleClick,
+  onContextMenu,
+  onToggleVisibility,
+  onRenameChange,
+  onRenameCommit,
+  onRenameCancel,
+}: {
+  entity: SceneEntity
+  isSelected: boolean
+  isHidden: boolean
+  isRenaming: boolean
+  renameValue: string
+  onSelect: () => void
+  onDoubleClick: () => void
+  onContextMenu: (e: React.MouseEvent) => void
+  onToggleVisibility: () => void
+  onRenameChange: (value: string) => void
+  onRenameCommit: () => void
+  onRenameCancel: () => void
+}) {
+  return (
+    <div
+      onClick={onSelect}
+      onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
+      style={{
+        padding: '3px 8px 3px 10px',
+        borderRadius: 4,
+        margin: '0 4px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        background: isSelected ? COLORS.selected : 'transparent',
+        borderLeft: isSelected ? `2px solid ${COLORS.accent}` : '2px solid transparent',
+        color: isSelected ? COLORS.text : COLORS.textMuted,
+        userSelect: 'none',
+        fontSize: 12,
+      }}
+      onMouseEnter={e => {
+        if (!isSelected) e.currentTarget.style.background = COLORS.hover
+      }}
+      onMouseLeave={e => {
+        if (!isSelected) e.currentTarget.style.background = 'transparent'
+      }}
+    >
+      {isRenaming ? (
+        <input
+          autoFocus
+          value={renameValue}
+          onFocus={e => e.target.select()}
+          onChange={e => onRenameChange(e.target.value)}
+          onBlur={onRenameCommit}
+          onKeyDown={e => {
+            if (e.key === 'Enter') onRenameCommit()
+            if (e.key === 'Escape') onRenameCancel()
+          }}
+          onClick={e => e.stopPropagation()}
+          style={{
+            ...INPUT_STYLE,
+            width: '100%',
+            fontSize: 12,
+            padding: '1px 4px',
+            borderColor: COLORS.accent,
+            boxShadow: COLORS.focusRing,
+          }}
+        />
+      ) : (
+        <>
+          <span
+            style={{
+              color: isHidden ? COLORS.textDim : isSelected ? COLORS.text : COLORS.textDim,
+              display: 'flex',
+              flexShrink: 0,
+              opacity: isHidden ? 0.4 : 1,
+            }}
+          >
+            {entityTypeIcon(entity.type)}
+          </span>
+          <span
+            style={{
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              flex: 1,
+              opacity: isHidden ? 0.4 : 1,
+            }}
+          >
+            {entity.name}
+          </span>
+          <button
+            className="entity-vis-toggle"
+            onClick={e => {
+              e.stopPropagation()
+              onToggleVisibility()
+            }}
+            title={isHidden ? 'Show' : 'Hide'}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: isHidden ? COLORS.textDim : COLORS.textMuted,
+              padding: '0 2px',
+              display: 'flex',
+              alignItems: 'center',
+              flexShrink: 0,
+              opacity: isHidden ? 1 : 0,
+            }}
+          >
+            <svg
+              width={12}
+              height={12}
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              {isHidden ? (
+                <>
+                  <path d="M2 2l12 12" />
+                  <path d="M6.5 6.5a2 2 0 0 0 3 3" />
+                  <path d="M3.5 5.5C2.5 6.5 1.5 8 1.5 8s2.5 4.5 6.5 4.5c1 0 2-.3 2.8-.8" />
+                  <path d="M10.5 10.5c1.5-1 2.5-2.5 4-2.5" />
+                </>
+              ) : (
+                <>
+                  <path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z" />
+                  <circle cx="8" cy="8" r="2" />
+                </>
+              )}
+            </svg>
+          </button>
+        </>
+      )}
+    </div>
+  )
+})
+
 export function LeftPanel({
   width,
   sceneList,
@@ -531,9 +676,14 @@ export function LeftPanel({
       >
         {sceneData ? (
           sceneData.entities.map(entity => (
-            <div
+            <EntityRow
               key={entity.id}
-              onClick={() => onSelect(entity.id)}
+              entity={entity}
+              isSelected={selectedId === entity.id}
+              isHidden={hiddenEntities.has(entity.id)}
+              isRenaming={renamingId === entity.id}
+              renameValue={renamingId === entity.id ? renameValue : ''}
+              onSelect={() => onSelect(entity.id)}
               onDoubleClick={() => {
                 setRenamingId(entity.id)
                 setRenameValue(entity.name)
@@ -544,126 +694,14 @@ export function LeftPanel({
                 onSelect(entity.id)
                 setContextMenu({ x: e.clientX, y: e.clientY, entityId: entity.id })
               }}
-              style={{
-                padding: '3px 8px 3px 10px',
-                borderRadius: 4,
-                margin: '0 4px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: selectedId === entity.id ? COLORS.selected : 'transparent',
-                borderLeft: selectedId === entity.id ? `2px solid ${COLORS.accent}` : '2px solid transparent',
-                color: selectedId === entity.id ? COLORS.text : COLORS.textMuted,
-                userSelect: 'none',
-                fontSize: 12,
+              onToggleVisibility={() => onToggleVisibility(entity.id)}
+              onRenameChange={setRenameValue}
+              onRenameCommit={() => {
+                if (renameValue.trim()) onRenameEntity(entity.id, renameValue.trim())
+                setRenamingId(null)
               }}
-              onMouseEnter={e => {
-                if (selectedId !== entity.id) e.currentTarget.style.background = COLORS.hover
-              }}
-              onMouseLeave={e => {
-                if (selectedId !== entity.id) e.currentTarget.style.background = 'transparent'
-              }}
-            >
-              {renamingId === entity.id ? (
-                <input
-                  autoFocus
-                  value={renameValue}
-                  onFocus={e => e.target.select()}
-                  onChange={e => setRenameValue(e.target.value)}
-                  onBlur={() => {
-                    if (renameValue.trim()) onRenameEntity(entity.id, renameValue.trim())
-                    setRenamingId(null)
-                  }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      if (renameValue.trim()) onRenameEntity(entity.id, renameValue.trim())
-                      setRenamingId(null)
-                    }
-                    if (e.key === 'Escape') setRenamingId(null)
-                  }}
-                  onClick={e => e.stopPropagation()}
-                  style={{
-                    ...INPUT_STYLE,
-                    width: '100%',
-                    fontSize: 12,
-                    padding: '1px 4px',
-                    borderColor: COLORS.accent,
-                    boxShadow: COLORS.focusRing,
-                  }}
-                />
-              ) : (
-                <>
-                  <span
-                    style={{
-                      color: hiddenEntities.has(entity.id)
-                        ? COLORS.textDim
-                        : selectedId === entity.id
-                          ? COLORS.text
-                          : COLORS.textDim,
-                      display: 'flex',
-                      flexShrink: 0,
-                      opacity: hiddenEntities.has(entity.id) ? 0.4 : 1,
-                    }}
-                  >
-                    {entityTypeIcon(entity.type)}
-                  </span>
-                  <span
-                    style={{
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      flex: 1,
-                      opacity: hiddenEntities.has(entity.id) ? 0.4 : 1,
-                    }}
-                  >
-                    {entity.name}
-                  </span>
-                  <button
-                    className="entity-vis-toggle"
-                    onClick={e => {
-                      e.stopPropagation()
-                      onToggleVisibility(entity.id)
-                    }}
-                    title={hiddenEntities.has(entity.id) ? 'Show' : 'Hide'}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: hiddenEntities.has(entity.id) ? COLORS.textDim : COLORS.textMuted,
-                      padding: '0 2px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      flexShrink: 0,
-                      opacity: hiddenEntities.has(entity.id) ? 1 : 0,
-                    }}
-                  >
-                    <svg
-                      width={12}
-                      height={12}
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      {hiddenEntities.has(entity.id) ? (
-                        <>
-                          <path d="M2 2l12 12" />
-                          <path d="M6.5 6.5a2 2 0 0 0 3 3" />
-                          <path d="M3.5 5.5C2.5 6.5 1.5 8 1.5 8s2.5 4.5 6.5 4.5c1 0 2-.3 2.8-.8" />
-                          <path d="M10.5 10.5c1.5-1 2.5-2.5 4-2.5" />
-                        </>
-                      ) : (
-                        <>
-                          <path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z" />
-                          <circle cx="8" cy="8" r="2" />
-                        </>
-                      )}
-                    </svg>
-                  </button>
-                </>
-              )}
-            </div>
+              onRenameCancel={() => setRenamingId(null)}
+            />
           ))
         ) : (
           <div style={{ padding: 10, color: COLORS.textMuted, fontSize: 11 }}>Loading...</div>

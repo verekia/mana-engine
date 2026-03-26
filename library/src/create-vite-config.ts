@@ -289,15 +289,30 @@ function sceneApiPlugin(scenesDir: string): Plugin {
 
         if (req.method === 'POST') {
           let body = ''
+          let bodySize = 0
+          const MAX_BODY_SIZE = 5 * 1024 * 1024 // 5 MB
           req.on('data', (chunk: Buffer) => {
+            bodySize += chunk.length
+            if (bodySize > MAX_BODY_SIZE) {
+              res.writeHead(413)
+              res.end('Request body too large')
+              req.destroy()
+              return
+            }
             body += chunk.toString()
           })
           req.on('end', () => {
-            mkdirSync(scenesDir, { recursive: true })
-            const data = JSON.parse(body)
-            writeFileSync(filePath, dump(data, { lineWidth: -1, quotingType: '"', flowLevel: 3 }))
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ ok: true }))
+            if (bodySize > MAX_BODY_SIZE) return
+            try {
+              mkdirSync(scenesDir, { recursive: true })
+              const data = JSON.parse(body)
+              writeFileSync(filePath, dump(data, { lineWidth: -1, quotingType: '"', flowLevel: 3 }))
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ ok: true }))
+            } catch {
+              res.writeHead(400, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ error: 'Invalid JSON' }))
+            }
           })
           return
         }
@@ -376,7 +391,8 @@ const MIME_TYPES: Record<string, string> = {
 function validateAssetPath(assetsDir: string, relPath: string): string | null {
   if (/\.\./.test(relPath)) return null
   const absPath = resolve(assetsDir, relPath)
-  if (!absPath.startsWith(assetsDir)) return null
+  // Ensure the resolved path is still within the assets directory (prevents symlink traversal)
+  if (!absPath.startsWith(assetsDir + '/') && absPath !== assetsDir) return null
   return absPath
 }
 

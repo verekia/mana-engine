@@ -297,7 +297,7 @@ export function CheckboxInput({
   onChange: (v: boolean) => void
 }) {
   return (
-    <div
+    <label
       style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -306,26 +306,40 @@ export function CheckboxInput({
       }}
     >
       <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{label}</span>
-      <div
-        onClick={() => onChange(!value)}
-        style={{
-          width: 14,
-          height: 14,
-          borderRadius: 3,
-          border: `1.5px solid ${value ? COLORS.accent : COLORS.inputBorder}`,
-          background: value ? COLORS.accent : COLORS.input,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {value && (
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="1.5">
-            <path d="M2 5l2.5 2.5L8 3" />
-          </svg>
-        )}
+      <div style={{ position: 'relative', width: 14, height: 14 }}>
+        <input
+          type="checkbox"
+          checked={value}
+          onChange={e => onChange(e.target.checked)}
+          style={{
+            position: 'absolute',
+            opacity: 0,
+            width: 14,
+            height: 14,
+            margin: 0,
+          }}
+        />
+        <div
+          style={{
+            width: 14,
+            height: 14,
+            borderRadius: 3,
+            border: `1.5px solid ${value ? COLORS.accent : COLORS.inputBorder}`,
+            background: value ? COLORS.accent : COLORS.input,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+          }}
+        >
+          {value && (
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="1.5">
+              <path d="M2 5l2.5 2.5L8 3" />
+            </svg>
+          )}
+        </div>
       </div>
-    </div>
+    </label>
   )
 }
 

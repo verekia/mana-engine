@@ -5,7 +5,7 @@ let assetManifest: Record<string, string> | null = null
  * Set the asset manifest for production builds.
  * Called once at startup with the map from `virtual:mana-assets`.
  */
-export function setAssetManifest(manifest: Record<string, string>) {
+export function setAssetManifest(manifest: Record<string, string> | null) {
   assetManifest = manifest
 }
 

@@ -215,7 +215,23 @@ function setupScripts(
         }
       }
       if (entry.params) {
-        Object.assign(params, entry.params)
+        for (const [key, value] of Object.entries(entry.params)) {
+          // Coerce YAML values to the declared type when a param definition exists
+          const def = script.params?.[key]
+          if (def) {
+            if (def.type === 'number' && typeof value !== 'number') {
+              params[key] = Number(value)
+            } else if (def.type === 'boolean' && typeof value !== 'boolean') {
+              params[key] = value === 'true'
+            } else if (def.type === 'string' && typeof value !== 'string') {
+              params[key] = String(value)
+            } else {
+              params[key] = value as number | string | boolean
+            }
+          } else {
+            params[key] = value as number | string | boolean
+          }
+        }
       }
       activeScripts.push({ script, entityObj: obj, rb, params })
     }
@@ -307,6 +323,8 @@ export async function createScene(
   const raycaster = new Raycaster()
   const ndcVec = new Vector2()
   const selectionColor = new Color(0x4488ff)
+  const raycastTargets: Object3D[] = []
+  const raycastObjectToEntity = new Map<Object3D, string>()
 
   // Outline post-processing (editor mode only)
   let renderPipeline: RenderPipeline | null = null
@@ -466,6 +484,14 @@ export async function createScene(
       }
       for (const helper of gizmoHelpers.values()) {
         scene.remove(helper)
+        // Dispose helper geometries/materials
+        helper.traverse(child => {
+          if ('geometry' in child) (child as Mesh).geometry?.dispose()
+          if ('material' in child) {
+            const mat = (child as Mesh).material
+            if (mat instanceof LineBasicMaterial || mat instanceof MeshStandardMaterial) mat.dispose()
+          }
+        })
       }
       for (const obj of entityObjects.values()) {
         disposeEntityObject(obj)
@@ -514,29 +540,30 @@ export async function createScene(
       raycaster.setFromCamera(ndcVec.set(ndcX, ndcY), camera)
       raycaster.params.Line.threshold = 0.15
 
-      const targets: Object3D[] = []
-      const objectToEntity = new Map<Object3D, string>()
+      // Reuse arrays/maps to avoid per-call allocations
+      raycastTargets.length = 0
+      raycastObjectToEntity.clear()
       const tcRoot = transformControlsRoot
 
       for (const [id, obj] of entityObjects) {
         if (obj instanceof Mesh) {
-          targets.push(obj)
-          objectToEntity.set(obj, id)
+          raycastTargets.push(obj)
+          raycastObjectToEntity.set(obj, id)
         } else if (obj instanceof Group) {
-          targets.push(obj)
-          obj.traverse(child => objectToEntity.set(child, id))
+          raycastTargets.push(obj)
+          obj.traverse(child => raycastObjectToEntity.set(child, id))
         }
       }
       for (const [id, helper] of gizmoHelpers) {
-        targets.push(helper)
-        helper.traverse(child => objectToEntity.set(child, id))
+        raycastTargets.push(helper)
+        helper.traverse(child => raycastObjectToEntity.set(child, id))
       }
       for (const [id, wireframe] of debugWireframes) {
-        targets.push(wireframe)
-        objectToEntity.set(wireframe, id)
+        raycastTargets.push(wireframe)
+        raycastObjectToEntity.set(wireframe, id)
       }
 
-      const hits = raycaster.intersectObjects(targets, true)
+      const hits = raycaster.intersectObjects(raycastTargets, true)
       if (hits.length === 0) return null
       for (const hit of hits) {
         if (tcRoot) {
@@ -551,7 +578,7 @@ export async function createScene(
           }
           if (isGizmo) continue
         }
-        return objectToEntity.get(hit.object) ?? null
+        return raycastObjectToEntity.get(hit.object) ?? null
       }
       return null
     },
@@ -559,6 +586,10 @@ export async function createScene(
       createEntityObject(entity, scene, maps, { enableOrbitControls, showGizmos: debugPhysics, renderer })
     },
     removeEntity(id: string) {
+      // Detach gizmo if it's attached to the entity being removed
+      if (transformControls?.object && entityObjects.get(id) === transformControls.object) {
+        transformControls.detach()
+      }
       const obj = entityObjects.get(id)
       if (obj) {
         scene.remove(obj)

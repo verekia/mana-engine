@@ -185,6 +185,14 @@ export function disposeEntityObject(obj: Object3D) {
         if (child.material instanceof MeshStandardMaterial) disposeMaterial(child.material)
       }
     })
+  } else if (obj instanceof DirectionalLight) {
+    obj.shadow?.map?.dispose()
+    obj.dispose()
+  } else if (obj instanceof PointLight) {
+    obj.shadow?.map?.dispose()
+    obj.dispose()
+  } else if (obj instanceof AmbientLight) {
+    obj.dispose()
   }
 }
 
@@ -245,10 +253,13 @@ export function createEntityObject(
       if (modelSrc) {
         import('three/examples/jsm/loaders/GLTFLoader.js')
           .then(({ GLTFLoader }) => {
+            // Abort if the group was removed from the scene before loading finished
+            if (!group.parent) return
             const loader = new GLTFLoader()
             loader.load(
               resolveAsset(modelSrc),
               gltf => {
+                if (!group.parent) return
                 group.add(gltf.scene)
                 if (entity.model?.material) {
                   applyModelMaterialOverride(group, entity.model.material, options.renderer)
