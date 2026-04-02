@@ -11,8 +11,10 @@ import {
   OrbitControls,
   PerspectiveCamera,
   PlaneGeometry,
+  Raycaster,
   Scene,
   SphereGeometry,
+  createRaycastHit,
   mat4Invert,
   quatFromAxisAngle,
   vec3Set,
@@ -113,6 +115,12 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   private enableOrbitControls = false
   private isYUp = true
   private lastFrameTime = 0
+  private raycaster = new Raycaster()
+  private raycastHits = [createRaycastHit()]
+  private selectedIds = new Set<string>()
+  /** Outline thickness for selected entities. */
+  private static readonly SELECTION_OUTLINE_THICKNESS = 3
+  private static readonly SELECTION_OUTLINE_COLOR: [number, number, number] = [0.27, 0.53, 1]
 
   async init(canvas: HTMLCanvasElement, options: RendererAdapterOptions): Promise<void> {
     this.enableOrbitControls = options.orbitControls ?? false
@@ -338,6 +346,8 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   removeEntity(id: string): void {
     const node = this.entityNodes.get(id)
     if (node) {
+      this._clearOutline(node)
+      this.selectedIds.delete(id)
       node.parent?.remove(node)
       this.entityNodes.delete(id)
     }
@@ -416,9 +426,61 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
 
   setGizmos(_enabled: boolean): void {}
 
-  setSelectedEntities(_ids: string[]): void {}
+  setSelectedEntities(ids: string[]): void {
+    // Remove outline from previously selected entities
+    for (const prevId of this.selectedIds) {
+      if (!ids.includes(prevId)) {
+        const node = this.entityNodes.get(prevId)
+        if (node) this._clearOutline(node)
+      }
+    }
 
-  raycast(_ndcX: number, _ndcY: number): string | null {
+    this.selectedIds = new Set(ids)
+
+    // Apply outline to newly selected entities
+    for (const id of ids) {
+      const node = this.entityNodes.get(id)
+      if (node) this._applyOutline(node)
+    }
+  }
+
+  private _applyOutline(node: Node): void {
+    if (node instanceof Mesh) {
+      node.outline = {
+        thickness: VoidcoreRendererAdapter.SELECTION_OUTLINE_THICKNESS,
+        color: VoidcoreRendererAdapter.SELECTION_OUTLINE_COLOR,
+      }
+    }
+    // For groups (e.g. capsule wrappers, model groups), apply to child meshes
+    for (const child of node.children) {
+      this._applyOutline(child)
+    }
+  }
+
+  private _clearOutline(node: Node): void {
+    if (node instanceof Mesh) {
+      node.outline = undefined
+    }
+    for (const child of node.children) {
+      this._clearOutline(child)
+    }
+  }
+
+  raycast(ndcX: number, ndcY: number): string | null {
+    if (!this.camera || !this.sceneRoot) return null
+
+    this.raycaster.setFromCamera([ndcX, ndcY], this.camera)
+    const hitCount = this.raycaster.intersectObject(this.sceneRoot, true, this.raycastHits)
+    if (hitCount === 0) return null
+
+    // Walk up from hit mesh to find the entity node registered in entityNodes
+    let hitNode: Node | null = this.raycastHits[0].object
+    while (hitNode) {
+      for (const [id, node] of this.entityNodes) {
+        if (node === hitNode) return id
+      }
+      hitNode = hitNode.parent
+    }
     return null
   }
 

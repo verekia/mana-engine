@@ -106,14 +106,14 @@ The engine is decoupled from any specific 3D renderer or physics library. Choose
 
 #### Editor Features (per renderer)
 
-| Feature                          | Three.js                   | VoidCore |
-| -------------------------------- | -------------------------- | -------- |
-| **Orbit controls**               | Yes                        | Yes      |
-| **Raycasting / click-to-select** | Yes                        | —        |
-| **Selection outline**            | Yes (post-processing)      | —        |
-| **Transform gizmos** (W/E/R)     | Yes (TransformControls)    | —        |
-| **Collider wireframe gizmos**    | Yes (green wireframes)     | —        |
-| **Light helper gizmos**          | Camera, directional, point | —        |
+| Feature                          | Three.js                   | VoidCore                  |
+| -------------------------------- | -------------------------- | ------------------------- |
+| **Orbit controls**               | Yes                        | Yes                       |
+| **Raycasting / click-to-select** | Yes                        | Yes                       |
+| **Selection outline**            | Yes (post-processing)      | Yes (native mesh outline) |
+| **Transform gizmos** (W/E/R)     | Yes (TransformControls)    | —                         |
+| **Collider wireframe gizmos**    | Yes (green wireframes)     | —                         |
+| **Light helper gizmos**          | Camera, directional, point | —                         |
 
 ### Physics Adapters
 
@@ -146,20 +146,20 @@ These APIs work identically regardless of which renderer or physics adapter is a
 
 Exposed via `ctx.rigidBody` — works with both Rapier and Crashcat:
 
-| API                         | Status      | Description                 |
-| --------------------------- | ----------- | --------------------------- |
-| `translation()`             | Done        | World-space position        |
-| `linvel()`                  | Done        | Linear velocity             |
-| `setTranslation(pos, wake)` | Done        | Teleport body               |
-| `setLinvel(vel, wake)`      | Done        | Set linear velocity         |
-| `angvel()`                  | **Missing** | Angular velocity            |
-| `setAngvel(vel, wake)`      | **Missing** | Set angular velocity        |
-| `rotation()`                | **Missing** | World-space quaternion      |
-| `setRotation(quat, wake)`   | **Missing** | Set rotation quaternion     |
-| `applyImpulse(impulse)`     | **Missing** | Apply instantaneous impulse |
-| `applyForce(force)`         | **Missing** | Apply continuous force      |
-| `mass()`                    | **Missing** | Get body mass               |
-| `setEnabled(enabled)`       | **Missing** | Enable/disable body         |
+| API                         | Status | Description                 |
+| --------------------------- | ------ | --------------------------- |
+| `translation()`             | Done   | World-space position        |
+| `linvel()`                  | Done   | Linear velocity             |
+| `setTranslation(pos, wake)` | Done   | Teleport body               |
+| `setLinvel(vel, wake)`      | Done   | Set linear velocity         |
+| `angvel()`                  | Done   | Angular velocity            |
+| `setAngvel(vel, wake)`      | Done   | Set angular velocity        |
+| `rotation()`                | Done   | World-space quaternion      |
+| `setRotation(quat, wake)`   | Done   | Set rotation quaternion     |
+| `applyImpulse(impulse)`     | Done   | Apply instantaneous impulse |
+| `applyForce(force)`         | Done   | Apply continuous force      |
+| `mass()`                    | Done   | Get body mass               |
+| `setEnabled(enabled)`       | Done   | Enable/disable body         |
 
 ### Missing Across All Adapters
 

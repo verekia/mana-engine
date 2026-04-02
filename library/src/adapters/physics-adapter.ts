@@ -19,6 +19,22 @@ export interface ManaRigidBody {
   setTranslation(pos: { x: number; y: number; z: number }, wake: boolean): void
   /** Set linear velocity directly. */
   setLinvel(vel: { x: number; y: number; z: number }, wake: boolean): void
+  /** World-space angular velocity. */
+  angvel(): { x: number; y: number; z: number }
+  /** Set angular velocity directly. */
+  setAngvel(vel: { x: number; y: number; z: number }, wake: boolean): void
+  /** World-space rotation as a quaternion. */
+  rotation(): { x: number; y: number; z: number; w: number }
+  /** Set rotation quaternion. */
+  setRotation(quat: { x: number; y: number; z: number; w: number }, wake: boolean): void
+  /** Apply an instantaneous impulse at the center of mass. */
+  applyImpulse(impulse: { x: number; y: number; z: number }): void
+  /** Apply a continuous force at the center of mass (accumulated over the next step). */
+  applyForce(force: { x: number; y: number; z: number }): void
+  /** Get the body's mass. */
+  mass(): number
+  /** Enable or disable the body (disabled bodies are excluded from simulation). */
+  setEnabled(enabled: boolean): void
 }
 
 /**

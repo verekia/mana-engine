@@ -86,6 +86,14 @@ export class RapierPhysicsAdapter implements PhysicsAdapter {
         linvel: () => rb.linvel(),
         setTranslation: (pos, wake) => rb.setTranslation(pos, wake),
         setLinvel: (vel, wake) => rb.setLinvel(vel, wake),
+        angvel: () => rb.angvel(),
+        setAngvel: (vel, wake) => rb.setAngvel(vel, wake),
+        rotation: () => rb.rotation(),
+        setRotation: (quat, wake) => rb.setRotation(quat, wake),
+        applyImpulse: impulse => rb.applyImpulse(impulse, true),
+        applyForce: force => rb.addForce(force, true),
+        mass: () => rb.mass(),
+        setEnabled: enabled => rb.setEnabled(enabled),
       })
 
       // Only track dynamic/kinematic bodies for transform readback
