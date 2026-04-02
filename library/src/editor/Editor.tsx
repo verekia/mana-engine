@@ -19,6 +19,8 @@ import { Toolbar } from './Toolbar.tsx'
 import { useEditorScene } from './use-editor-scene.ts'
 import { Viewport } from './Viewport.tsx'
 
+import type { PhysicsAdapter } from '../adapters/physics-adapter.ts'
+import type { RendererAdapter } from '../adapters/renderer-adapter.ts'
 import type { SceneData, SceneEntity, Transform } from '../scene-data.ts'
 import type { EditorCameraState, TransformMode } from '../scene.ts'
 import type { ManaScript } from '../script.ts'
@@ -26,9 +28,15 @@ import type { ManaScript } from '../script.ts'
 export default function Editor({
   uiComponents = {},
   scripts = {},
+  createRenderer,
+  createPhysics,
+  coordinateSystem,
 }: {
   uiComponents?: Record<string, ComponentType>
   scripts?: Record<string, ManaScript>
+  createRenderer: () => RendererAdapter
+  createPhysics?: () => PhysicsAdapter
+  coordinateSystem?: 'y-up' | 'z-up'
 }) {
   const [showUI, setShowUI] = useState(() => localStorage.getItem('mana:showUI') !== 'false')
   const [showGizmos, setShowGizmos] = useState(() => localStorage.getItem('mana:showGizmos') !== 'false')
@@ -151,13 +159,16 @@ export default function Editor({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is a stable ref, .current is intentionally read at execution time
   }, [])
 
-  // Scene lifecycle hook — handles Three.js scene creation, disposal, and recreation
+  // Scene lifecycle hook — handles renderer scene creation, disposal, and recreation
   const { sceneRef, recreateScene } = useEditorScene({
     canvasRef,
     sceneData,
     scripts,
     showGizmos,
     transformMode,
+    createRenderer,
+    createPhysics,
+    coordinateSystem,
     onTransformStart: handleTransformStart,
     onTransformChange: handleTransformChange,
     onTransformEnd: handleTransformEnd,

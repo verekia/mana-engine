@@ -12,7 +12,8 @@ export default {
     grounded = false
     jumpCooldown = 0
   },
-  update({ rigidBody, input, params, dt }) {
+  update(ctx) {
+    const { rigidBody, input, params, dt } = ctx
     if (!rigidBody) return
 
     const moveSpeed = params.moveSpeed as number

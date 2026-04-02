@@ -10,20 +10,22 @@ export interface CameraData {
   far?: number
 }
 
+/**
+ * Lambert material — diffuse color only, no PBR.
+ * Additional material types (Standard/PBR, Unlit, etc.) will be added incrementally.
+ */
 export interface MaterialData {
   color?: string
-  roughness?: number
-  metalness?: number
-  emissive?: string
+  /** Albedo texture map path */
   map?: string
-  normalMap?: string
-  roughnessMap?: string
-  metalnessMap?: string
+  /** Emissive texture map path */
   emissiveMap?: string
 }
 
 export interface MeshData {
-  geometry?: 'box' | 'sphere' | 'plane' | 'cylinder' | 'capsule'
+  /** Supported geometries: box, sphere, plane, capsule.
+   *  Additional types (cylinder, torus, etc.) will be added incrementally. */
+  geometry?: 'box' | 'sphere' | 'plane' | 'capsule'
   material?: MaterialData
 }
 
@@ -48,9 +50,14 @@ export interface RigidBodyData {
 }
 
 export interface ColliderData {
-  shape: 'box' | 'sphere' | 'capsule' | 'cylinder' | 'plane'
+  /** Supported shapes: box, sphere, capsule.
+   *  Additional shapes (cylinder, convex hull, trimesh, etc.) will be added incrementally. */
+  shape: 'box' | 'sphere' | 'capsule'
+  /** Half-extents for box colliders: [x, y, z] */
   halfExtents?: [number, number, number]
+  /** Radius for sphere and capsule colliders */
   radius?: number
+  /** Half-height of the cylindrical part for capsule colliders */
   halfHeight?: number
 }
 
@@ -78,5 +85,14 @@ export interface SceneEntity {
 
 export interface SceneData {
   background?: string
+  /**
+   * Coordinate system convention for this scene.
+   * - 'y-up'  (default) — Y axis points up, used by Three.js, glTF, WebGL conventions
+   * - 'z-up'  — Z axis points up, used by Blender, CAD, and some game engines
+   *
+   * The editor and renderer adapters must respect this setting when orienting the
+   * default camera, grid, and transform gizmos.
+   */
+  coordinateSystem?: 'y-up' | 'z-up'
   entities: SceneEntity[]
 }

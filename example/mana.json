@@ -1,5 +1,8 @@
 {
   "gameDir": "game",
   "outDir": ".mana/build",
-  "startScene": "main-menu"
+  "startScene": "main-menu",
+  "renderer": "three",
+  "physics": "rapier",
+  "coordinateSystem": "y-up"
 }

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { basename, dirname, extname, resolve } from 'node:path'
 
-import { loadConfig, scaffoldProject } from './config.ts'
+import { loadConfig, scaffoldProject, type ManaConfig } from './config.ts'
 
 const command = process.argv[2]
 
@@ -85,6 +85,42 @@ function discoverGame(gameDir: string): DiscoveredGame {
   }
 }
 
+/** Generate adapter imports and factory declarations from mana.json config. */
+function generateAdapterCode(config: ManaConfig): string {
+  const lines: string[] = []
+  const renderer = config.renderer ?? 'three'
+  const physics = config.physics ?? 'rapier'
+
+  // Renderer import + factory
+  if (renderer === 'three') {
+    lines.push(`import { ThreeRendererAdapter } from 'mana-engine/game'`)
+    lines.push(`const createRenderer = () => new ThreeRendererAdapter()`)
+  } else {
+    lines.push(`import { VoidcoreRendererAdapter } from 'mana-engine/game'`)
+    lines.push(`const createRenderer = () => new VoidcoreRendererAdapter()`)
+  }
+
+  // Physics import + factory
+  if (physics === 'rapier') {
+    lines.push(`import { RapierPhysicsAdapter } from 'mana-engine/game'`)
+    lines.push(`const createPhysics = () => new RapierPhysicsAdapter()`)
+  } else if (physics === 'crashcat') {
+    lines.push(`import { CrashcatPhysicsAdapter } from 'mana-engine/game'`)
+    lines.push(`const createPhysics = () => new CrashcatPhysicsAdapter()`)
+  } else {
+    lines.push(`const createPhysics = undefined`)
+  }
+
+  // Coordinate system
+  if (config.coordinateSystem) {
+    lines.push(`const coordinateSystem = ${JSON.stringify(config.coordinateSystem)}`)
+  } else {
+    lines.push(`const coordinateSystem = undefined`)
+  }
+
+  return lines.join('\n')
+}
+
 /** Generate import lines and maps for discovered scenes/scripts/ui. */
 function generateGameImports(game: DiscoveredGame, startScene?: string): string {
   const lines: string[] = []
@@ -152,13 +188,15 @@ async function runBuild() {
       `export { css } from 'virtual:mana-css'`,
       `export { assetManifest } from 'virtual:mana-asset-manifest'`,
       ``,
+      generateAdapterCode(config),
+      ``,
       generateGameImports(game, config.startScene),
       ``,
       `let root`,
       `export function mount(container, options) {`,
       `  if (options?.assetManifest) setAssetManifest(options.assetManifest)`,
       `  root = createRoot(container)`,
-      `  root.render(createElement(Game, { scenes, scripts, uiComponents${config.startScene ? ', startScene' : ''} }))`,
+      `  root.render(createElement(Game, { scenes, scripts, uiComponents, createRenderer, createPhysics, coordinateSystem${config.startScene ? ', startScene' : ''} }))`,
       `}`,
       `export function unmount() {`,
       `  if (root) {`,
@@ -193,6 +231,8 @@ async function runDev() {
       `import { createElement } from 'react'`,
       `import { Game } from 'mana-engine/game'`,
       ``,
+      generateAdapterCode(config),
+      ``,
       generateGameImports(game, config.startScene),
       ``,
       `const host = document.getElementById('game')!`,
@@ -216,7 +256,7 @@ async function runDev() {
       `new MutationObserver(mirrorStyles).observe(document.head, { childList: true, subtree: true, characterData: true })`,
       `mirrorStyles()`,
       ``,
-      `createRoot(container).render(createElement(Game, { scenes, scripts, uiComponents${config.startScene ? ', startScene' : ''} }))`,
+      `createRoot(container).render(createElement(Game, { scenes, scripts, uiComponents, createRenderer, createPhysics, coordinateSystem${config.startScene ? ', startScene' : ''} }))`,
     ].join('\n'),
   )
 
@@ -270,9 +310,11 @@ async function runEditor() {
       `import { createElement } from 'react'`,
       `import Editor from ${JSON.stringify(editorComponent)}`,
       ``,
+      generateAdapterCode(config),
+      ``,
       generateGameImports({ ...game, scenes: [] }),
       ``,
-      `createRoot(document.getElementById('editor')!).render(createElement(Editor, { uiComponents, scripts }))`,
+      `createRoot(document.getElementById('editor')!).render(createElement(Editor, { uiComponents, scripts, createRenderer, createPhysics, coordinateSystem }))`,
     ].join('\n'),
   )
 

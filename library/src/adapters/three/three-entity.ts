@@ -4,7 +4,6 @@ import {
   BoxGeometry,
   CameraHelper,
   CapsuleGeometry,
-  CylinderGeometry,
   DirectionalLight,
   DirectionalLightHelper,
   EdgesGeometry,
@@ -12,23 +11,22 @@ import {
   LineBasicMaterial,
   LineSegments,
   Mesh,
-  MeshStandardMaterial,
+  MeshLambertMaterial,
   type Object3D,
   PerspectiveCamera,
   PlaneGeometry,
   PointLight,
   PointLightHelper,
-  type Scene,
   SphereGeometry,
   TextureLoader,
   type WebGPURenderer,
 } from 'three/webgpu'
 
-import { resolveAsset } from './assets.ts'
+import { resolveAsset } from '../../assets.ts'
 
-import type { ColliderData, MaterialData, SceneEntity, Transform } from './scene-data.ts'
+import type { ColliderData, MaterialData, SceneEntity, Transform } from '../../scene-data.ts'
 
-export interface EntityMaps {
+export interface ThreeEntityMaps {
   entityObjects: Map<string, Object3D>
   debugWireframes: Map<string, LineSegments>
   gizmoHelpers: Map<string, Object3D>
@@ -67,8 +65,6 @@ function createGeometry(type?: string) {
       return new SphereGeometry()
     case 'plane':
       return new PlaneGeometry()
-    case 'cylinder':
-      return new CylinderGeometry()
     case 'capsule':
       return new CapsuleGeometry()
     default:
@@ -90,12 +86,6 @@ export function createColliderWireframe(collider: ColliderData): LineSegments {
       geometry = new EdgesGeometry(new CapsuleGeometry(r, hh * 2, 8, 16))
       break
     }
-    case 'cylinder': {
-      const r = collider.radius ?? 0.5
-      const hh = collider.halfHeight ?? 0.5
-      geometry = new EdgesGeometry(new CylinderGeometry(r, r, hh * 2, 16))
-      break
-    }
     default: {
       const he = collider.halfExtents ?? [0.5, 0.5, 0.5]
       geometry = new EdgesGeometry(new BoxGeometry(he[0] * 2, he[1] * 2, he[2] * 2))
@@ -113,8 +103,8 @@ let ktx2DetectedSupport = false
 
 function loadTexture(
   path: string,
-  material: MeshStandardMaterial,
-  slot: keyof MeshStandardMaterial,
+  material: MeshLambertMaterial,
+  slot: keyof MeshLambertMaterial,
   renderer?: WebGPURenderer,
 ) {
   const url = resolveAsset(path)
@@ -134,42 +124,27 @@ function loadTexture(
   }
 }
 
-export function applyMaterialData(material: MeshStandardMaterial, mat?: MaterialData, renderer?: WebGPURenderer) {
+export function applyMaterialData(material: MeshLambertMaterial, mat?: MaterialData, renderer?: WebGPURenderer) {
   material.color.set(mat?.color ?? '#4488ff')
   if (!mat) return
-  if (mat.roughness !== undefined) material.roughness = mat.roughness
-  if (mat.metalness !== undefined) material.metalness = mat.metalness
-  if (mat.emissive) material.emissive.set(mat.emissive)
   if (mat.map) loadTexture(mat.map, material, 'map', renderer)
-  if (mat.normalMap) loadTexture(mat.normalMap, material, 'normalMap', renderer)
-  if (mat.roughnessMap) loadTexture(mat.roughnessMap, material, 'roughnessMap', renderer)
-  if (mat.metalnessMap) loadTexture(mat.metalnessMap, material, 'metalnessMap', renderer)
   if (mat.emissiveMap) loadTexture(mat.emissiveMap, material, 'emissiveMap', renderer)
 }
 
 /** Apply a material override to all meshes in a model group — only overrides fields that are explicitly set. */
 export function applyModelMaterialOverride(group: Group, mat: MaterialData, renderer?: WebGPURenderer) {
   group.traverse(child => {
-    if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
+    if (child instanceof Mesh && child.material instanceof MeshLambertMaterial) {
       const m = child.material
       if (mat.color) m.color.set(mat.color)
-      if (mat.roughness !== undefined) m.roughness = mat.roughness
-      if (mat.metalness !== undefined) m.metalness = mat.metalness
-      if (mat.emissive) m.emissive.set(mat.emissive)
       if (mat.map) loadTexture(mat.map, m, 'map', renderer)
-      if (mat.normalMap) loadTexture(mat.normalMap, m, 'normalMap', renderer)
-      if (mat.roughnessMap) loadTexture(mat.roughnessMap, m, 'roughnessMap', renderer)
-      if (mat.metalnessMap) loadTexture(mat.metalnessMap, m, 'metalnessMap', renderer)
       if (mat.emissiveMap) loadTexture(mat.emissiveMap, m, 'emissiveMap', renderer)
     }
   })
 }
 
-function disposeMaterial(material: MeshStandardMaterial) {
+function disposeMaterial(material: MeshLambertMaterial) {
   material.map?.dispose()
-  material.normalMap?.dispose()
-  material.roughnessMap?.dispose()
-  material.metalnessMap?.dispose()
   material.emissiveMap?.dispose()
   material.dispose()
 }
@@ -177,12 +152,12 @@ function disposeMaterial(material: MeshStandardMaterial) {
 export function disposeEntityObject(obj: Object3D) {
   if (obj instanceof Mesh) {
     obj.geometry.dispose()
-    if (obj.material instanceof MeshStandardMaterial) disposeMaterial(obj.material)
+    if (obj.material instanceof MeshLambertMaterial) disposeMaterial(obj.material)
   } else if (obj instanceof Group) {
     obj.traverse(child => {
       if (child instanceof Mesh) {
         child.geometry.dispose()
-        if (child.material instanceof MeshStandardMaterial) disposeMaterial(child.material)
+        if (child.material instanceof MeshLambertMaterial) disposeMaterial(child.material)
       }
     })
   } else if (obj instanceof DirectionalLight) {
@@ -206,10 +181,10 @@ export function applyShadowProps(obj: Object3D, entity: SceneEntity) {
 }
 
 /** Creates a Three.js object from a scene entity and registers it in the entity maps. */
-export function createEntityObject(
+export function createThreeEntityObject(
   entity: SceneEntity,
-  threeScene: Scene,
-  maps: EntityMaps,
+  scene: Object3D,
+  maps: ThreeEntityMaps,
   options: { enableOrbitControls: boolean; showGizmos: boolean; renderer?: WebGPURenderer },
 ): Object3D | null {
   let obj: Object3D | null = null
@@ -224,36 +199,34 @@ export function createEntityObject(
       )
       applyTransform(cam, entity.transform)
       cam.lookAt(0, 0, 0)
-      if (options.enableOrbitControls) threeScene.add(cam)
+      if (options.enableOrbitControls) scene.add(cam)
       obj = cam
-      // Camera helper
       const camHelper = new CameraHelper(cam)
       camHelper.visible = options.showGizmos
-      threeScene.add(camHelper)
+      scene.add(camHelper)
       maps.gizmoHelpers.set(entity.id, camHelper)
       break
     }
     case 'mesh': {
       const geometry = createGeometry(entity.mesh?.geometry)
-      const material = new MeshStandardMaterial()
+      const material = new MeshLambertMaterial()
       applyMaterialData(material, entity.mesh?.material, options.renderer)
       const mesh = new Mesh(geometry, material)
       applyTransform(mesh, entity.transform)
       applyShadowProps(mesh, entity)
-      threeScene.add(mesh)
+      scene.add(mesh)
       obj = mesh
       break
     }
     case 'model': {
       const group = new Group()
       applyTransform(group, entity.transform)
-      threeScene.add(group)
+      scene.add(group)
       obj = group
       const modelSrc = entity.model?.src
       if (modelSrc) {
         import('three/examples/jsm/loaders/GLTFLoader.js')
           .then(({ GLTFLoader }) => {
-            // Abort if the group was removed from the scene before loading finished
             if (!group.parent) return
             const loader = new GLTFLoader()
             loader.load(
@@ -288,11 +261,11 @@ export function createEntityObject(
         light.shadow.camera.top = 10
         light.shadow.camera.bottom = -10
       }
-      threeScene.add(light)
+      scene.add(light)
       obj = light
       const dlHelper = new DirectionalLightHelper(light, 1)
       dlHelper.visible = options.showGizmos
-      threeScene.add(dlHelper)
+      scene.add(dlHelper)
       maps.gizmoHelpers.set(entity.id, dlHelper)
       break
     }
@@ -304,17 +277,17 @@ export function createEntityObject(
         light.shadow.mapSize.width = 1024
         light.shadow.mapSize.height = 1024
       }
-      threeScene.add(light)
+      scene.add(light)
       obj = light
       const plHelper = new PointLightHelper(light, 0.5)
       plHelper.visible = options.showGizmos
-      threeScene.add(plHelper)
+      scene.add(plHelper)
       maps.gizmoHelpers.set(entity.id, plHelper)
       break
     }
     case 'ambient-light': {
       const light = new AmbientLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 0.3)
-      threeScene.add(light)
+      scene.add(light)
       obj = light
       break
     }
@@ -325,7 +298,6 @@ export function createEntityObject(
     maps.entityObjects.set(entity.id, obj)
   }
 
-  // Collider wireframe
   if (entity.collider) {
     const wireframe = createColliderWireframe(entity.collider)
     if (obj) {
@@ -333,7 +305,7 @@ export function createEntityObject(
       wireframe.rotation.copy(obj.rotation)
     }
     wireframe.visible = options.showGizmos
-    threeScene.add(wireframe)
+    scene.add(wireframe)
     maps.debugWireframes.set(entity.id, wireframe)
   }
 

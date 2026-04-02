@@ -6,7 +6,8 @@ export default {
     resetX: { type: 'number', default: 0 },
     resetY: { type: 'number', default: 3 },
   },
-  update({ rigidBody, params }) {
+  update(ctx) {
+    const { rigidBody, params } = ctx
     if (!rigidBody) return
 
     const pos = rigidBody.translation()

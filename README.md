@@ -38,10 +38,12 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 - **Axis helpers** — `input.getAxis('horizontal')` (A/D, arrows → -1/+1), `input.getAxis('vertical')` (W/S, arrows → -1/+1)
 - **Per-frame state** — Pressed/released states are true for exactly one frame
 
-### Physics (Rapier 3D)
+### Physics (Rapier 3D / Crashcat)
 
+- **Pluggable physics** — Choose between Rapier 3D (WASM) or Crashcat (pure JS) via `mana.json`
 - **3 rigid body types** — `dynamic`, `fixed`, `kinematic`
 - **4 collider shapes** — `box`, `sphere`, `capsule`, `cylinder`
+- **Adapter-agnostic scripts** — `ManaRigidBody` interface (`translation`, `linvel`, `setTranslation`, `setLinvel`) works with any physics backend
 - **Independent physics** — Physics steps even without scripts attached to entities
 - **Collider wireframe gizmos** — Visible in editor edit mode
 

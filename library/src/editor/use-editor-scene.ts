@@ -2,16 +2,21 @@ import { useCallback, useEffect, useRef } from 'react'
 
 import { createScene, type CreateSceneOptions, type EditorCameraState, type ManaScene } from '../scene.ts'
 
+import type { PhysicsAdapter } from '../adapters/physics-adapter.ts'
+import type { RendererAdapter } from '../adapters/renderer-adapter.ts'
 import type { SceneData } from '../scene-data.ts'
 import type { ManaScript } from '../script.ts'
 
-/** Encapsulates the Three.js scene lifecycle for the editor, including creation, disposal, and recreation. */
+/** Encapsulates the renderer scene lifecycle for the editor, including creation, disposal, and recreation. */
 export function useEditorScene({
   canvasRef,
   sceneData,
   scripts,
   showGizmos,
   transformMode,
+  createRenderer,
+  createPhysics,
+  coordinateSystem,
   onTransformStart,
   onTransformChange,
   onTransformEnd,
@@ -21,12 +26,14 @@ export function useEditorScene({
   scripts: Record<string, ManaScript>
   showGizmos: boolean
   transformMode: string
+  createRenderer: () => RendererAdapter
+  createPhysics?: () => PhysicsAdapter
+  coordinateSystem?: 'y-up' | 'z-up'
   onTransformStart: (id: string) => void
   onTransformChange: (id: string, transform: import('../scene-data.ts').Transform) => void
   onTransformEnd: (id: string, transform: import('../scene-data.ts').Transform) => void
 }) {
   const sceneRef = useRef<ManaScene | null>(null)
-  // Use refs for values accessed inside callbacks/async functions to avoid stale closures
   const showGizmosRef = useRef(showGizmos)
   showGizmosRef.current = showGizmos
   const transformModeRef = useRef(transformMode)
@@ -34,10 +41,9 @@ export function useEditorScene({
   const sceneDataRef = useRef(sceneData)
   sceneDataRef.current = sceneData
 
-  // Track whether the initial scene has been created (prevents re-creation on re-renders)
   const initializedRef = useRef(false)
 
-  // Create initial Three.js scene when sceneData first becomes available
+  // Create initial scene when sceneData first becomes available
   useEffect(() => {
     const data = sceneDataRef.current
     if (!data || initializedRef.current) return
@@ -46,8 +52,10 @@ export function useEditorScene({
 
     initializedRef.current = true
 
-    createScene(canvas, data, {
-      debugPhysics: showGizmosRef.current,
+    const renderer = createRenderer()
+    const sceneWithCoords = coordinateSystem ? { ...data, coordinateSystem } : data
+    createScene(canvas, sceneWithCoords, {
+      renderer,
       orbitControls: true,
       onTransformStart,
       onTransformChange,
@@ -83,24 +91,37 @@ export function useEditorScene({
       }
       const canvas = canvasRef.current
       if (!canvas) return
+
+      const renderer = createRenderer()
+      const sceneWithCoords = coordinateSystem ? { ...data, coordinateSystem } : data
       const opts: CreateSceneOptions = {
+        renderer,
+        physics: isPlaying ? createPhysics?.() : undefined,
         scripts: isPlaying ? scripts : undefined,
-        debugPhysics: !isPlaying && showGizmosRef.current,
         orbitControls: !isPlaying,
         editorCamera: !isPlaying ? editorCamera : undefined,
         onTransformStart: !isPlaying ? onTransformStart : undefined,
         onTransformChange: !isPlaying ? onTransformChange : undefined,
         onTransformEnd: !isPlaying ? onTransformEnd : undefined,
       }
-      sceneRef.current = await createScene(canvas, data, opts)
+      sceneRef.current = await createScene(canvas, sceneWithCoords, opts)
       if (!isPlaying) {
         sceneRef.current?.setTransformMode(transformModeRef.current as 'translate' | 'rotate' | 'scale')
       }
     },
-    [scripts, canvasRef, onTransformStart, onTransformChange, onTransformEnd],
+    [
+      scripts,
+      canvasRef,
+      createRenderer,
+      createPhysics,
+      coordinateSystem,
+      onTransformStart,
+      onTransformChange,
+      onTransformEnd,
+    ],
   )
 
-  // Sync transform mode to Three.js scene
+  // Sync transform mode to the active scene
   useEffect(() => {
     sceneRef.current?.setTransformMode(transformMode as 'translate' | 'rotate' | 'scale')
   }, [transformMode])

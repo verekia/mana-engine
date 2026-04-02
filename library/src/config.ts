@@ -6,6 +6,9 @@ export interface ManaConfig {
   gameDir: string
   outDir: string
   startScene?: string
+  coordinateSystem?: 'y-up' | 'z-up'
+  renderer?: 'three' | 'voidcore'
+  physics?: 'rapier' | 'crashcat' | 'none'
 }
 
 const defaults: ManaConfig = {
