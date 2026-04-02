@@ -62,4 +62,8 @@ export class VoidRendererAdapter implements RendererAdapter {
   }
 
   setEditorCamera(_state: EditorCameraState): void {}
+
+  updateControls(): void {}
+
+  render(): void {}
 }

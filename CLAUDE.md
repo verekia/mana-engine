@@ -17,11 +17,13 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 The engine is decoupled from any specific 3D renderer or physics library via two adapter interfaces:
 
 ### RendererAdapter (`library/src/adapters/renderer-adapter.ts`)
+
 - Defines all rendering operations: `init`, `loadScene`, `addEntity`, `removeEntity`, `updateEntity`, `setEntityVisible`, `setEntityPhysicsTransform`, `getEntityNativeObject`, `getNativeScene`
 - Editor-specific: `setGizmos`, `setSelectedEntities`, `raycast`, `setTransformTarget`, `setTransformMode`, `getEditorCamera`, `setEditorCamera`
 - Implementations live in `library/src/adapters/<name>/index.ts`
 
 ### PhysicsAdapter (`library/src/adapters/physics-adapter.ts`)
+
 - Defines physics operations: `init`, `dispose`, `step`, `getTransforms`, `getBody`
 - `init` receives a callback to read initial entity transforms from the renderer
 - `getTransforms()` returns only dynamic/kinematic bodies (fixed bodies never move)
@@ -29,18 +31,26 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 
 ### Available Adapters
 
-| Path | Renderer | Physics |
-|------|----------|---------|
-| `adapters/three/` | Three.js (WebGPU renderer) | Rapier 3D (`RapierPhysicsAdapter`) |
-| `adapters/void/` | VoidCore (minimal, stub) | — |
+| Path                  | Renderer                   | Physics                              |
+| --------------------- | -------------------------- | ------------------------------------ |
+| `adapters/three/`     | Three.js (WebGPU renderer) | Rapier 3D (`RapierPhysicsAdapter`)   |
+| `adapters/void/`      | VoidCore (minimal, stub)   | —                                    |
+| `adapters/crashcat/`  | —                          | Crashcat (`CrashcatPhysicsAdapter`)  |
 
 - `ThreeRendererAdapter` wraps the Three.js entity creation, OrbitControls, TransformControls, outline post-processing, and raycasting
 - `RapierPhysicsAdapter` wraps Rapier 3D world setup, rigid body/collider creation, and transform readback
 - `VoidRendererAdapter` is a stub for a minimal custom renderer (features added incrementally)
+- `CrashcatPhysicsAdapter` wraps Crashcat — a pure-JS physics engine (no WASM, synchronous init)
+  - Shapes: box (`halfExtents`), sphere (`radius`), capsule (`halfHeightOfCylinder` + `radius`)
+  - Motion types: static, kinematic, dynamic; DOF rotation locking via `lockRotation`
+  - `getTransforms()` skips sleeping bodies for efficiency
+  - Uses two-layer broadphase: static and dynamic object layers
+  - `CrashcatRigidBody` and `CrashcatWorld` type aliases exported for script use
 
 ### createScene API
 
 `createScene(canvas, sceneData, options)` in `scene.ts` is the adapter-agnostic orchestrator:
+
 - Calls `renderer.init(canvas, ...)` then `renderer.loadScene(sceneData)`
 - If a `physics` adapter is provided (play mode only), calls `physics.init(sceneData, getInitialTransform)` seeded from the renderer
 - Runs the animation loop: fixed-step physics + scripts, variable-rate update, renderer-driven render
@@ -48,6 +58,7 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 - `RapierModule` and `RapierRigidBody` type aliases are re-exported from `scene.ts` (originally from `adapters/three/three-physics.ts`) for convenience
 
 ### Coordinate System
+
 - `SceneData.coordinateSystem` can be `'y-up'` (default, Three.js / glTF) or `'z-up'` (Blender, CAD)
 - Renderer adapters must respect this when orienting the default camera, grid, and gizmos
 

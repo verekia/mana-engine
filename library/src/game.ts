@@ -29,5 +29,7 @@ export type { ManaScript, ScriptContext, ScriptParamDef } from './script.ts'
 // Adapter exports — choose the adapter that matches your renderer/physics stack
 export { ThreeRendererAdapter, RapierPhysicsAdapter } from './adapters/three/index.ts'
 export { VoidRendererAdapter } from './adapters/void/index.ts'
+export { CrashcatPhysicsAdapter } from './adapters/crashcat/index.ts'
+export type { CrashcatRigidBody, CrashcatWorld } from './adapters/crashcat/index.ts'
 export type { RendererAdapter, RendererAdapterOptions } from './adapters/renderer-adapter.ts'
 export type { PhysicsAdapter, PhysicsTransform } from './adapters/physics-adapter.ts'

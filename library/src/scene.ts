@@ -229,6 +229,9 @@ export async function createScene(
     }
 
     scriptInput?.endFrame()
+
+    renderer.updateControls()
+    renderer.render()
   }
 
   animate()

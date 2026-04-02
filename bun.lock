@@ -32,6 +32,7 @@
         "@dimforge/rapier3d-compat": "^0.19.3",
         "@tailwindcss/vite": "4.2.2",
         "@vitejs/plugin-react": "6.0.1",
+        "crashcat": "^0.0.3",
         "react": "19.2.4",
         "react-dom": "19.2.4",
         "tailwindcss": "4.2.2",
@@ -254,6 +255,8 @@
 
     "argparse": ["argparse@2.0.1", "", {}, "sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q=="],
 
+    "crashcat": ["crashcat@0.0.3", "", { "dependencies": { "mathcat": "0.0.11" }, "peerDependencies": { "three": ">=0.182.0" }, "optionalPeers": ["three"] }, "sha512-qphv+pNuPvNKojEkt1D3itu51bMQk2twKPMmUVhpGe2GdmRBAi+hVYfeWhftwHDwBEaAU6vyflWQTUE/kq1Yyw=="],
+
     "csstype": ["csstype@3.2.3", "", {}, "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ=="],
 
     "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
@@ -305,6 +308,8 @@
     "magic-string": ["magic-string@0.30.21", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
 
     "mana-engine": ["mana-engine@workspace:library"],
+
+    "mathcat": ["mathcat@0.0.11", "", {}, "sha512-HIGDmqrjy6KE4LRH9uGLdYoVl+69idwtE5OjHILnNB4IL4RE2aVNagjLAWFKWH5xlcxNH9i+AoBgRKR4VdsyFw=="],
 
     "meshoptimizer": ["meshoptimizer@1.0.1", "", {}, "sha512-Vix+QlA1YYT3FwmBBZ+49cE5y/b+pRrcXKqGpS5ouh33d3lSp2PoTpCw19E0cKDFWalembrHnIaZetf27a+W2g=="],
 

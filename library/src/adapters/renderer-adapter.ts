@@ -105,4 +105,21 @@ export interface RendererAdapter {
 
   /** Restore the editor camera to a previously saved state. */
   setEditorCamera(state: EditorCameraState): void
+
+  // ── Frame loop ──────────────────────────────────────────────────────────────
+
+  /**
+   * Update per-frame control state (e.g. OrbitControls.update()).
+   * Called by scene.ts once per frame, before render().
+   */
+  updateControls(): void
+
+  /**
+   * Render the current frame.
+   * Called by scene.ts at the end of each animation frame, after physics and
+   * script updates have been applied.
+   * The adapter must NOT start its own requestAnimationFrame loop — scene.ts
+   * owns the single main loop and calls render() at the right point.
+   */
+  render(): void
 }

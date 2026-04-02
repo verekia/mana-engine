@@ -88,7 +88,6 @@ export class ThreeRendererAdapter implements RendererAdapter {
   private raycastTargets: Object3D[] = []
   private raycastObjectToEntity = new Map<Object3D, string>()
   private observer: ResizeObserver | null = null
-  private animationId = 0
   private options: RendererAdapterOptions = {}
   private enableOrbitControls = false
   private showGizmos = false
@@ -123,7 +122,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
         this.renderer.setSize(w, h, false)
         this.camera.aspect = w / h
         this.camera.updateProjectionMatrix()
-        this._render()
+        this.render()
       }
     })
     this.observer.observe(canvas)
@@ -135,8 +134,6 @@ export class ThreeRendererAdapter implements RendererAdapter {
       this.camera.aspect = initW / initH
       this.camera.updateProjectionMatrix()
     }
-
-    this._startRenderLoop()
   }
 
   private async _setupEditorControls(canvas: HTMLCanvasElement): Promise<void> {
@@ -223,7 +220,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
     this.renderPipeline.outputNode = outlineColor.add(scenePass)
   }
 
-  private _render(): void {
+  render(): void {
     if (this.renderPipeline) {
       this.renderPipeline.render()
     } else {
@@ -231,17 +228,11 @@ export class ThreeRendererAdapter implements RendererAdapter {
     }
   }
 
-  private _startRenderLoop(): void {
-    const loop = () => {
-      this.animationId = requestAnimationFrame(loop)
-      this.controls?.update()
-      this._render()
-    }
-    loop()
+  updateControls(): void {
+    this.controls?.update()
   }
 
   dispose(): void {
-    cancelAnimationFrame(this.animationId)
     this.observer?.disconnect()
     this.transformControls?.dispose()
     this.controls?.dispose()
