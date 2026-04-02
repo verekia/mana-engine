@@ -6,6 +6,9 @@ const collectedSet = new WeakSet<object>()
 /** Store base Y positions per entity for bobbing. */
 const baseYMap = new WeakMap<object, number>()
 
+/** Track accumulated spin angle per entity. */
+const spinAngleMap = new WeakMap<object, number>()
+
 export default {
   params: {
     spinSpeed: { type: 'number', default: 3 },
@@ -16,12 +19,13 @@ export default {
   init(ctx) {
     const pos = ctx.getPosition()
     baseYMap.set(ctx.entity as object, pos.y)
+    spinAngleMap.set(ctx.entity as object, 0)
   },
   update(ctx) {
     const entityObj = ctx.entity as object
     if (collectedSet.has(entityObj)) return
 
-    const { rigidBody, params, time } = ctx
+    const { rigidBody, params, time, dt } = ctx
     if (!rigidBody) return
 
     const spinSpeed = params.spinSpeed as number
@@ -29,8 +33,18 @@ export default {
     const bobSpeed = params.bobSpeed as number
     const collectRadius = params.collectRadius as number
 
-    // Spin the cube using angular velocity
-    rigidBody.setAngvel({ x: 0, y: spinSpeed, z: spinSpeed * 0.3 }, false)
+    // Spin the cube using rotation quaternion (works on all body types)
+    let angle = spinAngleMap.get(entityObj) ?? 0
+    angle += spinSpeed * dt
+    spinAngleMap.set(entityObj, angle)
+    // Tilted spin: rotate around a tilted axis (Y + slight Z)
+    const tilt = 0.3
+    const axisLen = Math.sqrt(1 + tilt * tilt)
+    const ay = 1 / axisLen
+    const az = tilt / axisLen
+    const halfAngle = angle / 2
+    const sinH = Math.sin(halfAngle)
+    rigidBody.setRotation({ x: 0, y: ay * sinH, z: az * sinH, w: Math.cos(halfAngle) }, false)
 
     // Bob up and down by setting position directly (kinematic body, no gravity)
     const pos = rigidBody.translation()
@@ -49,8 +63,9 @@ export default {
 
     if (dist < collectRadius) {
       collectedSet.add(entityObj)
+      // Move far away via physics so the transform sync hides it
+      rigidBody.setTranslation({ x: 0, y: -100, z: 0 }, false)
       rigidBody.setEnabled(false)
-      ctx.setPosition(0, -100, 0)
       document.dispatchEvent(new CustomEvent('mana:pickup-collected'))
     }
   },
