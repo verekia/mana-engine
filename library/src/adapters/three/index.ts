@@ -543,4 +543,20 @@ export class ThreeRendererAdapter implements RendererAdapter {
       quaternion: [obj.quaternion.x, obj.quaternion.y, obj.quaternion.z, obj.quaternion.w],
     }
   }
+
+  getEntityPosition(id: string): [number, number, number] | null {
+    const obj = this.maps.entityObjects.get(id)
+    if (!obj) return null
+    return [obj.position.x, obj.position.y, obj.position.z]
+  }
+
+  setEntityPosition(id: string, x: number, y: number, z: number): void {
+    const obj = this.maps.entityObjects.get(id)
+    if (obj) obj.position.set(x, y, z)
+  }
+
+  setEntityEulerRotation(id: string, x: number, y: number, z: number): void {
+    const obj = this.maps.entityObjects.get(id)
+    if (obj) obj.rotation.set(x, y, z)
+  }
 }

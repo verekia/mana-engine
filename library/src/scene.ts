@@ -134,6 +134,49 @@ export async function createScene(
     console.log(`[mana] Renderer: ${rendererName} | Physics: ${physicsName}`)
   }
 
+  // Build name → id lookup for findEntityPosition
+  const nameToId = new Map<string, string>()
+  if (sceneData) {
+    for (const entity of sceneData.entities) {
+      nameToId.set(entity.name, entity.id)
+    }
+  }
+
+  /** Build a ScriptContext with adapter-agnostic helpers. */
+  function makeCtx(
+    entityId: string,
+    dtVal: number,
+    timeVal: number,
+    inputVal: Input,
+    params: Record<string, number | string | boolean>,
+  ): import('./script.ts').ScriptContext {
+    return {
+      entity: renderer.getEntityNativeObject(entityId),
+      scene: renderer.getNativeScene(),
+      dt: dtVal,
+      time: timeVal,
+      rigidBody: physicsAdapter?.getBody(entityId),
+      input: inputVal,
+      params,
+      getPosition() {
+        const p = renderer.getEntityPosition(entityId)
+        return p ? { x: p[0], y: p[1], z: p[2] } : { x: 0, y: 0, z: 0 }
+      },
+      setPosition(x, y, z) {
+        renderer.setEntityPosition(entityId, x, y, z)
+      },
+      setRotation(x, y, z) {
+        renderer.setEntityEulerRotation(entityId, x, y, z)
+      },
+      findEntityPosition(name) {
+        const id = nameToId.get(name)
+        if (!id) return null
+        const p = renderer.getEntityPosition(id)
+        return p ? { x: p[0], y: p[1], z: p[2] } : null
+      },
+    }
+  }
+
   // Input system (play mode with scripts only)
   const input = scriptDefs && !enableOrbitControls ? new Input(canvas) : null
 
@@ -145,15 +188,7 @@ export async function createScene(
   // Run init() on all scripts
   for (const { script, entityId, params } of activeScripts) {
     if (!scriptInput) break
-    script.init?.({
-      entity: renderer.getEntityNativeObject(entityId),
-      scene: renderer.getNativeScene(),
-      dt: 0,
-      time: 0,
-      rigidBody: physicsAdapter?.getBody(entityId),
-      input: scriptInput,
-      params,
-    })
+    script.init?.(makeCtx(entityId, 0, 0, scriptInput, params))
   }
 
   let lastTime = performance.now() / 1000
@@ -178,15 +213,7 @@ export async function createScene(
 
       if (scriptInput) {
         for (const { script, entityId, params } of activeScripts) {
-          script.fixedUpdate?.({
-            entity: renderer.getEntityNativeObject(entityId),
-            scene: renderer.getNativeScene(),
-            dt: FIXED_DT,
-            time: elapsed,
-            rigidBody: physicsAdapter?.getBody(entityId),
-            input: scriptInput,
-            params,
-          })
+          script.fixedUpdate?.(makeCtx(entityId, FIXED_DT, elapsed, scriptInput, params))
         }
       }
       fixedAccumulator -= FIXED_DT
@@ -202,15 +229,7 @@ export async function createScene(
     // Variable update
     if (scriptInput) {
       for (const { script, entityId, params } of activeScripts) {
-        script.update?.({
-          entity: renderer.getEntityNativeObject(entityId),
-          scene: renderer.getNativeScene(),
-          dt,
-          time: elapsed,
-          rigidBody: physicsAdapter?.getBody(entityId),
-          input: scriptInput,
-          params,
-        })
+        script.update?.(makeCtx(entityId, dt, elapsed, scriptInput, params))
       }
     }
 

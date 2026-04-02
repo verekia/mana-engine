@@ -29,6 +29,17 @@ export interface ScriptContext {
   input: Input
   /** Script parameters configured in the editor */
   params: Record<string, number | string | boolean>
+
+  // ── Adapter-agnostic helpers ─────────────────────────────────────────────────
+
+  /** Get this entity's current position. */
+  getPosition(): { x: number; y: number; z: number }
+  /** Set this entity's position directly (bypasses physics). */
+  setPosition(x: number, y: number, z: number): void
+  /** Set this entity's rotation from Euler angles (radians). */
+  setRotation(x: number, y: number, z: number): void
+  /** Find another entity by name and return its position, or null if not found. */
+  findEntityPosition(name: string): { x: number; y: number; z: number } | null
 }
 
 export interface ManaScript {

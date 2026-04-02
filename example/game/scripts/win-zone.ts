@@ -1,21 +1,20 @@
 import type { ManaScript } from 'mana-engine/game'
-import type { Object3D, Scene } from 'three'
 
-let playerEntity: Object3D | null = null
 let triggered = false
 
 export default {
-  init(ctx) {
-    const scene = ctx.scene as Scene
-    playerEntity = scene.getObjectByName('Player') ?? null
+  init() {
     triggered = false
   },
   update(ctx) {
-    const entity = ctx.entity as Object3D
-    if (!playerEntity || triggered) return
+    if (triggered) return
 
-    const dx = playerEntity.position.x - entity.position.x
-    const dy = playerEntity.position.y - entity.position.y
+    const playerPos = ctx.findEntityPosition('Player')
+    if (!playerPos) return
+
+    const pos = ctx.getPosition()
+    const dx = playerPos.x - pos.x
+    const dy = playerPos.y - pos.y
     const dist = Math.sqrt(dx * dx + dy * dy)
 
     if (dist < 2) {

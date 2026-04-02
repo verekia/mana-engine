@@ -1,7 +1,6 @@
 import type { ManaScript } from 'mana-engine/game'
-import type { Object3D, Scene } from 'three'
 
-let playerEntity: Object3D | null = null
+let playerPos: { x: number; y: number; z: number } | null = null
 
 export default {
   params: {
@@ -10,43 +9,40 @@ export default {
     deadZoneY: { type: 'number', default: 1.5 },
   },
   init(ctx) {
-    const scene = ctx.scene as Scene
-    const entity = ctx.entity as Object3D
     const { params } = ctx
-    playerEntity = scene.getObjectByName('Player') ?? null
+    playerPos = ctx.findEntityPosition('Player')
     // Reset rotation to look straight down -Z (undo the engine's default lookAt)
-    entity.rotation.set(0, 0, 0)
-    if (playerEntity) {
-      entity.position.x = playerEntity.position.x
-      entity.position.y = playerEntity.position.y
-      entity.position.z = params.offsetZ as number
+    ctx.setRotation(0, 0, 0)
+    if (playerPos) {
+      ctx.setPosition(playerPos.x, playerPos.y, params.offsetZ as number)
     }
   },
   update(ctx) {
-    const entity = ctx.entity as Object3D
     const { params } = ctx
-    if (!playerEntity) return
+    playerPos = ctx.findEntityPosition('Player')
+    if (!playerPos) return
 
+    const pos = ctx.getPosition()
     const oz = params.offsetZ as number
     const dzX = params.deadZoneX as number
     const dzY = params.deadZoneY as number
 
-    const playerX = playerEntity.position.x
-    const playerY = playerEntity.position.y
+    let x = pos.x
+    let y = pos.y
 
     // Push camera when player exits the dead zone
-    if (playerX > entity.position.x + dzX) {
-      entity.position.x = playerX - dzX
-    } else if (playerX < entity.position.x - dzX) {
-      entity.position.x = playerX + dzX
+    if (playerPos.x > x + dzX) {
+      x = playerPos.x - dzX
+    } else if (playerPos.x < x - dzX) {
+      x = playerPos.x + dzX
     }
 
-    if (playerY > entity.position.y + dzY) {
-      entity.position.y = playerY - dzY
-    } else if (playerY < entity.position.y - dzY) {
-      entity.position.y = playerY + dzY
+    if (playerPos.y > y + dzY) {
+      y = playerPos.y - dzY
+    } else if (playerPos.y < y - dzY) {
+      y = playerPos.y + dzY
     }
 
-    entity.position.z = oz
+    ctx.setPosition(x, y, oz)
   },
 } satisfies ManaScript

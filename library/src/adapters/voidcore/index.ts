@@ -303,6 +303,24 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     }
   }
 
+  getEntityPosition(id: string): [number, number, number] | null {
+    const node = this.entityNodes.get(id)
+    if (!node) return null
+    return [node.position[0], node.position[1], node.position[2]]
+  }
+
+  setEntityPosition(id: string, x: number, y: number, z: number): void {
+    const node = this.entityNodes.get(id)
+    if (node) node.setPosition(x, y, z)
+  }
+
+  setEntityEulerRotation(id: string, x: number, y: number, z: number): void {
+    const node = this.entityNodes.get(id)
+    if (!node) return
+    const [qx, qy, qz, qw] = eulerToQuat(x, y, z)
+    node.setRotation(qx, qy, qz, qw)
+  }
+
   getEntityNativeObject(id: string): unknown {
     return this.entityNodes.get(id) ?? null
   }

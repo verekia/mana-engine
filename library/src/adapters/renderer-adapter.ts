@@ -75,6 +75,24 @@ export interface RendererAdapter {
   getEntityInitialPhysicsTransform(id: string): PhysicsTransform | null
 
   /**
+   * Return an entity's current position as [x, y, z].
+   * Used by scripts via ctx.getPosition() and ctx.findEntityPosition().
+   */
+  getEntityPosition(id: string): [number, number, number] | null
+
+  /**
+   * Set an entity's position directly (bypassing physics).
+   * Used by scripts via ctx.setPosition().
+   */
+  setEntityPosition(id: string, x: number, y: number, z: number): void
+
+  /**
+   * Set an entity's rotation from Euler angles [x, y, z] in radians.
+   * Used by scripts via ctx.setRotation().
+   */
+  setEntityEulerRotation(id: string, x: number, y: number, z: number): void
+
+  /**
    * Return the native object for a given entity ID so that scripts can
    * access renderer-specific APIs. The concrete type depends on the adapter
    * (e.g. `Object3D` for Three.js, a VoidCore node, etc.).
