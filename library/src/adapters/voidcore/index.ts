@@ -46,6 +46,22 @@ function eulerToQuat(ex: number, ey: number, ez: number): [number, number, numbe
   ]
 }
 
+/**
+ * Convert a Y-up position to VoidCore's Z-up coordinate system.
+ * Y-up (x, y, z) → Z-up (x, -z, y)
+ */
+function yUpToZUp(x: number, y: number, z: number): [number, number, number] {
+  return [x, -z, y]
+}
+
+/**
+ * Convert a VoidCore Z-up position back to Y-up.
+ * Z-up (x, y, z) → Y-up (x, z, -y)
+ */
+function zUpToYUp(x: number, y: number, z: number): [number, number, number] {
+  return [x, z, -y]
+}
+
 function applyTransform(node: Node, transform?: SceneEntity['transform']): void {
   if (!transform) return
   if (transform.position) {
@@ -76,19 +92,14 @@ function setClearColor(engine: Engine, r: number, g: number, b: number): void {
   if (renderer._blitPassCA) {
     renderer._blitPassCA.clearValue = { r, g, b, a: 1 }
   }
-  // WebGL2: patch the clear color call by storing it for use before render
-  if (renderer._clearColor) {
-    renderer._clearColor = [r, g, b, 1]
-  }
 }
 
 /**
  * RendererAdapter implementation backed by VoidCore.
  *
- * VoidCore is a lightweight WebGPU/WebGL2 renderer. This adapter implements
- * the full RendererAdapter interface: meshes, cameras, lights, transforms.
- * Features not yet available in VoidCore (GLTF models, editor gizmos,
- * raycasting, outline post-processing) are no-ops.
+ * VoidCore is a lightweight WebGPU/WebGL2 renderer with Z-up coordinates.
+ * Scene data is authored in Y-up; this adapter converts via a sceneRoot rotation.
+ * Geometries that have an inherent axis (capsule) are pre-rotated to match.
  */
 export class VoidcoreRendererAdapter implements RendererAdapter {
   private engine!: Engine
@@ -100,12 +111,13 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   private controls: OrbitControls | null = null
   private observer: ResizeObserver | null = null
   private enableOrbitControls = false
+  private isYUp = true
   private lastFrameTime = 0
 
   async init(canvas: HTMLCanvasElement, options: RendererAdapterOptions): Promise<void> {
     this.enableOrbitControls = options.orbitControls ?? false
 
-    this.engine = await Engine.create(canvas, { shadows: true })
+    this.engine = await Engine.create(canvas, { shadows: true, bloom: false })
     this.scene = new Scene()
     this.sceneRoot = new Group()
     this.scene.add(this.sceneRoot)
@@ -113,11 +125,14 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     // Editor camera with orbit controls
     if (this.enableOrbitControls) {
       this.camera = new PerspectiveCamera({ fov: 50, near: 0.1, far: 1000 })
+      // Default editor camera position — will be adjusted in loadScene if Y-up
+      this.camera.setPosition(5, 5, 10)
+
       const camState = options.editorCamera
       if (camState) {
+        // Editor camera state is always in scene coordinates (Y-up or Z-up).
+        // Coordinate conversion happens in loadScene once we know the coordinateSystem.
         this.camera.setPosition(camState.position[0], camState.position[1], camState.position[2])
-      } else {
-        this.camera.setPosition(5, 5, 10)
       }
 
       this.controls = new OrbitControls(this.camera, canvas)
@@ -160,11 +175,29 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
       setClearColor(this.engine, r, g, b)
     }
 
-    // Coordinate system: VoidCore is Y-up natively. For Z-up, rotate the root.
-    if (sceneData.coordinateSystem === 'z-up') {
+    this.isYUp = sceneData.coordinateSystem !== 'z-up'
+
+    // VoidCore is Z-up natively. When scene data is Y-up (default), rotate the
+    // sceneRoot +90° around X so scene-Y maps to world-Z (up).
+    // When scene data is Z-up, no rotation needed.
+    if (this.isYUp) {
       const axis = vec3Set(new Float32Array(3), 1, 0, 0)
-      quatFromAxisAngle(this.sceneRoot.rotation, axis, -Math.PI / 2)
+      quatFromAxisAngle(this.sceneRoot.rotation, axis, Math.PI / 2)
       this.sceneRoot.markTransformDirty()
+    }
+
+    // Convert editor camera from scene coords to VoidCore Z-up coords
+    if (this.enableOrbitControls && this.isYUp) {
+      const p = this.camera.position
+      const [cx, cy, cz] = yUpToZUp(p[0], p[1], p[2])
+      this.camera.setPosition(cx, cy, cz)
+
+      if (this.controls) {
+        const t = this.controls.target
+        const [tx, ty, tz] = yUpToZUp(t[0], t[1], t[2])
+        vec3Set(this.controls.target, tx, ty, tz)
+        this.controls.update(0)
+      }
     }
 
     this.gameCam = null
@@ -211,7 +244,8 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
       }
 
       case 'mesh': {
-        const geometry = this._createGeometry(entity.mesh?.geometry)
+        const geomType = entity.mesh?.geometry
+        const geometry = this._createGeometry(geomType)
         const color = entity.mesh?.material?.color
           ? hexToRgb(entity.mesh.material.color)
           : ([0.27, 0.53, 1] as [number, number, number])
@@ -221,12 +255,22 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
         })
         const mesh = new Mesh(geometry, material)
         mesh.castShadow = entity.castShadow ?? false
-        node = mesh
+
+        // VoidCore capsule extends along Z (its native up). In Y-up scene space,
+        // it should extend along Y, so pre-rotate -90° around X.
+        if (geomType === 'capsule' && this.isYUp) {
+          const [qx, qy, qz, qw] = eulerToQuat(-Math.PI / 2, 0, 0)
+          mesh.setRotation(qx, qy, qz, qw)
+          const wrapper = new Group()
+          wrapper.add(mesh)
+          node = wrapper
+        } else {
+          node = mesh
+        }
         break
       }
 
       case 'model': {
-        // GLTF loading not available in VoidCore yet — create placeholder group
         node = new Group()
         break
       }
@@ -253,13 +297,11 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
       }
 
       case 'point-light': {
-        // VoidCore has no PointLight — skip
         node = new Group()
         break
       }
 
       case 'ui': {
-        // UI entities have no visual representation
         return
       }
     }
@@ -279,10 +321,7 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
       case 'plane':
         return new PlaneGeometry()
       case 'capsule':
-        // VoidCore height is total height; with default radius 0.5, height must
-        // exceed 1.0 for a visible cylinder section (otherwise it's a sphere).
-        // Three.js CapsuleGeometry defaults: radius=1, length=1 → total=3.
-        // We match that: radius=0.5, height=2 → cylinder section=1.
+        // VoidCore height = total height. radius 0.5 + height 2 → cylinder section = 1.
         return new CapsuleGeometry({ radius: 0.5, height: 2 })
       default:
         return new BoxGeometry()
@@ -306,13 +345,11 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     if (!node) return
     applyTransform(node, entity.transform)
 
-    // Update material color
     if (entity.type === 'mesh' && node instanceof Mesh && entity.mesh?.material?.color) {
       ;(node.material as LambertMaterial).color = hexToRgb(entity.mesh.material.color)
       ;(node.material as LambertMaterial).needsUpdate = true
     }
 
-    // Update light properties
     if (node instanceof DirectionalLight || node instanceof AmbientLight) {
       if (entity.light?.color) node.color = hexToRgb(entity.light.color)
       if (entity.light?.intensity !== undefined) node.intensity = entity.light.intensity
@@ -372,7 +409,7 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     return this.scene
   }
 
-  // ── Editor stubs (no gizmo/selection support yet) ────────────────────────────
+  // ── Editor helpers ──────────────────────────────────────────────────────────
 
   setGizmos(_enabled: boolean): void {}
 
@@ -388,17 +425,32 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
 
   getEditorCamera(): EditorCameraState | null {
     if (!this.controls) return null
+    const p = this.camera.position
     const t = this.controls.target
+    // Convert from VoidCore Z-up back to scene coordinates
+    if (this.isYUp) {
+      return {
+        position: zUpToYUp(p[0], p[1], p[2]),
+        target: zUpToYUp(t[0], t[1], t[2]),
+      }
+    }
     return {
-      position: [this.camera.position[0], this.camera.position[1], this.camera.position[2]],
+      position: [p[0], p[1], p[2]],
       target: [t[0], t[1], t[2]],
     }
   }
 
   setEditorCamera(state: EditorCameraState): void {
     if (!this.controls) return
-    this.camera.setPosition(state.position[0], state.position[1], state.position[2])
-    vec3Set(this.controls.target, state.target[0], state.target[1], state.target[2])
+    if (this.isYUp) {
+      const [cx, cy, cz] = yUpToZUp(state.position[0], state.position[1], state.position[2])
+      const [tx, ty, tz] = yUpToZUp(state.target[0], state.target[1], state.target[2])
+      this.camera.setPosition(cx, cy, cz)
+      vec3Set(this.controls.target, tx, ty, tz)
+    } else {
+      this.camera.setPosition(state.position[0], state.position[1], state.position[2])
+      vec3Set(this.controls.target, state.target[0], state.target[1], state.target[2])
+    }
     this.controls.update(0)
   }
 
