@@ -119,7 +119,7 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   private raycastHits = [createRaycastHit()]
   private selectedIds = new Set<string>()
   /** Outline thickness for selected entities. */
-  private static readonly SELECTION_OUTLINE_THICKNESS = 3
+  private static readonly SELECTION_OUTLINE_THICKNESS = 0.1
   private static readonly SELECTION_OUTLINE_COLOR: [number, number, number] = [0.27, 0.53, 1]
 
   async init(canvas: HTMLCanvasElement, options: RendererAdapterOptions): Promise<void> {
