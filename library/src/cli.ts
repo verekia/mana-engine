@@ -281,9 +281,8 @@ async function runDev() {
   )
 
   const { aliases, threePath } = getManaAliases()
-  const manaRoot = resolve(dirname(new URL(import.meta.url).pathname), '..')
   const server = await createServer(
-    createDevConfig(manaRoot, gameDir, manaDir, aliases, resolvePackagePath('tailwindcss'), threePath),
+    createDevConfig(gameDir, manaDir, aliases, resolvePackagePath('tailwindcss'), threePath),
   )
   await server.listen()
   server.printUrls()
