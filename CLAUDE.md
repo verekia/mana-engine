@@ -34,12 +34,12 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 | Path                 | Renderer                   | Physics                             |
 | -------------------- | -------------------------- | ----------------------------------- |
 | `adapters/three/`    | Three.js (WebGPU renderer) | Rapier 3D (`RapierPhysicsAdapter`)  |
-| `adapters/void/`     | VoidCore (minimal, stub)   | —                                   |
+| `adapters/voidcore/` | VoidCore (minimal, stub)   | —                                   |
 | `adapters/crashcat/` | —                          | Crashcat (`CrashcatPhysicsAdapter`) |
 
 - `ThreeRendererAdapter` wraps the Three.js entity creation, OrbitControls, TransformControls, outline post-processing, and raycasting
 - `RapierPhysicsAdapter` wraps Rapier 3D world setup, rigid body/collider creation, and transform readback
-- `VoidRendererAdapter` is a stub for a minimal custom renderer (features added incrementally)
+- `VoidcoreRendererAdapter` is a stub for a minimal custom renderer (features added incrementally)
 - `CrashcatPhysicsAdapter` wraps Crashcat — a pure-JS physics engine (no WASM, synchronous init)
   - Shapes: box (`halfExtents`), sphere (`radius`), capsule (`halfHeightOfCylinder` + `radius`)
   - Motion types: static, kinematic, dynamic; DOF rotation locking via `lockRotation`
@@ -73,7 +73,7 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 - Running `mana editor`, `mana dev`, or `mana build` in a directory auto-scaffolds a new project if no `mana.json` or `mana.config.js` exists
 - Scaffolding creates: `mana.json`, `scenes/default.yaml` (camera + light + cube), `scripts/`, `ui/`, `assets/` dirs, and `game.css`
 - `mana.json` is the project config: `{ "gameDir": ".", "outDir": ".mana/build", "startScene": "default", "renderer": "three", "physics": "rapier", "coordinateSystem": "y-up" }`
-- `renderer` defaults to `"three"` (Three.js WebGPU); supported values: `"three"`, `"void"`
+- `renderer` defaults to `"three"` (Three.js WebGPU); supported values: `"three"`, `"voidcore"`
 - `physics` defaults to `"rapier"`; supported values: `"rapier"`, `"crashcat"`, `"none"`
 - `coordinateSystem` defaults to `"y-up"`; supported values: `"y-up"`, `"z-up"`
 - The CLI reads these and injects the correct adapter factories + `coordinateSystem` into the generated entry files — no manual adapter wiring needed

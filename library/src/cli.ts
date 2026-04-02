@@ -96,8 +96,8 @@ function generateAdapterCode(config: ManaConfig): string {
     lines.push(`import { ThreeRendererAdapter } from 'mana-engine/game'`)
     lines.push(`const createRenderer = () => new ThreeRendererAdapter()`)
   } else {
-    lines.push(`import { VoidRendererAdapter } from 'mana-engine/game'`)
-    lines.push(`const createRenderer = () => new VoidRendererAdapter()`)
+    lines.push(`import { VoidcoreRendererAdapter } from 'mana-engine/game'`)
+    lines.push(`const createRenderer = () => new VoidcoreRendererAdapter()`)
   }
 
   // Physics import + factory

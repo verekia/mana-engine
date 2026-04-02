@@ -14,9 +14,9 @@ import type { RendererAdapter, RendererAdapterOptions, EditorCameraState, Transf
  *
  * @see https://github.com/verekia/voidcore for the underlying renderer
  */
-export class VoidRendererAdapter implements RendererAdapter {
+export class VoidcoreRendererAdapter implements RendererAdapter {
   async init(_canvas: HTMLCanvasElement, _options: RendererAdapterOptions): Promise<void> {
-    console.warn('[mana] VoidRendererAdapter is not yet implemented.')
+    console.warn('[mana] VoidcoreRendererAdapter is not yet implemented.')
   }
 
   dispose(): void {}
