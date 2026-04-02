@@ -8,6 +8,7 @@ import {
   LambertMaterial,
   Mesh,
   type Node,
+  OrbitControls,
   PerspectiveCamera,
   PlaneGeometry,
   Scene,
@@ -60,6 +61,28 @@ function applyTransform(node: Node, transform?: SceneEntity['transform']): void 
 }
 
 /**
+ * Set the background clear color on VoidCore's internal renderer.
+ * VoidCore has no public API for this — we patch the internal clear values directly.
+ */
+function setClearColor(engine: Engine, r: number, g: number, b: number): void {
+  const renderer = engine.renderer as any
+  // WebGPU: patch the render pass clear values
+  if (renderer._opaquePassCA0) {
+    renderer._opaquePassCA0.clearValue = { r, g, b, a: 1 }
+  }
+  if (renderer._opaquePassCA1) {
+    renderer._opaquePassCA1.clearValue = { r, g, b, a: 1 }
+  }
+  if (renderer._blitPassCA) {
+    renderer._blitPassCA.clearValue = { r, g, b, a: 1 }
+  }
+  // WebGL2: patch the clear color call by storing it for use before render
+  if (renderer._clearColor) {
+    renderer._clearColor = [r, g, b, 1]
+  }
+}
+
+/**
  * RendererAdapter implementation backed by VoidCore.
  *
  * VoidCore is a lightweight WebGPU/WebGL2 renderer. This adapter implements
@@ -74,8 +97,10 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   private gameCam: PerspectiveCamera | null = null
   private sceneRoot!: Group
   private entityNodes = new Map<string, Node>()
+  private controls: OrbitControls | null = null
   private observer: ResizeObserver | null = null
   private enableOrbitControls = false
+  private lastFrameTime = 0
 
   async init(canvas: HTMLCanvasElement, options: RendererAdapterOptions): Promise<void> {
     this.enableOrbitControls = options.orbitControls ?? false
@@ -85,7 +110,7 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     this.sceneRoot = new Group()
     this.scene.add(this.sceneRoot)
 
-    // Editor camera
+    // Editor camera with orbit controls
     if (this.enableOrbitControls) {
       this.camera = new PerspectiveCamera({ fov: 50, near: 0.1, far: 1000 })
       const camState = options.editorCamera
@@ -94,8 +119,12 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
       } else {
         this.camera.setPosition(5, 5, 10)
       }
-      this.camera.lookAt([0, 0, 0])
-      this.scene.add(this.camera)
+
+      this.controls = new OrbitControls(this.camera, canvas)
+      if (camState) {
+        vec3Set(this.controls.target, camState.target[0], camState.target[1], camState.target[2])
+      }
+      this.controls.update(0)
     }
 
     // Resize handling
@@ -113,15 +142,24 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     if (initW > 0 && initH > 0 && this.camera) {
       this.camera.aspect = initW / initH
     }
+
+    this.lastFrameTime = performance.now() / 1000
   }
 
   dispose(): void {
     this.observer?.disconnect()
+    this.controls?.dispose()
     this.entityNodes.clear()
     this.engine?.dispose()
   }
 
   async loadScene(sceneData: SceneData): Promise<void> {
+    // Background color
+    if (sceneData.background) {
+      const [r, g, b] = hexToRgb(sceneData.background)
+      setClearColor(this.engine, r, g, b)
+    }
+
     // Coordinate system: VoidCore is Y-up natively. For Z-up, rotate the root.
     if (sceneData.coordinateSystem === 'z-up') {
       const axis = vec3Set(new Float32Array(3), 1, 0, 0)
@@ -241,7 +279,11 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
       case 'plane':
         return new PlaneGeometry()
       case 'capsule':
-        return new CapsuleGeometry()
+        // VoidCore height is total height; with default radius 0.5, height must
+        // exceed 1.0 for a visible cylinder section (otherwise it's a sphere).
+        // Three.js CapsuleGeometry defaults: radius=1, length=1 → total=3.
+        // We match that: radius=0.5, height=2 → cylinder section=1.
+        return new CapsuleGeometry({ radius: 0.5, height: 2 })
       default:
         return new BoxGeometry()
     }
@@ -345,19 +387,37 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   setTransformMode(_mode: TransformMode): void {}
 
   getEditorCamera(): EditorCameraState | null {
-    return null
+    if (!this.controls) return null
+    const t = this.controls.target
+    return {
+      position: [this.camera.position[0], this.camera.position[1], this.camera.position[2]],
+      target: [t[0], t[1], t[2]],
+    }
   }
 
-  setEditorCamera(_state: EditorCameraState): void {}
+  setEditorCamera(state: EditorCameraState): void {
+    if (!this.controls) return
+    this.camera.setPosition(state.position[0], state.position[1], state.position[2])
+    vec3Set(this.controls.target, state.target[0], state.target[1], state.target[2])
+    this.controls.update(0)
+  }
 
-  updateControls(): void {}
+  updateControls(): void {
+    if (!this.controls) return
+    const now = performance.now() / 1000
+    const dt = now - this.lastFrameTime
+    this.lastFrameTime = now
+    this.controls.update(dt)
+  }
 
   render(): void {
     if (!this.engine || !this.camera) return
-    // VoidCore only computes _viewMatrix via OrbitControls.
-    // Without orbit controls we derive it from the camera's world matrix.
-    this.scene.updateGraph()
-    mat4Invert(this.camera._viewMatrix, this.camera._worldMatrix)
+    // Without orbit controls (play mode), derive view matrix from world matrix.
+    // OrbitControls sets _viewMatrix directly via mat4LookAt.
+    if (!this.controls) {
+      this.scene.updateGraph()
+      mat4Invert(this.camera._viewMatrix, this.camera._worldMatrix)
+    }
     this.engine.render(this.scene, this.camera)
   }
 }
