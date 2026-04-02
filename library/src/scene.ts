@@ -8,9 +8,6 @@ import type { ManaScript } from './script.ts'
 // Re-export adapter types so existing consumers can keep importing from 'scene.ts'
 export type { EditorCameraState, TransformMode } from './adapters/renderer-adapter.ts'
 
-// Re-export Rapier types for scripts that use the Three.js adapter
-export type { RapierModule, RapierRigidBody } from './adapters/three/index.ts'
-
 export interface ManaScene {
   dispose(): void
   updateEntity(id: string, entity: SceneEntity): void
@@ -128,24 +125,7 @@ export async function createScene(
   let physicsAdapter: PhysicsAdapter | null = null
   if (sceneData && !enableOrbitControls && options.physics) {
     physicsAdapter = options.physics
-    await physicsAdapter.init(sceneData, id => {
-      // Query the renderer for the initial world transform of each entity
-      const obj = renderer.getEntityNativeObject(id) as any
-      if (!obj) return null
-      // Support Three.js Object3D duck-typed interface
-      if (obj.position && obj.quaternion) {
-        return {
-          position: [obj.position.x, obj.position.y, obj.position.z] as [number, number, number],
-          quaternion: [obj.quaternion.x, obj.quaternion.y, obj.quaternion.z, obj.quaternion.w] as [
-            number,
-            number,
-            number,
-            number,
-          ],
-        }
-      }
-      return null
-    })
+    await physicsAdapter.init(sceneData, id => renderer.getEntityInitialPhysicsTransform(id))
   }
 
   // Input system (play mode with scripts only)

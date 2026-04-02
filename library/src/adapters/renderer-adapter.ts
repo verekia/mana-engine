@@ -1,4 +1,5 @@
 import type { SceneData, SceneEntity, Transform } from '../scene-data.ts'
+import type { PhysicsTransform } from './physics-adapter.ts'
 
 export type TransformMode = 'translate' | 'rotate' | 'scale'
 
@@ -66,6 +67,12 @@ export interface RendererAdapter {
     position: [number, number, number],
     quaternion: [number, number, number, number],
   ): void
+
+  /**
+   * Return the initial world-space transform of an entity for physics seeding.
+   * Called during physics init to position rigid bodies at their authored locations.
+   */
+  getEntityInitialPhysicsTransform(id: string): PhysicsTransform | null
 
   /**
    * Return the native object for a given entity ID so that scripts can

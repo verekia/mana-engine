@@ -34,7 +34,7 @@ export default function Editor({
 }: {
   uiComponents?: Record<string, ComponentType>
   scripts?: Record<string, ManaScript>
-  createRenderer?: () => RendererAdapter
+  createRenderer: () => RendererAdapter
   createPhysics?: () => PhysicsAdapter
   coordinateSystem?: 'y-up' | 'z-up'
 }) {

@@ -544,7 +544,3 @@ export class ThreeRendererAdapter implements RendererAdapter {
     }
   }
 }
-
-// Re-export physics adapter so consumers can import from one place
-export { RapierPhysicsAdapter } from './three-physics.ts'
-export type { RapierModule, RapierRigidBody } from './three-physics.ts'

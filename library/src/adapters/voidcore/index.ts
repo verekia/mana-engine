@@ -1,4 +1,5 @@
 import type { SceneData, SceneEntity } from '../../scene-data.ts'
+import type { PhysicsTransform } from '../physics-adapter.ts'
 import type { RendererAdapter, RendererAdapterOptions, EditorCameraState, TransformMode } from '../renderer-adapter.ts'
 
 /**
@@ -36,6 +37,10 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     _position: [number, number, number],
     _quaternion: [number, number, number, number],
   ): void {}
+
+  getEntityInitialPhysicsTransform(_id: string): PhysicsTransform | null {
+    return null
+  }
 
   getEntityNativeObject(_id: string): unknown {
     return null

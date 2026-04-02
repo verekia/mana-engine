@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react'
 
-import { ThreeRendererAdapter, RapierPhysicsAdapter } from '../adapters/three/index.ts'
 import { createScene, type CreateSceneOptions, type EditorCameraState, type ManaScene } from '../scene.ts'
 
 import type { PhysicsAdapter } from '../adapters/physics-adapter.ts'
 import type { RendererAdapter } from '../adapters/renderer-adapter.ts'
 import type { SceneData } from '../scene-data.ts'
 import type { ManaScript } from '../script.ts'
-
-const defaultCreateRenderer = () => new ThreeRendererAdapter() as RendererAdapter
-const defaultCreatePhysics = () => new RapierPhysicsAdapter() as PhysicsAdapter
 
 /** Encapsulates the renderer scene lifecycle for the editor, including creation, disposal, and recreation. */
 export function useEditorScene({
@@ -18,8 +14,8 @@ export function useEditorScene({
   scripts,
   showGizmos,
   transformMode,
-  createRenderer = defaultCreateRenderer,
-  createPhysics = defaultCreatePhysics,
+  createRenderer,
+  createPhysics,
   coordinateSystem,
   onTransformStart,
   onTransformChange,
@@ -30,7 +26,7 @@ export function useEditorScene({
   scripts: Record<string, ManaScript>
   showGizmos: boolean
   transformMode: string
-  createRenderer?: () => RendererAdapter
+  createRenderer: () => RendererAdapter
   createPhysics?: () => PhysicsAdapter
   coordinateSystem?: 'y-up' | 'z-up'
   onTransformStart: (id: string) => void
@@ -100,7 +96,7 @@ export function useEditorScene({
       const sceneWithCoords = coordinateSystem ? { ...data, coordinateSystem } : data
       const opts: CreateSceneOptions = {
         renderer,
-        physics: isPlaying ? createPhysics() : undefined,
+        physics: isPlaying ? createPhysics?.() : undefined,
         scripts: isPlaying ? scripts : undefined,
         orbitControls: !isPlaying,
         editorCamera: !isPlaying ? editorCamera : undefined,

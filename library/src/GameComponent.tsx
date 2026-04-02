@@ -1,6 +1,5 @@
 import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { ThreeRendererAdapter, RapierPhysicsAdapter } from './adapters/three/index.ts'
 import { ManaContext } from './scene-context.ts'
 import { createScene } from './scene.ts'
 
@@ -9,23 +8,20 @@ import type { RendererAdapter } from './adapters/renderer-adapter.ts'
 import type { SceneData } from './scene-data.ts'
 import type { ManaScript } from './script.ts'
 
-const defaultCreateRenderer = () => new ThreeRendererAdapter() as RendererAdapter
-const defaultCreatePhysics = () => new RapierPhysicsAdapter() as PhysicsAdapter
-
 export function Game({
   scenes,
   scripts,
   uiComponents,
   startScene,
-  createRenderer = defaultCreateRenderer,
-  createPhysics = defaultCreatePhysics,
+  createRenderer,
+  createPhysics,
   coordinateSystem,
 }: {
   scenes: Record<string, SceneData>
   scripts?: Record<string, ManaScript>
   uiComponents?: Record<string, ComponentType>
   startScene?: string
-  createRenderer?: () => RendererAdapter
+  createRenderer: () => RendererAdapter
   createPhysics?: (() => PhysicsAdapter) | undefined
   coordinateSystem?: 'y-up' | 'z-up'
 }) {

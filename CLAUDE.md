@@ -18,7 +18,7 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 
 ### RendererAdapter (`library/src/adapters/renderer-adapter.ts`)
 
-- Defines all rendering operations: `init`, `loadScene`, `addEntity`, `removeEntity`, `updateEntity`, `setEntityVisible`, `setEntityPhysicsTransform`, `getEntityNativeObject`, `getNativeScene`
+- Defines all rendering operations: `init`, `loadScene`, `addEntity`, `removeEntity`, `updateEntity`, `setEntityVisible`, `setEntityPhysicsTransform`, `getEntityInitialPhysicsTransform`, `getEntityNativeObject`, `getNativeScene`
 - Editor-specific: `setGizmos`, `setSelectedEntities`, `raycast`, `setTransformTarget`, `setTransformMode`, `getEditorCamera`, `setEditorCamera`
 - Implementations live in `library/src/adapters/<name>/index.ts`
 
@@ -31,21 +31,26 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 
 ### Available Adapters
 
-| Path                 | Renderer                   | Physics                             |
-| -------------------- | -------------------------- | ----------------------------------- |
-| `adapters/three/`    | Three.js (WebGPU renderer) | Rapier 3D (`RapierPhysicsAdapter`)  |
-| `adapters/voidcore/` | VoidCore (minimal, stub)   | —                                   |
-| `adapters/crashcat/` | —                          | Crashcat (`CrashcatPhysicsAdapter`) |
+Each adapter lives in its own directory under `library/src/adapters/<name>/index.ts`. Renderers and physics engines are fully independent — any renderer can be combined with any physics adapter.
 
-- `ThreeRendererAdapter` wraps the Three.js entity creation, OrbitControls, TransformControls, outline post-processing, and raycasting
-- `RapierPhysicsAdapter` wraps Rapier 3D world setup, rigid body/collider creation, and transform readback
+| Path                 | Type     | Library                              |
+| -------------------- | -------- | ------------------------------------ |
+| `adapters/three/`    | Renderer | Three.js (WebGPU renderer)           |
+| `adapters/voidcore/` | Renderer | VoidCore (minimal, stub)             |
+| `adapters/rapier/`   | Physics  | Rapier 3D (WASM, async init)         |
+| `adapters/crashcat/` | Physics  | Crashcat (pure JS, synchronous init) |
+
+- `ThreeRendererAdapter` wraps Three.js entity creation, OrbitControls, TransformControls, outline post-processing, and raycasting
 - `VoidcoreRendererAdapter` is a stub for a minimal custom renderer (features added incrementally)
+- `RapierPhysicsAdapter` wraps Rapier 3D world setup, rigid body/collider creation, and transform readback
 - `CrashcatPhysicsAdapter` wraps Crashcat — a pure-JS physics engine (no WASM, synchronous init)
   - Shapes: box (`halfExtents`), sphere (`radius`), capsule (`halfHeightOfCylinder` + `radius`)
   - Motion types: static, kinematic, dynamic; DOF rotation locking via `lockRotation`
   - `getTransforms()` skips sleeping bodies for efficiency
   - Uses two-layer broadphase: static and dynamic object layers
   - `CrashcatRigidBody` and `CrashcatWorld` type aliases exported for script use
+- `GameComponent.tsx` and the editor have NO hardcoded adapter defaults — adapters are always injected via the CLI-generated entry files based on `mana.json` config
+- `ManaRigidBody` interface abstracts physics bodies: `translation()`, `linvel()`, `setTranslation()`, `setLinvel()` — scripts use this generic API and work with both Rapier and Crashcat
 
 ### createScene API
 
@@ -54,8 +59,10 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 - Calls `renderer.init(canvas, ...)` then `renderer.loadScene(sceneData)`
 - If a `physics` adapter is provided (play mode only), calls `physics.init(sceneData, getInitialTransform)` seeded from the renderer
 - Runs the animation loop: fixed-step physics + scripts, variable-rate update, renderer-driven render
-- `ScriptContext.entity`, `.scene`, and `.rigidBody` are typed as `unknown` — scripts cast to adapter-specific types (e.g. `ctx.entity as Object3D` for Three.js)
-- `RapierModule` and `RapierRigidBody` type aliases are re-exported from `scene.ts` (originally from `adapters/three/three-physics.ts`) for convenience
+- `ScriptContext.entity` and `.scene` are typed as `unknown` — scripts cast to adapter-specific types (e.g. `ctx.entity as Object3D` for Three.js)
+- `ScriptContext.rigidBody` is typed as `ManaRigidBody | undefined` — the adapter-agnostic interface, no casting needed
+- `RapierModule` and `RapierRigidBody` type aliases are exported from `adapters/rapier/index.ts` and re-exported from `game.ts`
+- Physics init uses `renderer.getEntityInitialPhysicsTransform(id)` — no duck-typing of renderer-specific objects
 
 ### Coordinate System
 
@@ -213,8 +220,8 @@ Always run `bun install` first to ensure dependencies (including CLI tools like 
 
 ## Rapier Types
 
-- `RapierModule` and `RapierRigidBody` type aliases are defined in `adapters/three/three-physics.ts` and re-exported from `scene.ts` and `game.ts`
-- These centralize the dynamically-imported Rapier types so Three.js adapter scripts can use them without `any`
+- `RapierModule` and `RapierRigidBody` type aliases are defined in `adapters/rapier/index.ts` and re-exported from `game.ts`
+- These centralize the dynamically-imported Rapier types so adapter-specific scripts can use them without `any`
 - Physics runs independently of scripts — if entities have `rigidBody` components, physics steps even without scripts attached
 
 ## Stack
