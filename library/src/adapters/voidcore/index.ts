@@ -186,18 +186,21 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
       this.sceneRoot.markTransformDirty()
     }
 
-    // Convert editor camera from scene coords to VoidCore Z-up coords
-    if (this.enableOrbitControls && this.isYUp) {
+    // Convert editor camera from Y-up scene coords to VoidCore Z-up.
+    // Must set azimuth/elevation/distance directly — update() recomputes position from them.
+    if (this.enableOrbitControls && this.controls && this.isYUp) {
       const p = this.camera.position
+      const t = this.controls.target
       const [cx, cy, cz] = yUpToZUp(p[0], p[1], p[2])
-      this.camera.setPosition(cx, cy, cz)
-
-      if (this.controls) {
-        const t = this.controls.target
-        const [tx, ty, tz] = yUpToZUp(t[0], t[1], t[2])
-        vec3Set(this.controls.target, tx, ty, tz)
-        this.controls.update(0)
-      }
+      const [tx, ty, tz] = yUpToZUp(t[0], t[1], t[2])
+      vec3Set(this.controls.target, tx, ty, tz)
+      const dx = cx - tx,
+        dy = cy - ty,
+        dz = cz - tz
+      this.controls.distance = Math.sqrt(dx * dx + dy * dy + dz * dz)
+      this.controls.elevation = Math.asin(Math.max(-1, Math.min(1, dz / this.controls.distance)))
+      this.controls.azimuth = Math.atan2(dy, dx)
+      this.controls.update(0)
     }
 
     this.gameCam = null
@@ -442,15 +445,21 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
 
   setEditorCamera(state: EditorCameraState): void {
     if (!this.controls) return
+    let cx: number, cy: number, cz: number, tx: number, ty: number, tz: number
     if (this.isYUp) {
-      const [cx, cy, cz] = yUpToZUp(state.position[0], state.position[1], state.position[2])
-      const [tx, ty, tz] = yUpToZUp(state.target[0], state.target[1], state.target[2])
-      this.camera.setPosition(cx, cy, cz)
-      vec3Set(this.controls.target, tx, ty, tz)
+      ;[cx, cy, cz] = yUpToZUp(state.position[0], state.position[1], state.position[2])
+      ;[tx, ty, tz] = yUpToZUp(state.target[0], state.target[1], state.target[2])
     } else {
-      this.camera.setPosition(state.position[0], state.position[1], state.position[2])
-      vec3Set(this.controls.target, state.target[0], state.target[1], state.target[2])
+      ;[cx, cy, cz] = state.position
+      ;[tx, ty, tz] = state.target
     }
+    vec3Set(this.controls.target, tx, ty, tz)
+    const dx = cx - tx,
+      dy = cy - ty,
+      dz = cz - tz
+    this.controls.distance = Math.sqrt(dx * dx + dy * dy + dz * dz)
+    this.controls.elevation = Math.asin(Math.max(-1, Math.min(1, dz / this.controls.distance)))
+    this.controls.azimuth = Math.atan2(dy, dx)
     this.controls.update(0)
   }
 
