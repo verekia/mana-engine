@@ -30,8 +30,8 @@
     "react-dom": "19.2.4",
     "tailwindcss": "4.2.2",
     "three": "0.183.2",
-    "voidcore": "0.0.14",
-    "vite": "8.0.2"
+    "vite": "8.0.2",
+    "voidcore": "0.0.14"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
