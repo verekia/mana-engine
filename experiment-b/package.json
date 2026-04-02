@@ -1,0 +1,13 @@
+{
+  "name": "experiment-b",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite"
+  },
+  "devDependencies": {
+    "@webgpu/types": "0.1.61",
+    "typescript": "5.8.3",
+    "vite": "8.0.2"
+  }
+}

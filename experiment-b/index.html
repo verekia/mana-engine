@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Experiment B — WebGPU Cube Stress Test</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: #000;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+      #hud {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        font: 14px/1.6 monospace;
+        color: #0f0;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 8px 14px;
+        border-radius: 6px;
+        pointer-events: none;
+        user-select: none;
+        z-index: 10;
+      }
+      #controls {
+        position: fixed;
+        top: 12px;
+        right: 12px;
+        font: 13px/1.6 monospace;
+        color: #ccc;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 8px 14px;
+        border-radius: 6px;
+        z-index: 10;
+        user-select: none;
+      }
+      #controls button {
+        font: inherit;
+        color: #fff;
+        background: #333;
+        border: 1px solid #555;
+        border-radius: 4px;
+        padding: 2px 10px;
+        cursor: pointer;
+        margin: 0 2px;
+      }
+      #controls button:hover {
+        background: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <div id="hud"></div>
+    <div id="controls">
+      <button id="sub10k">−10 000</button>
+      <button id="sub1k">−1 000</button>
+      <button id="add1k">+1 000</button>
+      <button id="add10k">+10 000</button>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

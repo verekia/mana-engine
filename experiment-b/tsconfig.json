@@ -6,10 +6,7 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true
+    "types": ["@webgpu/types"]
   },
-  "references": [{ "path": "library" }, { "path": "example" }, { "path": "experiment-b" }],
-  "files": []
+  "include": ["src"]
 }

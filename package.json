@@ -3,7 +3,8 @@
   "private": true,
   "workspaces": [
     "library",
-    "example"
+    "example",
+    "experiment-b"
   ],
   "type": "module",
   "scripts": {
@@ -17,7 +18,8 @@
     "dev": "bun run --filter 'example' dev:game",
     "dev:host": "bun run --filter 'example' dev:host",
     "build": "bun run --filter 'mana-engine' build && bun run --filter 'example' build",
-    "start": "bun run --filter 'example' start"
+    "start": "bun run --filter 'example' start",
+    "dev:experiment-b": "bun run --filter 'experiment-b' dev"
   },
   "devDependencies": {
     "@typescript/native-preview": "7.0.0-dev.20260322.1",
