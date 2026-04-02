@@ -123,8 +123,10 @@ export class ThreeRendererAdapter implements RendererAdapter {
       const h = canvas.clientHeight
       if (canvas.width !== w || canvas.height !== h) {
         this.renderer.setSize(w, h, false)
-        this.camera.aspect = w / h
-        this.camera.updateProjectionMatrix()
+        if (this.camera) {
+          this.camera.aspect = w / h
+          this.camera.updateProjectionMatrix()
+        }
         this.render()
       }
     })
@@ -134,8 +136,10 @@ export class ThreeRendererAdapter implements RendererAdapter {
     const initH = canvas.clientHeight
     if (initW > 0 && initH > 0) {
       this.renderer.setSize(initW, initH, false)
-      this.camera.aspect = initW / initH
-      this.camera.updateProjectionMatrix()
+      if (this.camera) {
+        this.camera.aspect = initW / initH
+        this.camera.updateProjectionMatrix()
+      }
     }
   }
 
@@ -291,6 +295,13 @@ export class ThreeRendererAdapter implements RendererAdapter {
         this.gameCam.lookAt(0, 0, 0)
       }
       this.camera = this.gameCam
+      // Sync aspect ratio to the current canvas size (init ran before the camera existed)
+      const w = this.renderer.domElement.clientWidth
+      const h = this.renderer.domElement.clientHeight
+      if (w > 0 && h > 0) {
+        this.camera.aspect = w / h
+        this.camera.updateProjectionMatrix()
+      }
     }
   }
 
