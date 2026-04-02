@@ -87,6 +87,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
   private selectionColor = new Color(0x4488ff)
   private raycastTargets: Object3D[] = []
   private raycastObjectToEntity = new Map<Object3D, string>()
+  private sceneRoot!: Group
   private observer: ResizeObserver | null = null
   private options: RendererAdapterOptions = {}
   private enableOrbitControls = false
@@ -100,6 +101,8 @@ export class ThreeRendererAdapter implements RendererAdapter {
     this.renderer = await getOrCreateRenderer(canvas)
     this.threeScene = new Scene()
     this.threeScene.background = new Color('#111111')
+    this.sceneRoot = new Group()
+    this.threeScene.add(this.sceneRoot)
 
     // Set up camera
     if (this.enableOrbitControls) {
@@ -241,10 +244,10 @@ export class ThreeRendererAdapter implements RendererAdapter {
     for (const wireframe of this.maps.debugWireframes.values()) {
       wireframe.geometry.dispose()
       ;(wireframe.material as LineBasicMaterial).dispose()
-      this.threeScene.remove(wireframe)
+      wireframe.parent?.remove(wireframe)
     }
     for (const helper of this.maps.gizmoHelpers.values()) {
-      this.threeScene.remove(helper)
+      helper.parent?.remove(helper)
       helper.traverse(child => {
         if ('geometry' in child) (child as Mesh).geometry?.dispose()
         if ('material' in child) {
@@ -263,10 +266,14 @@ export class ThreeRendererAdapter implements RendererAdapter {
 
   async loadScene(sceneData: SceneData): Promise<void> {
     this.threeScene.background = new Color(sceneData.background ?? '#111111')
+    // Rotate sceneRoot so entities authored in the project's coordinate system render correctly.
+    // Three.js is Y-up natively; a Z-up project rotates the root -90° around X so the visual
+    // "up" axis matches without any per-entity coordinate conversion.
+    this.sceneRoot.rotation.x = sceneData.coordinateSystem === 'z-up' ? -Math.PI / 2 : 0
     this.gameCam = null
 
     for (const entity of sceneData.entities) {
-      const obj = createThreeEntityObject(entity, this.threeScene, this.maps, {
+      const obj = createThreeEntityObject(entity, this.sceneRoot, this.maps, {
         enableOrbitControls: this.enableOrbitControls,
         showGizmos: this.showGizmos,
         renderer: this.renderer,
@@ -288,7 +295,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
   }
 
   async addEntity(entity: SceneEntity): Promise<void> {
-    createThreeEntityObject(entity, this.threeScene, this.maps, {
+    createThreeEntityObject(entity, this.sceneRoot, this.maps, {
       enableOrbitControls: this.enableOrbitControls,
       showGizmos: this.showGizmos,
       renderer: this.renderer,
@@ -301,20 +308,20 @@ export class ThreeRendererAdapter implements RendererAdapter {
     }
     const obj = this.maps.entityObjects.get(id)
     if (obj) {
-      this.threeScene.remove(obj)
+      obj.parent?.remove(obj)
       disposeEntityObject(obj)
       this.maps.entityObjects.delete(id)
     }
     const wireframe = this.maps.debugWireframes.get(id)
     if (wireframe) {
-      this.threeScene.remove(wireframe)
+      wireframe.parent?.remove(wireframe)
       wireframe.geometry.dispose()
       ;(wireframe.material as LineBasicMaterial).dispose()
       this.maps.debugWireframes.delete(id)
     }
     const helper = this.maps.gizmoHelpers.get(id)
     if (helper) {
-      this.threeScene.remove(helper)
+      helper.parent?.remove(helper)
       this.maps.gizmoHelpers.delete(id)
     }
   }
@@ -327,14 +334,14 @@ export class ThreeRendererAdapter implements RendererAdapter {
     const oldWireframe = this.maps.debugWireframes.get(id)
     if (entity.collider && this.showGizmos) {
       if (oldWireframe) {
-        this.threeScene.remove(oldWireframe)
+        oldWireframe.parent?.remove(oldWireframe)
         oldWireframe.geometry.dispose()
         ;(oldWireframe.material as LineBasicMaterial).dispose()
       }
       const newWireframe = createColliderWireframe(entity.collider)
       newWireframe.position.copy(obj.position)
       newWireframe.rotation.copy(obj.rotation)
-      this.threeScene.add(newWireframe)
+      this.sceneRoot.add(newWireframe)
       this.maps.debugWireframes.set(id, newWireframe)
     } else if (oldWireframe) {
       oldWireframe.position.copy(obj.position)

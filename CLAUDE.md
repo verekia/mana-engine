@@ -31,11 +31,11 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 
 ### Available Adapters
 
-| Path                  | Renderer                   | Physics                              |
-| --------------------- | -------------------------- | ------------------------------------ |
-| `adapters/three/`     | Three.js (WebGPU renderer) | Rapier 3D (`RapierPhysicsAdapter`)   |
-| `adapters/void/`      | VoidCore (minimal, stub)   | —                                    |
-| `adapters/crashcat/`  | —                          | Crashcat (`CrashcatPhysicsAdapter`)  |
+| Path                 | Renderer                   | Physics                             |
+| -------------------- | -------------------------- | ----------------------------------- |
+| `adapters/three/`    | Three.js (WebGPU renderer) | Rapier 3D (`RapierPhysicsAdapter`)  |
+| `adapters/void/`     | VoidCore (minimal, stub)   | —                                   |
+| `adapters/crashcat/` | —                          | Crashcat (`CrashcatPhysicsAdapter`) |
 
 - `ThreeRendererAdapter` wraps the Three.js entity creation, OrbitControls, TransformControls, outline post-processing, and raycasting
 - `RapierPhysicsAdapter` wraps Rapier 3D world setup, rigid body/collider creation, and transform readback
@@ -60,7 +60,11 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 ### Coordinate System
 
 - `SceneData.coordinateSystem` can be `'y-up'` (default, Three.js / glTF) or `'z-up'` (Blender, CAD)
-- Renderer adapters must respect this when orienting the default camera, grid, and gizmos
+- This is a **project-level abstraction**: users author positions/rotations in their chosen coordinate system and never need to know which axis a given renderer uses internally
+- `ThreeRendererAdapter` implements this via a `sceneRoot: Group` — when `z-up`, `sceneRoot.rotation.x = -π/2` converts the entire scene to Three.js world space automatically
+- Entity local positions/rotations stay in scene-coordinate space throughout: `snapshotTransform`, `getEntityInitialPhysicsTransform`, and `setEntityPhysicsTransform` all operate in the scene coordinate system
+- Physics adapters receive and return transforms in the scene coordinate system; they are coordinate-agnostic (gravity direction is the only configuration needed for Z-up)
+- Renderer adapters must apply this convention in their `loadScene()` implementation
 
 ## Project Structure & Auto-Discovery
 

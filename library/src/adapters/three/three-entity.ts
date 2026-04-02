@@ -17,7 +17,6 @@ import {
   PlaneGeometry,
   PointLight,
   PointLightHelper,
-  type Scene,
   SphereGeometry,
   TextureLoader,
   type WebGPURenderer,
@@ -184,7 +183,7 @@ export function applyShadowProps(obj: Object3D, entity: SceneEntity) {
 /** Creates a Three.js object from a scene entity and registers it in the entity maps. */
 export function createThreeEntityObject(
   entity: SceneEntity,
-  threeScene: Scene,
+  scene: Object3D,
   maps: ThreeEntityMaps,
   options: { enableOrbitControls: boolean; showGizmos: boolean; renderer?: WebGPURenderer },
 ): Object3D | null {
@@ -200,11 +199,11 @@ export function createThreeEntityObject(
       )
       applyTransform(cam, entity.transform)
       cam.lookAt(0, 0, 0)
-      if (options.enableOrbitControls) threeScene.add(cam)
+      if (options.enableOrbitControls) scene.add(cam)
       obj = cam
       const camHelper = new CameraHelper(cam)
       camHelper.visible = options.showGizmos
-      threeScene.add(camHelper)
+      scene.add(camHelper)
       maps.gizmoHelpers.set(entity.id, camHelper)
       break
     }
@@ -215,14 +214,14 @@ export function createThreeEntityObject(
       const mesh = new Mesh(geometry, material)
       applyTransform(mesh, entity.transform)
       applyShadowProps(mesh, entity)
-      threeScene.add(mesh)
+      scene.add(mesh)
       obj = mesh
       break
     }
     case 'model': {
       const group = new Group()
       applyTransform(group, entity.transform)
-      threeScene.add(group)
+      scene.add(group)
       obj = group
       const modelSrc = entity.model?.src
       if (modelSrc) {
@@ -262,11 +261,11 @@ export function createThreeEntityObject(
         light.shadow.camera.top = 10
         light.shadow.camera.bottom = -10
       }
-      threeScene.add(light)
+      scene.add(light)
       obj = light
       const dlHelper = new DirectionalLightHelper(light, 1)
       dlHelper.visible = options.showGizmos
-      threeScene.add(dlHelper)
+      scene.add(dlHelper)
       maps.gizmoHelpers.set(entity.id, dlHelper)
       break
     }
@@ -278,17 +277,17 @@ export function createThreeEntityObject(
         light.shadow.mapSize.width = 1024
         light.shadow.mapSize.height = 1024
       }
-      threeScene.add(light)
+      scene.add(light)
       obj = light
       const plHelper = new PointLightHelper(light, 0.5)
       plHelper.visible = options.showGizmos
-      threeScene.add(plHelper)
+      scene.add(plHelper)
       maps.gizmoHelpers.set(entity.id, plHelper)
       break
     }
     case 'ambient-light': {
       const light = new AmbientLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 0.3)
-      threeScene.add(light)
+      scene.add(light)
       obj = light
       break
     }
@@ -306,7 +305,7 @@ export function createThreeEntityObject(
       wireframe.rotation.copy(obj.rotation)
     }
     wireframe.visible = options.showGizmos
-    threeScene.add(wireframe)
+    scene.add(wireframe)
     maps.debugWireframes.set(entity.id, wireframe)
   }
 
