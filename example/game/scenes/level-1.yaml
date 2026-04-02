@@ -117,7 +117,7 @@ entities:
     type: mesh
     transform: { position: [5, 2.5, 0], scale: [0.5, 0.5, 0.5] }
     mesh: { geometry: box, material: { color: '#00e5ff' } }
-    rigidBody: { type: dynamic, lockRotation: [false, false, false] }
+    rigidBody: { type: kinematic }
     collider: { shape: box, halfExtents: [0.25, 0.25, 0.25] }
     castShadow: true
     scripts: [{ name: pickup }]
@@ -127,7 +127,7 @@ entities:
     type: mesh
     transform: { position: [10, 4, 0], scale: [0.5, 0.5, 0.5] }
     mesh: { geometry: box, material: { color: '#00e5ff' } }
-    rigidBody: { type: dynamic, lockRotation: [false, false, false] }
+    rigidBody: { type: kinematic }
     collider: { shape: box, halfExtents: [0.25, 0.25, 0.25] }
     castShadow: true
     scripts: [{ name: pickup }]
@@ -137,7 +137,7 @@ entities:
     type: mesh
     transform: { position: [16, 3.5, 0], scale: [0.5, 0.5, 0.5] }
     mesh: { geometry: box, material: { color: '#00e5ff' } }
-    rigidBody: { type: dynamic, lockRotation: [false, false, false] }
+    rigidBody: { type: kinematic }
     collider: { shape: box, halfExtents: [0.25, 0.25, 0.25] }
     castShadow: true
     scripts: [{ name: pickup }]
@@ -147,7 +147,7 @@ entities:
     type: mesh
     transform: { position: [20, 5, 0], scale: [0.5, 0.5, 0.5] }
     mesh: { geometry: box, material: { color: '#00e5ff' } }
-    rigidBody: { type: dynamic, lockRotation: [false, false, false] }
+    rigidBody: { type: kinematic }
     collider: { shape: box, halfExtents: [0.25, 0.25, 0.25] }
     castShadow: true
     scripts: [{ name: pickup }]
@@ -157,7 +157,7 @@ entities:
     type: mesh
     transform: { position: [25, 3, 0], scale: [0.5, 0.5, 0.5] }
     mesh: { geometry: box, material: { color: '#00e5ff' } }
-    rigidBody: { type: dynamic, lockRotation: [false, false, false] }
+    rigidBody: { type: kinematic }
     collider: { shape: box, halfExtents: [0.25, 0.25, 0.25] }
     castShadow: true
     scripts: [{ name: pickup }]
