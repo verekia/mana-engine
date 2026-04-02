@@ -59,7 +59,9 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 
 ### Coordinate System
 
-- `SceneData.coordinateSystem` can be `'y-up'` (default, Three.js / glTF) or `'z-up'` (Blender, CAD)
+- `coordinateSystem` is set in `mana.json` (project-level) — not per-scene in YAML
+- The CLI injects it into the generated entry files; the `Game` component and editor propagate it to every scene before calling `createScene`
+- Supported values: `'y-up'` (default) or `'z-up'` (Blender/CAD workflows)
 - This is a **project-level abstraction**: users author positions/rotations in their chosen coordinate system and never need to know which axis a given renderer uses internally
 - `ThreeRendererAdapter` implements this via a `sceneRoot: Group` — when `z-up`, `sceneRoot.rotation.x = -π/2` converts the entire scene to Three.js world space automatically
 - Entity local positions/rotations stay in scene-coordinate space throughout: `snapshotTransform`, `getEntityInitialPhysicsTransform`, and `setEntityPhysicsTransform` all operate in the scene coordinate system
@@ -70,7 +72,11 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 
 - Running `mana editor`, `mana dev`, or `mana build` in a directory auto-scaffolds a new project if no `mana.json` or `mana.config.js` exists
 - Scaffolding creates: `mana.json`, `scenes/default.yaml` (camera + light + cube), `scripts/`, `ui/`, `assets/` dirs, and `game.css`
-- `mana.json` is the project config: `{ "gameDir": ".", "outDir": ".mana/build", "startScene": "default" }`
+- `mana.json` is the project config: `{ "gameDir": ".", "outDir": ".mana/build", "startScene": "default", "renderer": "three", "physics": "rapier", "coordinateSystem": "y-up" }`
+- `renderer` defaults to `"three"` (Three.js WebGPU); supported values: `"three"`, `"void"`
+- `physics` defaults to `"rapier"`; supported values: `"rapier"`, `"crashcat"`, `"none"`
+- `coordinateSystem` defaults to `"y-up"`; supported values: `"y-up"`, `"z-up"`
+- The CLI reads these and injects the correct adapter factories + `coordinateSystem` into the generated entry files — no manual adapter wiring needed
 - `gameDir` defaults to `.` (project root); set to e.g. `"game"` for embedding use cases
 - The CLI auto-discovers scenes (`scenes/*.yaml`), scripts (`scripts/*.ts`), and UI components (`ui/*.tsx`) — no manual registration needed
 - Generated entry files in `.mana/` wire everything together: imports, maps, and the library's `Game` component

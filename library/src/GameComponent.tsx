@@ -4,19 +4,30 @@ import { ThreeRendererAdapter, RapierPhysicsAdapter } from './adapters/three/ind
 import { ManaContext } from './scene-context.ts'
 import { createScene } from './scene.ts'
 
+import type { PhysicsAdapter } from './adapters/physics-adapter.ts'
+import type { RendererAdapter } from './adapters/renderer-adapter.ts'
 import type { SceneData } from './scene-data.ts'
 import type { ManaScript } from './script.ts'
+
+const defaultCreateRenderer = () => new ThreeRendererAdapter() as RendererAdapter
+const defaultCreatePhysics = () => new RapierPhysicsAdapter() as PhysicsAdapter
 
 export function Game({
   scenes,
   scripts,
   uiComponents,
   startScene,
+  createRenderer = defaultCreateRenderer,
+  createPhysics = defaultCreatePhysics,
+  coordinateSystem,
 }: {
   scenes: Record<string, SceneData>
   scripts?: Record<string, ManaScript>
   uiComponents?: Record<string, ComponentType>
   startScene?: string
+  createRenderer?: () => RendererAdapter
+  createPhysics?: (() => PhysicsAdapter) | undefined
+  coordinateSystem?: 'y-up' | 'z-up'
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sceneNames = Object.keys(scenes)
@@ -30,10 +41,11 @@ export function Game({
     let disposed = false
     let manaScene: Awaited<ReturnType<typeof createScene>> | null = null
 
-    const renderer = new ThreeRendererAdapter()
-    const physics = new RapierPhysicsAdapter()
+    const renderer = createRenderer()
+    const physics = createPhysics?.()
+    const data = coordinateSystem ? { ...sceneData, coordinateSystem } : sceneData
 
-    createScene(canvas, sceneData, { renderer, physics, scripts }).then(s => {
+    createScene(canvas, data, { renderer, physics, scripts }).then(s => {
       if (disposed) {
         s.dispose()
         return
@@ -44,7 +56,7 @@ export function Game({
       disposed = true
       manaScene?.dispose()
     }
-  }, [sceneData, scripts])
+  }, [sceneData, scripts, createRenderer, createPhysics, coordinateSystem])
 
   const loadScene = useCallback(
     (name: string) => {

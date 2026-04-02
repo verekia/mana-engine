@@ -3,8 +3,13 @@ import { useCallback, useEffect, useRef } from 'react'
 import { ThreeRendererAdapter, RapierPhysicsAdapter } from '../adapters/three/index.ts'
 import { createScene, type CreateSceneOptions, type EditorCameraState, type ManaScene } from '../scene.ts'
 
+import type { PhysicsAdapter } from '../adapters/physics-adapter.ts'
+import type { RendererAdapter } from '../adapters/renderer-adapter.ts'
 import type { SceneData } from '../scene-data.ts'
 import type { ManaScript } from '../script.ts'
+
+const defaultCreateRenderer = () => new ThreeRendererAdapter() as RendererAdapter
+const defaultCreatePhysics = () => new RapierPhysicsAdapter() as PhysicsAdapter
 
 /** Encapsulates the renderer scene lifecycle for the editor, including creation, disposal, and recreation. */
 export function useEditorScene({
@@ -13,6 +18,9 @@ export function useEditorScene({
   scripts,
   showGizmos,
   transformMode,
+  createRenderer = defaultCreateRenderer,
+  createPhysics = defaultCreatePhysics,
+  coordinateSystem,
   onTransformStart,
   onTransformChange,
   onTransformEnd,
@@ -22,6 +30,9 @@ export function useEditorScene({
   scripts: Record<string, ManaScript>
   showGizmos: boolean
   transformMode: string
+  createRenderer?: () => RendererAdapter
+  createPhysics?: () => PhysicsAdapter
+  coordinateSystem?: 'y-up' | 'z-up'
   onTransformStart: (id: string) => void
   onTransformChange: (id: string, transform: import('../scene-data.ts').Transform) => void
   onTransformEnd: (id: string, transform: import('../scene-data.ts').Transform) => void
@@ -45,8 +56,9 @@ export function useEditorScene({
 
     initializedRef.current = true
 
-    const renderer = new ThreeRendererAdapter()
-    createScene(canvas, data, {
+    const renderer = createRenderer()
+    const sceneWithCoords = coordinateSystem ? { ...data, coordinateSystem } : data
+    createScene(canvas, sceneWithCoords, {
       renderer,
       orbitControls: true,
       onTransformStart,
@@ -84,10 +96,11 @@ export function useEditorScene({
       const canvas = canvasRef.current
       if (!canvas) return
 
-      const renderer = new ThreeRendererAdapter()
+      const renderer = createRenderer()
+      const sceneWithCoords = coordinateSystem ? { ...data, coordinateSystem } : data
       const opts: CreateSceneOptions = {
         renderer,
-        physics: isPlaying ? new RapierPhysicsAdapter() : undefined,
+        physics: isPlaying ? createPhysics() : undefined,
         scripts: isPlaying ? scripts : undefined,
         orbitControls: !isPlaying,
         editorCamera: !isPlaying ? editorCamera : undefined,
@@ -95,12 +108,21 @@ export function useEditorScene({
         onTransformChange: !isPlaying ? onTransformChange : undefined,
         onTransformEnd: !isPlaying ? onTransformEnd : undefined,
       }
-      sceneRef.current = await createScene(canvas, data, opts)
+      sceneRef.current = await createScene(canvas, sceneWithCoords, opts)
       if (!isPlaying) {
         sceneRef.current?.setTransformMode(transformModeRef.current as 'translate' | 'rotate' | 'scale')
       }
     },
-    [scripts, canvasRef, onTransformStart, onTransformChange, onTransformEnd],
+    [
+      scripts,
+      canvasRef,
+      createRenderer,
+      createPhysics,
+      coordinateSystem,
+      onTransformStart,
+      onTransformChange,
+      onTransformEnd,
+    ],
   )
 
   // Sync transform mode to the active scene
