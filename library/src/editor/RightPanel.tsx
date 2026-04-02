@@ -9,9 +9,6 @@ import type { ManaScript } from '../script.ts'
 
 const TEXTURE_MAP_FIELDS: { label: string; key: keyof MaterialData }[] = [
   { label: 'Albedo Map', key: 'map' },
-  { label: 'Normal Map', key: 'normalMap' },
-  { label: 'Roughness Map', key: 'roughnessMap' },
-  { label: 'Metalness Map', key: 'metalnessMap' },
   { label: 'Emissive Map', key: 'emissiveMap' },
 ]
 
@@ -132,23 +129,6 @@ function MaterialEditor({ material, onChange }: { material: MaterialData; onChan
         label="Color"
         value={material.color ?? '#888888'}
         onChange={v => onChange({ ...material, color: v })}
-      />
-      <NumberInput
-        label="Roughness"
-        value={material.roughness ?? 1}
-        step={0.05}
-        onChange={v => onChange({ ...material, roughness: v })}
-      />
-      <NumberInput
-        label="Metalness"
-        value={material.metalness ?? 0}
-        step={0.05}
-        onChange={v => onChange({ ...material, metalness: v })}
-      />
-      <ColorInput
-        label="Emissive"
-        value={material.emissive ?? '#000000'}
-        onChange={v => onChange({ ...material, emissive: v })}
       />
       {TEXTURE_MAP_FIELDS.map(({ label, key }) => (
         <TextInput
@@ -288,10 +268,6 @@ function getAddComponentOptions(
           return { shape: 'sphere', radius: 0.5 }
         case 'capsule':
           return { shape: 'capsule', radius: 0.5, halfHeight: 0.5 }
-        case 'cylinder':
-          return { shape: 'cylinder', radius: 0.5, halfHeight: 0.5 }
-        case 'plane':
-          return { shape: 'plane', halfExtents: [5, 0.01, 5] }
         default:
           return { shape: 'box', halfExtents: [0.5, 0.5, 0.5] }
       }
@@ -630,7 +606,7 @@ export function RightPanel({
                     <SelectInput
                       label="Geometry"
                       value={entity.mesh.geometry ?? 'box'}
-                      options={['box', 'sphere', 'plane', 'cylinder', 'capsule']}
+                      options={['box', 'sphere', 'plane', 'capsule']}
                       onChange={v =>
                         onUpdate({ ...entity, mesh: { ...entity.mesh, geometry: v as MeshData['geometry'] } })
                       }
@@ -902,20 +878,18 @@ export function RightPanel({
                     <SelectInput
                       label="Shape"
                       value={entity.collider.shape}
-                      options={['box', 'sphere', 'capsule', 'cylinder', 'plane']}
+                      options={['box', 'sphere', 'capsule']}
                       onChange={v =>
                         onUpdate({
                           ...entity,
                           collider: {
                             ...entity.collider,
-                            shape: v as 'box' | 'sphere' | 'capsule' | 'cylinder' | 'plane',
+                            shape: v as 'box' | 'sphere' | 'capsule',
                           },
                         })
                       }
                     />
-                    {(entity.collider.shape === 'box' ||
-                      entity.collider.shape === 'plane' ||
-                      !entity.collider.shape) && (
+                    {(entity.collider.shape === 'box' || !entity.collider.shape) && (
                       <Vec3Input
                         label="Half Extents"
                         value={entity.collider.halfExtents ?? [0.5, 0.5, 0.5]}
@@ -925,7 +899,7 @@ export function RightPanel({
                         }}
                       />
                     )}
-                    {entity.collider.shape !== 'box' && entity.collider.shape !== 'plane' && (
+                    {entity.collider.shape !== 'box' && (
                       <NumberInput
                         label="Radius"
                         value={entity.collider.radius ?? 0.5}
@@ -936,7 +910,7 @@ export function RightPanel({
                         }}
                       />
                     )}
-                    {(entity.collider.shape === 'capsule' || entity.collider.shape === 'cylinder') && (
+                    {entity.collider.shape === 'capsule' && (
                       <NumberInput
                         label="Half Height"
                         value={entity.collider.halfHeight ?? 0.5}

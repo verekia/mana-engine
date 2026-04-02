@@ -1,5 +1,6 @@
 import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { ThreeRendererAdapter, RapierPhysicsAdapter } from './adapters/three/index.ts'
 import { ManaContext } from './scene-context.ts'
 import { createScene } from './scene.ts'
 
@@ -28,7 +29,11 @@ export function Game({
     if (!canvas || !sceneData) return
     let disposed = false
     let manaScene: Awaited<ReturnType<typeof createScene>> | null = null
-    createScene(canvas, sceneData, { scripts }).then(s => {
+
+    const renderer = new ThreeRendererAdapter()
+    const physics = new RapierPhysicsAdapter()
+
+    createScene(canvas, sceneData, { renderer, physics, scripts }).then(s => {
       if (disposed) {
         s.dispose()
         return

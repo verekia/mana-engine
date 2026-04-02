@@ -1,16 +1,55 @@
 # Mana Engine
 
-Game engine that compiles a React + Three.js + Tailwind game directory into a self-contained ES module, mounted via Shadow DOM for style isolation.
+Game engine that compiles a React + Tailwind game directory into a self-contained ES module, mounted via Shadow DOM for style isolation. The 3D renderer and physics simulation are pluggable via **adapters** — the engine core does not depend on any specific library.
 
 ## Architecture
 
 - `library/` — The `mana-engine` npm package: CLI (`mana build`/`mana dev`/`mana editor`), runtime (`mountGame`, `createScene`), and Vite plugins
 - `example/` — Consumer example: host page that builds the game with `mana build` then mounts it via `mountGame`
-- The CLI generates entry files in `.mana/`, runs Vite programmatically, and bundles React/Three.js/Tailwind into the game output
+- The CLI generates entry files in `.mana/`, runs Vite programmatically, and bundles React/Tailwind into the game output
 - `cssInlinePlugin` extracts CSS into a JS export so `mountGame` can inject it into the Shadow DOM
 - `tailwindResolvePlugin` rewrites `@import 'tailwindcss'` to an absolute path because `@tailwindcss/vite` uses `enhanced-resolve` which can't find packages in bun's `.bun/` layout
 - Dev mode mirrors Vite-injected `<style>` tags (filtered by `data-vite-dev-id`) into the Shadow DOM via MutationObserver for dev/prod parity
 - Dev/editor HTML templates must NOT use `* { padding: 0; }` or similar unlayered CSS resets — they override Tailwind v4's `@layer`-based utilities
+
+## Adapter System
+
+The engine is decoupled from any specific 3D renderer or physics library via two adapter interfaces:
+
+### RendererAdapter (`library/src/adapters/renderer-adapter.ts`)
+- Defines all rendering operations: `init`, `loadScene`, `addEntity`, `removeEntity`, `updateEntity`, `setEntityVisible`, `setEntityPhysicsTransform`, `getEntityNativeObject`, `getNativeScene`
+- Editor-specific: `setGizmos`, `setSelectedEntities`, `raycast`, `setTransformTarget`, `setTransformMode`, `getEditorCamera`, `setEditorCamera`
+- Implementations live in `library/src/adapters/<name>/index.ts`
+
+### PhysicsAdapter (`library/src/adapters/physics-adapter.ts`)
+- Defines physics operations: `init`, `dispose`, `step`, `getTransforms`, `getBody`
+- `init` receives a callback to read initial entity transforms from the renderer
+- `getTransforms()` returns only dynamic/kinematic bodies (fixed bodies never move)
+- Physics sync: after each `step()`, the engine calls `renderer.setEntityPhysicsTransform()` for each changed transform
+
+### Available Adapters
+
+| Path | Renderer | Physics |
+|------|----------|---------|
+| `adapters/three/` | Three.js (WebGPU renderer) | Rapier 3D (`RapierPhysicsAdapter`) |
+| `adapters/void/` | VoidCore (minimal, stub) | — |
+
+- `ThreeRendererAdapter` wraps the Three.js entity creation, OrbitControls, TransformControls, outline post-processing, and raycasting
+- `RapierPhysicsAdapter` wraps Rapier 3D world setup, rigid body/collider creation, and transform readback
+- `VoidRendererAdapter` is a stub for a minimal custom renderer (features added incrementally)
+
+### createScene API
+
+`createScene(canvas, sceneData, options)` in `scene.ts` is the adapter-agnostic orchestrator:
+- Calls `renderer.init(canvas, ...)` then `renderer.loadScene(sceneData)`
+- If a `physics` adapter is provided (play mode only), calls `physics.init(sceneData, getInitialTransform)` seeded from the renderer
+- Runs the animation loop: fixed-step physics + scripts, variable-rate update, renderer-driven render
+- `ScriptContext.entity`, `.scene`, and `.rigidBody` are typed as `unknown` — scripts cast to adapter-specific types (e.g. `ctx.entity as Object3D` for Three.js)
+- `RapierModule` and `RapierRigidBody` type aliases are re-exported from `scene.ts` (originally from `adapters/three/three-physics.ts`) for convenience
+
+### Coordinate System
+- `SceneData.coordinateSystem` can be `'y-up'` (default, Three.js / glTF) or `'z-up'` (Blender, CAD)
+- Renderer adapters must respect this when orienting the default camera, grid, and gizmos
 
 ## Project Structure & Auto-Discovery
 
@@ -36,13 +75,13 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 
 ## Materials & Textures
 
-- `MaterialData` in `scene-data.ts` defines PBR material properties: `color`, `roughness`, `metalness`, `emissive` (color), and texture maps
-- Texture map fields: `map` (albedo), `normalMap`, `roughnessMap`, `metalnessMap`, `emissiveMap` — all are string paths to image files
-- Textures are loaded via Three.js `TextureLoader` (standard formats) or `KTX2Loader` (`.ktx2` GPU-compressed textures) at entity creation time
+- `MaterialData` in `scene-data.ts` currently defines **Lambert** material properties only: `color`, `map` (albedo texture), `emissiveMap`
+- Additional material types (Standard/PBR, Unlit, etc.) will be added incrementally as adapters support them
+- The Three.js adapter uses `MeshLambertMaterial`; texture maps are loaded via `TextureLoader` (standard formats) or `KTX2Loader` (`.ktx2` GPU-compressed textures)
 - KTX2 support requires the basis universal transcoder, served via `/__mana/basis/` middleware from Three.js's bundled transcoder files
 - `loadTexture()` helper detects file extension and uses the appropriate loader; KTX2 textures load asynchronously with `material.needsUpdate = true`
-- In the editor, texture paths are editable text inputs; scalar values (roughness, metalness) are draggable number inputs
-- `applyMaterialData()` helper applies all material properties to a `MeshStandardMaterial`
+- In the editor, texture paths are editable text inputs
+- `applyMaterialData()` helper in `adapters/three/three-entity.ts` applies material properties to a `MeshLambertMaterial`
 - Texture disposal is handled in `dispose()` and `removeEntity()` to prevent memory leaks
 
 ## GLTF/GLB Model Loading
@@ -63,7 +102,7 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 - In production: `manaAssetsPlugin` scans `game/assets/` at build time, emits files through Rollup with content hashes
 - The asset manifest (original path → hashed filename) is appended as `assetManifest` export on the entry chunk
 - `mountGame()` reads `bundle.assetManifest` and calls `setAssetManifest()` to configure the runtime resolver
-- `resolveAsset()` is used in `entity.ts` for both model loading (`GLTFLoader`) and texture loading (`TextureLoader`, `KTX2Loader`)
+- `resolveAsset()` is used in `adapters/three/three-entity.ts` for both model loading (`GLTFLoader`) and texture loading (`TextureLoader`, `KTX2Loader`)
 - Asset paths in scene YAML should be relative to `game/assets/` (e.g., `models/megaxe.glb`, `textures/grass.ktx2`)
 - The `assets/` prefix is optional and stripped automatically by the resolver
 
@@ -81,7 +120,8 @@ Game engine that compiles a React + Three.js + Tailwind game directory into a se
 
 - Scripts are TypeScript files in `game/scripts/` implementing `ManaScript`
 - Lifecycle methods: `init(ctx)`, `update(ctx)`, `fixedUpdate(ctx)`, `dispose()`
-- `ScriptContext` provides: `entity` (Object3D), `scene` (Scene), `dt` (delta seconds), `time` (elapsed seconds), `rigidBody?` (RapierRigidBody), `input` (Input), `params` (configured values)
+- `ScriptContext` provides: `entity` (unknown), `scene` (unknown), `dt` (delta seconds), `time` (elapsed seconds), `rigidBody?` (unknown), `input` (Input), `params` (configured values)
+- `entity`, `scene`, and `rigidBody` are typed `unknown` — scripts cast them to the adapter-specific types they need (e.g. `ctx.entity as Object3D` when using `ThreeRendererAdapter`, `ctx.rigidBody as RapierRigidBody` when using `RapierPhysicsAdapter`)
 - Scripts can declare `params: Record<string, ScriptParamDef>` to expose editable parameters in the editor
 - `ScriptParamDef` has `type` (`'number' | 'string' | 'boolean'`) and `default` value
 - In scene YAML, scripts are `ScriptEntry[]`: `[{ name: rotate, params: { speed: 3 } }]`
@@ -152,8 +192,8 @@ Always run `bun install` first to ensure dependencies (including CLI tools like 
 
 ## Rapier Types
 
-- `RapierModule` and `RapierRigidBody` type aliases are exported from `scene.ts` and `game.ts`
-- These centralize the dynamically-imported Rapier types so scripts and the engine can use them without `any`
+- `RapierModule` and `RapierRigidBody` type aliases are defined in `adapters/three/three-physics.ts` and re-exported from `scene.ts` and `game.ts`
+- These centralize the dynamically-imported Rapier types so Three.js adapter scripts can use them without `any`
 - Physics runs independently of scripts — if entities have `rigidBody` components, physics steps even without scripts attached
 
 ## Stack

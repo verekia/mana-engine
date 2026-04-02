@@ -1,3 +1,4 @@
+import type { RapierRigidBody } from 'mana-engine/game'
 import type { ManaScript } from 'mana-engine/game'
 
 export default {
@@ -6,7 +7,9 @@ export default {
     resetX: { type: 'number', default: 0 },
     resetY: { type: 'number', default: 3 },
   },
-  update({ rigidBody, params }) {
+  update(ctx) {
+    const rigidBody = ctx.rigidBody as RapierRigidBody | undefined
+    const { params } = ctx
     if (!rigidBody) return
 
     const pos = rigidBody.translation()

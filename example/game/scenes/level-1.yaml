@@ -25,7 +25,7 @@ entities:
     name: Player
     type: mesh
     transform: { position: [0, 2, 0] }
-    mesh: { geometry: capsule, material: { color: '#e84057', roughness: 0.4, metalness: 0.1 } }
+    mesh: { geometry: capsule, material: { color: '#e84057' } }
     rigidBody: { type: dynamic, lockRotation: [true, true, true] }
     collider: { shape: capsule, radius: 0.5, halfHeight: 0.5 }
     castShadow: true
@@ -108,7 +108,7 @@ entities:
     name: Win Zone
     type: mesh
     transform: { position: [31, 2, 0], scale: [0.6, 0.6, 0.6] }
-    mesh: { geometry: sphere, material: { color: '#ffd700', emissive: '#ffd700', metalness: 0.8, roughness: 0.2 } }
+    mesh: { geometry: sphere, material: { color: '#ffd700' } }
     scripts: [{ name: win-zone }]
 
   # HUD

@@ -1,0 +1,108 @@
+import type { SceneData, SceneEntity, Transform } from '../scene-data.ts'
+
+export type TransformMode = 'translate' | 'rotate' | 'scale'
+
+export interface EditorCameraState {
+  position: [number, number, number]
+  target: [number, number, number]
+}
+
+export interface RendererAdapterOptions {
+  /** Whether to enable editor orbit controls (edit mode) or game camera (play mode) */
+  orbitControls?: boolean
+  /** Initial editor camera state (orbit controls mode only) */
+  editorCamera?: EditorCameraState
+  /** Whether to show debug gizmos (collider wireframes, light helpers) */
+  showGizmos?: boolean
+  /** Called when a transform gizmo drag begins */
+  onTransformStart?: (id: string) => void
+  /** Called continuously while a transform gizmo is dragged */
+  onTransformChange?: (id: string, transform: Transform) => void
+  /** Called when a transform gizmo drag ends */
+  onTransformEnd?: (id: string, transform: Transform) => void
+}
+
+/**
+ * Adapter interface that decouples the engine from any specific 3D rendering library.
+ * Implement this interface to add support for Three.js, VoidCore, or any other renderer.
+ */
+export interface RendererAdapter {
+  /**
+   * Initialize the renderer and attach it to the canvas.
+   * Called once before any other methods.
+   */
+  init(canvas: HTMLCanvasElement, options: RendererAdapterOptions): Promise<void>
+
+  /** Tear down the renderer and release all GPU resources. */
+  dispose(): void
+
+  /**
+   * Load all entities from a scene data object.
+   * Called after init(), replaces any previously loaded entities.
+   */
+  loadScene(sceneData: SceneData): Promise<void>
+
+  /** Add a single entity to the scene. */
+  addEntity(entity: SceneEntity): Promise<void>
+
+  /** Remove an entity from the scene by ID. */
+  removeEntity(id: string): void
+
+  /**
+   * Update an existing entity's properties (transform, material, light, etc.).
+   * Only the fields present on the entity object are applied.
+   */
+  updateEntity(id: string, entity: SceneEntity): void
+
+  /** Show or hide an entity. For lights, only toggles the debug gizmo. */
+  setEntityVisible(id: string, visible: boolean): void
+
+  /**
+   * Sync an entity's world transform from the physics simulation.
+   * Called each frame for entities with a rigid body.
+   */
+  setEntityPhysicsTransform(
+    id: string,
+    position: [number, number, number],
+    quaternion: [number, number, number, number],
+  ): void
+
+  /**
+   * Return the native object for a given entity ID so that scripts can
+   * access renderer-specific APIs. The concrete type depends on the adapter
+   * (e.g. `Object3D` for Three.js, a VoidCore node, etc.).
+   */
+  getEntityNativeObject(id: string): unknown
+
+  /**
+   * Return the native scene object so that scripts can query/modify it.
+   * The concrete type depends on the adapter.
+   */
+  getNativeScene(): unknown
+
+  // ── Editor helpers ──────────────────────────────────────────────────────────
+
+  /** Enable or disable all debug gizmos (collider wireframes, light helpers). */
+  setGizmos(enabled: boolean): void
+
+  /** Highlight selected entities (e.g. outline pass). */
+  setSelectedEntities(ids: string[]): void
+
+  /**
+   * Perform a raycast from normalized device coordinates (-1 to 1).
+   * Returns the entity ID of the first hit, or null.
+   */
+  raycast(ndcX: number, ndcY: number): string | null
+
+  /** Attach the transform gizmo to an entity, or detach if id is null. */
+  setTransformTarget(id: string | null): void
+
+  /** Set the transform gizmo mode. */
+  setTransformMode(mode: TransformMode): void
+
+  /** Get the editor camera state (position + orbit target). Null in play mode. */
+  getEditorCamera(): EditorCameraState | null
+
+  /** Restore the editor camera to a previously saved state. */
+  setEditorCamera(state: EditorCameraState): void
+}

@@ -1,7 +1,4 @@
-import type { Object3D, Scene } from 'three'
-
 import type { Input } from './input.ts'
-import type { RapierRigidBody } from './scene.ts'
 
 export interface ScriptParamDef {
   type: 'number' | 'string' | 'boolean'
@@ -9,16 +6,29 @@ export interface ScriptParamDef {
 }
 
 export interface ScriptContext {
-  /** The Three.js object this script is attached to */
-  entity: Object3D
-  /** The Three.js scene */
-  scene: Scene
+  /**
+   * The native object this script is attached to.
+   * The concrete type depends on the renderer adapter in use —
+   * e.g. `Object3D` for Three.js, a VoidCore node for the void adapter.
+   * Cast to the appropriate type inside adapter-specific scripts.
+   */
+  entity: unknown
+  /**
+   * The native scene object.
+   * The concrete type depends on the renderer adapter in use.
+   */
+  scene: unknown
   /** Delta time in seconds since last frame */
   dt: number
   /** Total elapsed time in seconds since scene started */
   time: number
-  /** The Rapier rigid body for this entity (if it has one) */
-  rigidBody?: RapierRigidBody
+  /**
+   * The native physics body for this entity (if it has a rigid body).
+   * The concrete type depends on the physics adapter in use —
+   * e.g. a Rapier `RigidBody` for the Three.js adapter.
+   * Cast to the appropriate type inside adapter-specific scripts.
+   */
+  rigidBody?: unknown
   /** Input state for keyboard, mouse, and axes */
   input: Input
   /** Script parameters configured in the editor */

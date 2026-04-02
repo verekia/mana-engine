@@ -1,6 +1,7 @@
 import type { ManaScript } from 'mana-engine/game'
+import type { Object3D, Scene } from 'three'
 
-let playerEntity: THREE.Object3D | null = null
+let playerEntity: Object3D | null = null
 
 export default {
   params: {
@@ -8,7 +9,10 @@ export default {
     deadZoneX: { type: 'number', default: 2 },
     deadZoneY: { type: 'number', default: 1.5 },
   },
-  init({ scene, entity, params }) {
+  init(ctx) {
+    const scene = ctx.scene as Scene
+    const entity = ctx.entity as Object3D
+    const { params } = ctx
     playerEntity = scene.getObjectByName('Player') ?? null
     // Reset rotation to look straight down -Z (undo the engine's default lookAt)
     entity.rotation.set(0, 0, 0)
@@ -18,7 +22,9 @@ export default {
       entity.position.z = params.offsetZ as number
     }
   },
-  update({ entity, params }) {
+  update(ctx) {
+    const entity = ctx.entity as Object3D
+    const { params } = ctx
     if (!playerEntity) return
 
     const oz = params.offsetZ as number
