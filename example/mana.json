@@ -2,7 +2,7 @@
   "gameDir": "game",
   "outDir": ".mana/build",
   "startScene": "main-menu",
-  "renderer": "void",
-  "physics": "none",
-  "coordinateSystem": "z-up"
+  "renderer": "three",
+  "physics": "rapier",
+  "coordinateSystem": "y-up"
 }
