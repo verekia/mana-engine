@@ -12,6 +12,7 @@ import {
   PlaneGeometry,
   Scene,
   SphereGeometry,
+  mat4Invert,
   quatFromAxisAngle,
   vec3Set,
 } from 'voidcore'
@@ -353,7 +354,10 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
 
   render(): void {
     if (!this.engine || !this.camera) return
+    // VoidCore only computes _viewMatrix via OrbitControls.
+    // Without orbit controls we derive it from the camera's world matrix.
     this.scene.updateGraph()
+    mat4Invert(this.camera._viewMatrix, this.camera._worldMatrix)
     this.engine.render(this.scene, this.camera)
   }
 }
