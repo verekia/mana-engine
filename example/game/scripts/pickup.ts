@@ -17,7 +17,7 @@ export default {
     const pos = ctx.getPosition()
     baseYMap.set(ctx.entity as object, pos.y)
   },
-  update(ctx) {
+  fixedUpdate(ctx) {
     const entityObj = ctx.entity as object
     if (collectedSet.has(entityObj)) return
 
@@ -27,19 +27,32 @@ export default {
     const spinSpeed = params.spinSpeed as number
     const bobAmplitude = params.bobAmplitude as number
     const bobSpeed = params.bobSpeed as number
-    const collectRadius = params.collectRadius as number
 
     // Spin the cube using angular velocity
     rigidBody.setAngvel({ x: 0, y: spinSpeed, z: spinSpeed * 0.3 }, false)
 
-    // Bob up and down using force to counteract gravity and oscillate
+    // Bob up and down: spring force toward sine target + gravity compensation
     const pos = rigidBody.translation()
     const baseY = baseYMap.get(entityObj) ?? pos.y
     const targetY = baseY + Math.sin(time * bobSpeed) * bobAmplitude
     const yError = targetY - pos.y
-    rigidBody.applyForce({ x: 0, y: yError * 50 + rigidBody.mass() * 9.81, z: 0 })
+    const yVel = rigidBody.linvel().y
+    // PD controller: spring + damping to prevent oscillation
+    rigidBody.applyForce({ x: 0, y: yError * 40 - yVel * 4 + rigidBody.mass() * 9.81, z: 0 })
+    // Keep horizontal velocity zeroed so cubes don't drift
+    rigidBody.setLinvel({ x: 0, y: yVel, z: 0 }, false)
+  },
+  update(ctx) {
+    const entityObj = ctx.entity as object
+    if (collectedSet.has(entityObj)) return
+
+    const { rigidBody, params } = ctx
+    if (!rigidBody) return
+
+    const collectRadius = params.collectRadius as number
 
     // Check distance to player for collection
+    const pos = rigidBody.translation()
     const playerPos = ctx.findEntityPosition('Player')
     if (!playerPos) return
 
