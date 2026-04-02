@@ -128,6 +128,12 @@ export async function createScene(
     await physicsAdapter.init(sceneData, id => renderer.getEntityInitialPhysicsTransform(id))
   }
 
+  if (!enableOrbitControls) {
+    const rendererName = renderer.constructor.name || 'unknown'
+    const physicsName = physicsAdapter ? physicsAdapter.constructor.name || 'unknown' : 'none'
+    console.log(`[mana] Renderer: ${rendererName} | Physics: ${physicsName}`)
+  }
+
   // Input system (play mode with scripts only)
   const input = scriptDefs && !enableOrbitControls ? new Input(canvas) : null
 
