@@ -44,7 +44,8 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - `VoidcoreRendererAdapter` wraps VoidCore (WebGPU/WebGL2): meshes (box, sphere, plane, capsule), Lambert materials, directional/ambient lights, shadow casting, coordinate system rotation, physics transform sync
   - No GLTF model loading yet (creates placeholder Group)
   - No point lights yet (VoidCore has no PointLight)
-  - No editor features yet (raycasting, gizmos, outline selection, orbit/transform controls)
+  - Editor features: raycasting (VoidCore `Raycaster`), selection outline (native `MeshOutline`), orbit controls
+  - No transform gizmos yet, no collider wireframe gizmos, no light helper gizmos
   - Uses `Engine.create()` for async WebGPU init with WebGL2 fallback
 - `RapierPhysicsAdapter` wraps Rapier 3D world setup, rigid body/collider creation, and transform readback
 - `CrashcatPhysicsAdapter` wraps Crashcat — a pure-JS physics engine (no WASM, synchronous init)
@@ -54,7 +55,7 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
   - Uses two-layer broadphase: static and dynamic object layers
   - `CrashcatRigidBody` and `CrashcatWorld` type aliases exported for script use
 - `GameComponent.tsx` and the editor have NO hardcoded adapter defaults — adapters are always injected via the CLI-generated entry files based on `mana.json` config
-- `ManaRigidBody` interface abstracts physics bodies: `translation()`, `linvel()`, `setTranslation()`, `setLinvel()` — scripts use this generic API and work with both Rapier and Crashcat
+- `ManaRigidBody` interface abstracts physics bodies: `translation()`, `linvel()`, `setTranslation()`, `setLinvel()`, `angvel()`, `setAngvel()`, `rotation()`, `setRotation()`, `applyImpulse()`, `applyForce()`, `mass()`, `setEnabled()` — scripts use this generic API and work with both Rapier and Crashcat
 
 ### createScene API
 

@@ -41,7 +41,12 @@ export type CrashcatWorld = World
  * This bridges the Crashcat functional API (rigidBody.setPosition(world, body, ...))
  * to the object-oriented ManaRigidBody interface (handle.setTranslation(pos, wake)).
  */
-function createManaRigidBody(world: World, body: RigidBody): ManaRigidBody {
+function createManaRigidBody(
+  world: World,
+  body: RigidBody,
+  entityId: string,
+  originalMotionTypes: Map<string, MotionType>,
+): ManaRigidBody {
   return {
     translation() {
       return { x: body.position[0], y: body.position[1], z: body.position[2] }
@@ -55,6 +60,37 @@ function createManaRigidBody(world: World, body: RigidBody): ManaRigidBody {
     },
     setLinvel(vel, _wake) {
       rigidBody.setLinearVelocity(world, body, [vel.x, vel.y, vel.z])
+    },
+    angvel() {
+      const v = body.motionProperties.angularVelocity
+      return { x: v[0], y: v[1], z: v[2] }
+    },
+    setAngvel(vel, _wake) {
+      rigidBody.setAngularVelocity(world, body, [vel.x, vel.y, vel.z])
+    },
+    rotation() {
+      const q = body.quaternion
+      return { x: q[0], y: q[1], z: q[2], w: q[3] }
+    },
+    setRotation(quat, wake) {
+      rigidBody.setQuaternion(world, body, [quat.x, quat.y, quat.z, quat.w], wake)
+    },
+    applyImpulse(impulse) {
+      rigidBody.addImpulse(world, body, [impulse.x, impulse.y, impulse.z])
+    },
+    applyForce(force) {
+      rigidBody.addForce(world, body, [force.x, force.y, force.z], true)
+    },
+    mass() {
+      return body.massProperties.mass
+    },
+    setEnabled(enabled) {
+      if (enabled) {
+        const original = originalMotionTypes.get(entityId) ?? MotionType.DYNAMIC
+        rigidBody.setMotionType(world, body, original, true)
+      } else {
+        rigidBody.setMotionType(world, body, MotionType.STATIC, false)
+      }
     },
   }
 }
@@ -72,6 +108,8 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
   private dynamicBodies: { id: string; body: RigidBody }[] = []
   private bodyMap = new Map<string, RigidBody>()
   private manaBodyMap = new Map<string, ManaRigidBody>()
+  /** Original motion type per body, used to restore after setEnabled(true). */
+  private originalMotionType = new Map<string, MotionType>()
 
   async init(sceneData: SceneData, getInitialTransform: (id: string) => PhysicsTransform | null): Promise<void> {
     const hasPhysics = sceneData.entities.some(e => e.rigidBody)
@@ -174,7 +212,8 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
       })
 
       this.bodyMap.set(entity.id, body)
-      this.manaBodyMap.set(entity.id, createManaRigidBody(this.world, body))
+      this.originalMotionType.set(entity.id, motionType)
+      this.manaBodyMap.set(entity.id, createManaRigidBody(this.world, body, entity.id, this.originalMotionType))
 
       if (motionType !== MotionType.STATIC) {
         this.dynamicBodies.push({ id: entity.id, body })
@@ -187,6 +226,7 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
     this.dynamicBodies = []
     this.bodyMap.clear()
     this.manaBodyMap.clear()
+    this.originalMotionType.clear()
   }
 
   step(dt: number): void {

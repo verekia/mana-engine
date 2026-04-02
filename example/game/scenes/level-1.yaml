@@ -111,11 +111,63 @@ entities:
     mesh: { geometry: sphere, material: { color: '#ffd700' } }
     scripts: [{ name: win-zone }]
 
+  # Pickup cubes — spinning collectibles using setRotation, setTranslation, setEnabled
+  - id: pickup-1
+    name: Pickup 1
+    type: mesh
+    transform: { position: [5, 2.5, 0], scale: [0.5, 0.5, 0.5] }
+    mesh: { geometry: box, material: { color: '#00e5ff' } }
+    rigidBody: { type: kinematic }
+    castShadow: true
+    scripts: [{ name: pickup }]
+
+  - id: pickup-2
+    name: Pickup 2
+    type: mesh
+    transform: { position: [10, 4, 0], scale: [0.5, 0.5, 0.5] }
+    mesh: { geometry: box, material: { color: '#00e5ff' } }
+    rigidBody: { type: kinematic }
+    castShadow: true
+    scripts: [{ name: pickup }]
+
+  - id: pickup-3
+    name: Pickup 3
+    type: mesh
+    transform: { position: [16, 3.5, 0], scale: [0.5, 0.5, 0.5] }
+    mesh: { geometry: box, material: { color: '#00e5ff' } }
+    rigidBody: { type: kinematic }
+    castShadow: true
+    scripts: [{ name: pickup }]
+
+  - id: pickup-4
+    name: Pickup 4
+    type: mesh
+    transform: { position: [20, 5, 0], scale: [0.5, 0.5, 0.5] }
+    mesh: { geometry: box, material: { color: '#00e5ff' } }
+    rigidBody: { type: kinematic }
+    castShadow: true
+    scripts: [{ name: pickup }]
+
+  - id: pickup-5
+    name: Pickup 5
+    type: mesh
+    transform: { position: [25, 3, 0], scale: [0.5, 0.5, 0.5] }
+    mesh: { geometry: box, material: { color: '#00e5ff' } }
+    rigidBody: { type: kinematic }
+    castShadow: true
+    scripts: [{ name: pickup }]
+
   # HUD
   - id: hud
     name: HUD
     type: ui
     ui: { component: LevelHud }
+
+  # Pickup counter
+  - id: pickup-counter
+    name: Pickup Counter
+    type: ui
+    ui: { component: PickupCounter }
 
   # Level complete overlay
   - id: level-complete
