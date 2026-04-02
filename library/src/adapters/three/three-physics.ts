@@ -1,5 +1,5 @@
 import type { SceneData } from '../../scene-data.ts'
-import type { PhysicsAdapter, PhysicsTransform } from '../physics-adapter.ts'
+import type { ManaRigidBody, PhysicsAdapter, PhysicsTransform } from '../physics-adapter.ts'
 
 export type RapierModule = typeof import('@dimforge/rapier3d-compat')
 export type RapierRigidBody = InstanceType<RapierModule['RigidBody']>
@@ -109,7 +109,15 @@ export class RapierPhysicsAdapter implements PhysicsAdapter {
     return transforms
   }
 
-  getBody(entityId: string): unknown {
-    return this.rigidBodyMap.get(entityId)
+  getBody(entityId: string): ManaRigidBody | undefined {
+    const body = this.rigidBodyMap.get(entityId)
+    if (!body) return undefined
+    // Rapier's RigidBody already matches ManaRigidBody — delegate directly.
+    return {
+      translation: () => body.translation(),
+      linvel: () => body.linvel(),
+      setTranslation: (pos, wake) => body.setTranslation(pos, wake),
+      setLinvel: (vel, wake) => body.setLinvel(vel, wake),
+    }
   }
 }

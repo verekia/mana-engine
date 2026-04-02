@@ -1,4 +1,3 @@
-import type { RapierRigidBody } from 'mana-engine/game'
 import type { ManaScript } from 'mana-engine/game'
 
 let grounded = false
@@ -14,8 +13,7 @@ export default {
     jumpCooldown = 0
   },
   update(ctx) {
-    const rigidBody = ctx.rigidBody as RapierRigidBody | undefined
-    const { input, params, dt } = ctx
+    const { rigidBody, input, params, dt } = ctx
     if (!rigidBody) return
 
     const moveSpeed = params.moveSpeed as number

@@ -17,7 +17,7 @@ import {
 import type { RigidBody, World } from 'crashcat'
 
 import type { SceneData } from '../../scene-data.ts'
-import type { PhysicsAdapter, PhysicsTransform } from '../physics-adapter.ts'
+import type { ManaRigidBody, PhysicsAdapter, PhysicsTransform } from '../physics-adapter.ts'
 
 // registerAll() is idempotent — safe to call multiple times
 let registered = false
@@ -182,7 +182,18 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
     return transforms
   }
 
-  getBody(entityId: string): unknown {
-    return this.bodyMap.get(entityId)
+  getBody(entityId: string): ManaRigidBody | undefined {
+    const body = this.bodyMap.get(entityId)
+    if (!body) return undefined
+    const world = this.world
+    return {
+      translation: () => ({ x: body.position[0], y: body.position[1], z: body.position[2] }),
+      linvel: () => {
+        const v = body.motionProperties.linearVelocity
+        return { x: v[0], y: v[1], z: v[2] }
+      },
+      setTranslation: (pos, wake) => rigidBody.setPosition(world, body, [pos.x, pos.y, pos.z], wake),
+      setLinvel: (vel, _wake) => rigidBody.setLinearVelocity(world, body, [vel.x, vel.y, vel.z]),
+    }
   }
 }

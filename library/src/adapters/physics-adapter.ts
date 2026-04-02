@@ -6,6 +6,22 @@ export interface PhysicsTransform {
 }
 
 /**
+ * Adapter-agnostic rigid body handle exposed to scripts via `ctx.rigidBody`.
+ * Covers the operations used in the engine's example scripts.
+ * Both Rapier and Crashcat adapters return wrappers implementing this interface.
+ */
+export interface ManaRigidBody {
+  /** World-space position. */
+  translation(): { x: number; y: number; z: number }
+  /** World-space linear velocity. */
+  linvel(): { x: number; y: number; z: number }
+  /** Teleport the body to a new position. */
+  setTranslation(pos: { x: number; y: number; z: number }, wake: boolean): void
+  /** Set linear velocity directly. */
+  setLinvel(vel: { x: number; y: number; z: number }, wake: boolean): void
+}
+
+/**
  * Adapter interface that decouples the engine from any specific physics library.
  * Implement this interface to add support for Rapier, Cannon, Ammo, etc.
  */
@@ -32,9 +48,8 @@ export interface PhysicsAdapter {
   getTransforms(): Map<string, PhysicsTransform>
 
   /**
-   * Return the native physics body for an entity so that scripts can apply
-   * forces, read velocity, etc. The concrete type depends on the adapter
-   * (e.g. a Rapier `RigidBody`, a Cannon `Body`, etc.).
+   * Return the ManaRigidBody handle for an entity so scripts can read/write
+   * velocity and position in a physics-library-agnostic way.
    */
-  getBody(entityId: string): unknown
+  getBody(entityId: string): ManaRigidBody | undefined
 }

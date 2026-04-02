@@ -1,3 +1,4 @@
+import type { ManaRigidBody } from './adapters/physics-adapter.ts'
 import type { Input } from './input.ts'
 
 export interface ScriptParamDef {
@@ -22,13 +23,8 @@ export interface ScriptContext {
   dt: number
   /** Total elapsed time in seconds since scene started */
   time: number
-  /**
-   * The native physics body for this entity (if it has a rigid body).
-   * The concrete type depends on the physics adapter in use —
-   * e.g. a Rapier `RigidBody` for the Three.js adapter.
-   * Cast to the appropriate type inside adapter-specific scripts.
-   */
-  rigidBody?: unknown
+  /** The physics body for this entity, if it has a rigid body component. */
+  rigidBody?: ManaRigidBody
   /** Input state for keyboard, mouse, and axes */
   input: Input
   /** Script parameters configured in the editor */
