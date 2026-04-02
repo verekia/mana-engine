@@ -216,6 +216,7 @@ export function createBuildConfig(
 }
 
 export function createDevConfig(
+  manaRoot: string,
   gameDir: string,
   root: string,
   aliases: Record<string, string>,
@@ -234,11 +235,16 @@ export function createDevConfig(
       basisTranscoderPlugin(threePath),
     ],
     resolve: {
-      alias: aliases,
+      alias: {
+        ...aliases,
+        // Resolve mana-engine/game to source so dev mode always uses live source
+        // and avoids stale pre-bundled dist modules.
+        'mana-engine/game': resolve(manaRoot, 'src/game.ts'),
+      },
     },
     server: {
       fs: {
-        allow: [gameDir, process.cwd()],
+        allow: [manaRoot, gameDir, process.cwd()],
       },
     },
   }
@@ -509,7 +515,12 @@ export function createEditorConfig(
       basisTranscoderPlugin(threePath),
     ],
     resolve: {
-      alias: aliases,
+      alias: {
+        ...aliases,
+        // Resolve mana-engine/game to the source entry so the editor always uses
+        // live source files — bypasses dist and avoids stale pre-bundled modules.
+        'mana-engine/game': resolve(manaRoot, 'src/game.ts'),
+      },
     },
     server: {
       fs: {

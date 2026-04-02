@@ -37,6 +37,29 @@ export type CrashcatRigidBody = RigidBody
 export type CrashcatWorld = World
 
 /**
+ * Creates a ManaRigidBody wrapper around a Crashcat body.
+ * This bridges the Crashcat functional API (rigidBody.setPosition(world, body, ...))
+ * to the object-oriented ManaRigidBody interface (handle.setTranslation(pos, wake)).
+ */
+function createManaRigidBody(world: World, body: RigidBody): ManaRigidBody {
+  return {
+    translation() {
+      return { x: body.position[0], y: body.position[1], z: body.position[2] }
+    },
+    linvel() {
+      const v = body.motionProperties.linearVelocity
+      return { x: v[0], y: v[1], z: v[2] }
+    },
+    setTranslation(pos, wake) {
+      rigidBody.setPosition(world, body, [pos.x, pos.y, pos.z], wake)
+    },
+    setLinvel(vel, _wake) {
+      rigidBody.setLinearVelocity(world, body, [vel.x, vel.y, vel.z])
+    },
+  }
+}
+
+/**
  * PhysicsAdapter implementation backed by Crashcat.
  *
  * Crashcat is a pure-JavaScript physics engine — no WASM, synchronous init.
@@ -48,6 +71,7 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
   private world!: World
   private dynamicBodies: { id: string; body: RigidBody }[] = []
   private bodyMap = new Map<string, RigidBody>()
+  private manaBodyMap = new Map<string, ManaRigidBody>()
 
   async init(sceneData: SceneData, getInitialTransform: (id: string) => PhysicsTransform | null): Promise<void> {
     const hasPhysics = sceneData.entities.some(e => e.rigidBody)
@@ -150,6 +174,7 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
       })
 
       this.bodyMap.set(entity.id, body)
+      this.manaBodyMap.set(entity.id, createManaRigidBody(this.world, body))
 
       if (motionType !== MotionType.STATIC) {
         this.dynamicBodies.push({ id: entity.id, body })
@@ -161,6 +186,7 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
     // Crashcat has no explicit world.free() — just drop references
     this.dynamicBodies = []
     this.bodyMap.clear()
+    this.manaBodyMap.clear()
   }
 
   step(dt: number): void {
@@ -183,17 +209,6 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
   }
 
   getBody(entityId: string): ManaRigidBody | undefined {
-    const body = this.bodyMap.get(entityId)
-    if (!body) return undefined
-    const world = this.world
-    return {
-      translation: () => ({ x: body.position[0], y: body.position[1], z: body.position[2] }),
-      linvel: () => {
-        const v = body.motionProperties.linearVelocity
-        return { x: v[0], y: v[1], z: v[2] }
-      },
-      setTranslation: (pos, wake) => rigidBody.setPosition(world, body, [pos.x, pos.y, pos.z], wake),
-      setLinvel: (vel, _wake) => rigidBody.setLinearVelocity(world, body, [vel.x, vel.y, vel.z]),
-    }
+    return this.manaBodyMap.get(entityId)
   }
 }

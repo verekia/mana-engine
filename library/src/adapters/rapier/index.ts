@@ -15,6 +15,7 @@ export class RapierPhysicsAdapter implements PhysicsAdapter {
   private world!: InstanceType<RapierModule['World']>
   private dynamicEntities: { id: string; rigidBody: RapierRigidBody }[] = []
   private rigidBodyMap = new Map<string, RapierRigidBody>()
+  private manaBodyMap = new Map<string, ManaRigidBody>()
 
   async init(sceneData: SceneData, getInitialTransform: (id: string) => PhysicsTransform | null): Promise<void> {
     const hasPhysics = sceneData.entities.some(e => e.rigidBody)
@@ -58,7 +59,7 @@ export class RapierPhysicsAdapter implements PhysicsAdapter {
         bodyDesc.enabledRotations(!lx, !ly, !lz)
       }
 
-      const rigidBody = this.world.createRigidBody(bodyDesc)
+      const rb = this.world.createRigidBody(bodyDesc)
 
       if (entity.collider) {
         let colliderDesc: InstanceType<RapierModule['ColliderDesc']>
@@ -74,14 +75,22 @@ export class RapierPhysicsAdapter implements PhysicsAdapter {
             colliderDesc = RAPIER.ColliderDesc.cuboid(he[0], he[1], he[2])
           }
         }
-        this.world.createCollider(colliderDesc, rigidBody)
+        this.world.createCollider(colliderDesc, rb)
       }
 
-      this.rigidBodyMap.set(entity.id, rigidBody)
+      this.rigidBodyMap.set(entity.id, rb)
+
+      // Pre-compute ManaRigidBody wrapper — Rapier's API already matches the interface
+      this.manaBodyMap.set(entity.id, {
+        translation: () => rb.translation(),
+        linvel: () => rb.linvel(),
+        setTranslation: (pos, wake) => rb.setTranslation(pos, wake),
+        setLinvel: (vel, wake) => rb.setLinvel(vel, wake),
+      })
 
       // Only track dynamic/kinematic bodies for transform readback
       if (entity.rigidBody.type !== 'fixed') {
-        this.dynamicEntities.push({ id: entity.id, rigidBody })
+        this.dynamicEntities.push({ id: entity.id, rigidBody: rb })
       }
     }
   }
@@ -90,6 +99,7 @@ export class RapierPhysicsAdapter implements PhysicsAdapter {
     this.world?.free()
     this.dynamicEntities = []
     this.rigidBodyMap.clear()
+    this.manaBodyMap.clear()
   }
 
   step(_dt: number): void {
@@ -110,14 +120,6 @@ export class RapierPhysicsAdapter implements PhysicsAdapter {
   }
 
   getBody(entityId: string): ManaRigidBody | undefined {
-    const body = this.rigidBodyMap.get(entityId)
-    if (!body) return undefined
-    // Rapier's RigidBody already matches ManaRigidBody — delegate directly.
-    return {
-      translation: () => body.translation(),
-      linvel: () => body.linvel(),
-      setTranslation: (pos, wake) => body.setTranslation(pos, wake),
-      setLinvel: (vel, wake) => body.setLinvel(vel, wake),
-    }
+    return this.manaBodyMap.get(entityId)
   }
 }
