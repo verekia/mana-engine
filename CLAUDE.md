@@ -41,7 +41,11 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 | `adapters/crashcat/` | Physics  | Crashcat (pure JS, synchronous init) |
 
 - `ThreeRendererAdapter` wraps Three.js entity creation, OrbitControls, TransformControls, outline post-processing, and raycasting
-- `VoidcoreRendererAdapter` is a stub for a minimal custom renderer (features added incrementally)
+- `VoidcoreRendererAdapter` wraps VoidCore (WebGPU/WebGL2): meshes (box, sphere, plane, capsule), Lambert materials, directional/ambient lights, shadow casting, coordinate system rotation, physics transform sync
+  - No GLTF model loading yet (creates placeholder Group)
+  - No point lights yet (VoidCore has no PointLight)
+  - No editor features yet (raycasting, gizmos, outline selection, orbit/transform controls)
+  - Uses `Engine.create()` for async WebGPU init with WebGL2 fallback
 - `RapierPhysicsAdapter` wraps Rapier 3D world setup, rigid body/collider creation, and transform readback
 - `CrashcatPhysicsAdapter` wraps Crashcat — a pure-JS physics engine (no WASM, synchronous init)
   - Shapes: box (`halfExtents`), sphere (`radius`), capsule (`halfHeightOfCylinder` + `radius`)
