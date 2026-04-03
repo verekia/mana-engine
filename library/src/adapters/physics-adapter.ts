@@ -68,4 +68,18 @@ export interface PhysicsAdapter {
    * velocity and position in a physics-library-agnostic way.
    */
   getBody(entityId: string): ManaRigidBody | undefined
+
+  /**
+   * Add a single entity's physics body at runtime (e.g. for prefab instantiation).
+   * Only creates a body if the entity has a rigidBody component.
+   */
+  addEntity(
+    entity: import('../scene-data.ts').SceneEntity,
+    getInitialTransform: (id: string) => PhysicsTransform | null,
+  ): void
+
+  /**
+   * Remove a single entity's physics body at runtime.
+   */
+  removeEntity(entityId: string): void
 }

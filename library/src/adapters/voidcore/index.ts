@@ -26,6 +26,18 @@ import type { SceneData, SceneEntity } from '../../scene-data.ts'
 import type { PhysicsTransform } from '../physics-adapter.ts'
 import type { RendererAdapter, RendererAdapterOptions, EditorCameraState, TransformMode } from '../renderer-adapter.ts'
 
+/** Flatten a tree of entities (with children) into a flat array. */
+function flattenEntities(entities: SceneEntity[]): SceneEntity[] {
+  const result: SceneEntity[] = []
+  for (const entity of entities) {
+    result.push(entity)
+    if (entity.children?.length) {
+      result.push(...flattenEntities(entity.children))
+    }
+  }
+  return result
+}
+
 /** Parse a CSS hex color string into [r, g, b] in 0–1 range. */
 function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace('#', '')
@@ -221,7 +233,8 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
 
     this.gameCam = null
 
-    for (const entity of sceneData.entities) {
+    const allEntities = flattenEntities(sceneData.entities)
+    for (const entity of allEntities) {
       this._addEntity(entity)
     }
 
@@ -447,6 +460,11 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     if (!node) return
     const [qx, qy, qz, qw] = eulerToQuat(x, y, z)
     node.setRotation(qx, qy, qz, qw)
+  }
+
+  setEntityScale(id: string, x: number, y: number, z: number): void {
+    const node = this.entityNodes.get(id)
+    if (node) node.setScale(x, y, z)
   }
 
   getEntityNativeObject(id: string): unknown {

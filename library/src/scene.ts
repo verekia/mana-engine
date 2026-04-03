@@ -55,14 +55,56 @@ export interface CreateSceneOptions {
 
 const FIXED_DT = 1 / 60
 
-function setupScripts(sceneData: SceneData, scriptDefs: Record<string, ManaScript>) {
-  const activeScripts: {
-    script: ManaScript
-    entityId: string
-    params: Record<string, number | string | boolean>
-  }[] = []
+/**
+ * Resolve prefab references on entities. If an entity has a `prefab` field,
+ * its properties are merged on top of the prefab's defaults (entity wins).
+ */
+function resolvePrefabs(entities: SceneEntity[], prefabs: Record<string, PrefabData>): SceneEntity[] {
+  return entities.map(entity => {
+    let resolved = entity
+    if (entity.prefab) {
+      const prefab = prefabs[entity.prefab]
+      if (prefab) {
+        resolved = {
+          ...structuredClone(prefab.entity),
+          ...entity,
+          // Merge transform: entity overrides prefab
+          transform: entity.transform ?? prefab.entity.transform,
+        }
+      } else {
+        console.warn(`[mana] Prefab "${entity.prefab}" not found for entity "${entity.name}"`)
+      }
+    }
+    // Recursively resolve children
+    if (resolved.children?.length) {
+      resolved = { ...resolved, children: resolvePrefabs(resolved.children, prefabs) }
+    }
+    return resolved
+  })
+}
 
-  for (const entity of sceneData.entities) {
+/** Flatten a tree of entities (with children) into a flat array. */
+function flattenEntities(entities: SceneEntity[]): SceneEntity[] {
+  const result: SceneEntity[] = []
+  for (const entity of entities) {
+    result.push(entity)
+    if (entity.children?.length) {
+      result.push(...flattenEntities(entity.children))
+    }
+  }
+  return result
+}
+
+interface ActiveScript {
+  script: ManaScript
+  entityId: string
+  params: Record<string, number | string | boolean>
+}
+
+function setupScripts(entities: SceneEntity[], scriptDefs: Record<string, ManaScript>): ActiveScript[] {
+  const activeScripts: ActiveScript[] = []
+
+  for (const entity of entities) {
     if (!entity.scripts) continue
     for (const entry of entity.scripts) {
       const script = scriptDefs[entry.name]
@@ -107,6 +149,7 @@ export async function createScene(
   options: CreateSceneOptions,
 ): Promise<ManaScene> {
   const { renderer, scripts: scriptDefs, orbitControls: enableOrbitControls = false } = options
+  const prefabs = options.prefabs ?? {}
 
   // Initialize the renderer
   await renderer.init(canvas, {
@@ -118,16 +161,25 @@ export async function createScene(
     onTransformEnd: options.onTransformEnd,
   })
 
+  // Resolve prefab references and flatten children for processing
+  let processedData = sceneData
+  if (sceneData && Object.keys(prefabs).length > 0) {
+    processedData = {
+      ...sceneData,
+      entities: resolvePrefabs(sceneData.entities, prefabs),
+    }
+  }
+
   // Load scene entities into the renderer
-  if (sceneData) {
-    await renderer.loadScene(sceneData)
+  if (processedData) {
+    await renderer.loadScene(processedData)
   }
 
   // Physics setup (play mode only)
   let physicsAdapter: PhysicsAdapter | null = null
-  if (sceneData && !enableOrbitControls && options.physics) {
+  if (processedData && !enableOrbitControls && options.physics) {
     physicsAdapter = options.physics
-    await physicsAdapter.init(sceneData, id => renderer.getEntityInitialPhysicsTransform(id))
+    await physicsAdapter.init(processedData, id => renderer.getEntityInitialPhysicsTransform(id))
   }
 
   if (!enableOrbitControls) {
@@ -138,11 +190,14 @@ export async function createScene(
 
   // Build name → id lookup for findEntityPosition
   const nameToId = new Map<string, string>()
-  if (sceneData) {
-    for (const entity of sceneData.entities) {
+  if (processedData) {
+    for (const entity of flattenEntities(processedData.entities)) {
       nameToId.set(entity.name, entity.id)
     }
   }
+
+  // Mutable list of active scripts — grows when prefabs are instantiated, shrinks on destroy
+  const activeScripts: ActiveScript[] = []
 
   /** Build a ScriptContext with adapter-agnostic helpers. */
   function makeCtx(
@@ -170,6 +225,9 @@ export async function createScene(
       setRotation(x, y, z) {
         renderer.setEntityEulerRotation(entityId, x, y, z)
       },
+      setScale(x, y, z) {
+        renderer.setEntityScale(entityId, x, y, z)
+      },
       findEntityPosition(name) {
         const id = nameToId.get(name)
         if (!id) return null
@@ -177,7 +235,7 @@ export async function createScene(
         return p ? { x: p[0], y: p[1], z: p[2] } : null
       },
       instantiatePrefab(name, position) {
-        const prefab = options.prefabs?.[name]
+        const prefab = prefabs[name]
         if (!prefab) {
           console.warn(`[mana] Prefab "${name}" not found`)
           return null
@@ -193,9 +251,67 @@ export async function createScene(
         } else if (position) {
           entity.transform = { position: [position.x, position.y, position.z] }
         }
+
+        // Add to renderer
         renderer.addEntity(entity)
         nameToId.set(entity.name, instanceId)
+
+        // Add physics body if the prefab has one
+        if (entity.rigidBody && physicsAdapter) {
+          physicsAdapter.addEntity(entity, id => renderer.getEntityInitialPhysicsTransform(id))
+        }
+
+        // Initialize scripts if the prefab has any
+        if (entity.scripts && scriptDefs && inputVal) {
+          const newScripts = setupScripts([entity], scriptDefs)
+          for (const entry of newScripts) {
+            activeScripts.push(entry)
+            entry.script.init?.(makeCtx(entry.entityId, 0, elapsed, inputVal, entry.params))
+          }
+        }
+
+        // Recursively add children
+        if (entity.children) {
+          for (const child of flattenEntities(entity.children)) {
+            renderer.addEntity(child)
+            nameToId.set(child.name, child.id)
+            if (child.rigidBody && physicsAdapter) {
+              physicsAdapter.addEntity(child, id => renderer.getEntityInitialPhysicsTransform(id))
+            }
+            if (child.scripts && scriptDefs && inputVal) {
+              const childScripts = setupScripts([child], scriptDefs)
+              for (const entry of childScripts) {
+                activeScripts.push(entry)
+                entry.script.init?.(makeCtx(entry.entityId, 0, elapsed, inputVal, entry.params))
+              }
+            }
+          }
+        }
+
         return instanceId
+      },
+      destroyEntity(id) {
+        // Remove from renderer
+        renderer.removeEntity(id)
+
+        // Remove physics body
+        physicsAdapter?.removeEntity(id)
+
+        // Dispose and remove scripts for this entity
+        for (let i = activeScripts.length - 1; i >= 0; i--) {
+          if (activeScripts[i].entityId === id) {
+            activeScripts[i].script.dispose?.()
+            activeScripts.splice(i, 1)
+          }
+        }
+
+        // Clean up name lookup
+        for (const [name, eid] of nameToId) {
+          if (eid === id) {
+            nameToId.delete(name)
+            break
+          }
+        }
       },
     }
   }
@@ -203,19 +319,22 @@ export async function createScene(
   // Input system (play mode with scripts only)
   const input = scriptDefs && !enableOrbitControls ? new Input(canvas) : null
 
-  // Script setup
-  const activeScripts = sceneData && scriptDefs ? setupScripts(sceneData, scriptDefs) : []
+  // Script setup — flatten entities to catch scripts on children too
+  const allEntities = processedData ? flattenEntities(processedData.entities) : []
+  if (processedData && scriptDefs) {
+    activeScripts.push(...setupScripts(allEntities, scriptDefs))
+  }
 
   const scriptInput = activeScripts.length > 0 ? (input ?? new Input(canvas)) : null
 
   // Run init() on all scripts
+  let elapsed = 0
   for (const { script, entityId, params } of activeScripts) {
     if (!scriptInput) break
     script.init?.(makeCtx(entityId, 0, 0, scriptInput, params))
   }
 
   let lastTime = performance.now() / 1000
-  let elapsed = 0
   let fixedAccumulator = 0
   let animationId = 0
 

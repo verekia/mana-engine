@@ -93,6 +93,12 @@ export interface RendererAdapter {
   setEntityEulerRotation(id: string, x: number, y: number, z: number): void
 
   /**
+   * Set an entity's scale directly.
+   * Used by scripts via ctx.setScale().
+   */
+  setEntityScale(id: string, x: number, y: number, z: number): void
+
+  /**
    * Return the native object for a given entity ID so that scripts can
    * access renderer-specific APIs. The concrete type depends on the adapter
    * (e.g. `Object3D` for Three.js, a VoidCore node, etc.).

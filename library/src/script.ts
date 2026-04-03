@@ -38,17 +38,25 @@ export interface ScriptContext {
   setPosition(x: number, y: number, z: number): void
   /** Set this entity's rotation from Euler angles (radians). */
   setRotation(x: number, y: number, z: number): void
+  /** Set this entity's scale. */
+  setScale(x: number, y: number, z: number): void
   /** Find another entity by name and return its position, or null if not found. */
   findEntityPosition(name: string): { x: number; y: number; z: number } | null
   /**
    * Instantiate a prefab at runtime.
    * The prefab must exist in the `prefabs/` directory as `<name>.prefab.yaml`.
    * Returns the entity ID of the newly created instance, or null if the prefab is not found.
+   * Physics bodies and scripts on the prefab are automatically initialized.
    *
    * @param name The prefab name (without .prefab.yaml extension)
    * @param position Optional spawn position override
    */
   instantiatePrefab(name: string, position?: { x: number; y: number; z: number }): string | null
+  /**
+   * Destroy an entity by ID, removing it from the renderer, physics, and scripts.
+   * Can destroy both scene entities and runtime-instantiated prefab instances.
+   */
+  destroyEntity(id: string): void
 }
 
 export interface ManaScript {

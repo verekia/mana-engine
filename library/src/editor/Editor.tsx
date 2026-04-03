@@ -726,6 +726,7 @@ export default function Editor({
               editingPrefab={editingPrefab}
               prefabRefreshKey={prefabRefreshKey}
               onPrefabListChanged={() => setAssetRefreshKey(k => k + 1)}
+              prefabs={prefabs}
             />
             <ResizeHandle
               direction="horizontal"

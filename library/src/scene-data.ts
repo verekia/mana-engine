@@ -81,12 +81,17 @@ export interface SceneEntity {
   collider?: ColliderData
   castShadow?: boolean
   receiveShadow?: boolean
+  /** Child entities forming a hierarchy. */
+  children?: SceneEntity[]
+  /** Reference to a prefab by name. The entity's properties are merged on top of the prefab defaults. */
+  prefab?: string
 }
 
 /**
  * A prefab is a reusable entity template stored as a YAML file in `prefabs/`.
- * It contains a single root entity (with optional children in the future).
- * Prefabs can be instantiated at runtime via `ctx.instantiatePrefab()` in scripts.
+ * It contains a root entity with optional `children` for multi-entity hierarchies.
+ * Prefabs can be instantiated at runtime via `ctx.instantiatePrefab()` in scripts,
+ * or placed in scenes via the `prefab` field on a SceneEntity.
  */
 export interface PrefabData {
   /** The root entity definition for this prefab. */
