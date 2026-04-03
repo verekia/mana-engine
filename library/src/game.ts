@@ -7,6 +7,7 @@ export type {
   MaterialData,
   MeshData,
   ModelData,
+  PrefabData,
   RigidBodyData,
   SceneData,
   SceneEntity,

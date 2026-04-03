@@ -5,13 +5,14 @@ import { createScene } from './scene.ts'
 
 import type { PhysicsAdapter } from './adapters/physics-adapter.ts'
 import type { RendererAdapter } from './adapters/renderer-adapter.ts'
-import type { SceneData } from './scene-data.ts'
+import type { PrefabData, SceneData } from './scene-data.ts'
 import type { ManaScript } from './script.ts'
 
 export function Game({
   scenes,
   scripts,
   uiComponents,
+  prefabs,
   startScene,
   createRenderer,
   createPhysics,
@@ -20,6 +21,7 @@ export function Game({
   scenes: Record<string, SceneData>
   scripts?: Record<string, ManaScript>
   uiComponents?: Record<string, ComponentType>
+  prefabs?: Record<string, PrefabData>
   startScene?: string
   createRenderer: () => RendererAdapter
   createPhysics?: (() => PhysicsAdapter) | undefined
@@ -41,7 +43,7 @@ export function Game({
     const physics = createPhysics?.()
     const data = coordinateSystem ? { ...sceneData, coordinateSystem } : sceneData
 
-    createScene(canvas, data, { renderer, physics, scripts }).then(s => {
+    createScene(canvas, data, { renderer, physics, scripts, prefabs }).then(s => {
       if (disposed) {
         s.dispose()
         return
@@ -52,7 +54,7 @@ export function Game({
       disposed = true
       manaScene?.dispose()
     }
-  }, [sceneData, scripts, createRenderer, createPhysics, coordinateSystem])
+  }, [sceneData, scripts, prefabs, createRenderer, createPhysics, coordinateSystem])
 
   const loadScene = useCallback(
     (name: string) => {

@@ -11,8 +11,10 @@ import {
   createScene as apiCreateScene,
   deleteScene as apiDeleteScene,
   fetchSceneList,
+  loadPrefabData,
   loadSceneData,
   renameScene as apiRenameScene,
+  savePrefabData,
   saveSceneData,
 } from './scene-api.ts'
 import { Toolbar } from './Toolbar.tsx'
@@ -21,19 +23,21 @@ import { Viewport } from './Viewport.tsx'
 
 import type { PhysicsAdapter } from '../adapters/physics-adapter.ts'
 import type { RendererAdapter } from '../adapters/renderer-adapter.ts'
-import type { SceneData, SceneEntity, Transform } from '../scene-data.ts'
+import type { PrefabData, SceneData, SceneEntity, Transform } from '../scene-data.ts'
 import type { EditorCameraState, TransformMode } from '../scene.ts'
 import type { ManaScript } from '../script.ts'
 
 export default function Editor({
   uiComponents = {},
   scripts = {},
+  prefabs = {},
   createRenderer,
   createPhysics,
   coordinateSystem,
 }: {
   uiComponents?: Record<string, ComponentType>
   scripts?: Record<string, ManaScript>
+  prefabs?: Record<string, PrefabData>
   createRenderer: () => RendererAdapter
   createPhysics?: () => PhysicsAdapter
   coordinateSystem?: 'y-up' | 'z-up'
@@ -83,6 +87,16 @@ export default function Editor({
     [sceneData, savedSceneJson],
   )
   dirtyRef.current = dirty
+
+  // Prefab editing mode
+  const [editingPrefab, setEditingPrefab] = useState<string | null>(null)
+  const prePrefabSceneRef = useRef<string>('')
+  const prePrefabSceneDataRef = useRef<SceneData | null>(null)
+  const prePrefabSelectedIdRef = useRef<string | null>(null)
+  const prePrefabCameraRef = useRef<EditorCameraState | null>(null)
+  const prePrefabSavedJsonRef = useRef('')
+  const editingPrefabRef = useRef<string | null>(null)
+  editingPrefabRef.current = editingPrefab
 
   const prePlaySceneRef = useRef('')
   const prePlaySceneDataRef = useRef<SceneData | null>(null)
@@ -164,6 +178,7 @@ export default function Editor({
     canvasRef,
     sceneData,
     scripts,
+    prefabs,
     showGizmos,
     transformMode,
     createRenderer,
@@ -328,6 +343,81 @@ export default function Editor({
     log('Play mode stopped')
   }, [log, recreateScene])
 
+  // ── Prefab editing ──────────────────────────────────────────────────────────
+
+  /** Create a SceneData wrapper around a prefab entity for the viewport */
+  const prefabToSceneData = useCallback((prefab: PrefabData): SceneData => {
+    return {
+      background: '#2a2a2a',
+      entities: [
+        {
+          id: '__prefab_camera',
+          name: 'Camera',
+          type: 'camera',
+          transform: { position: [0, 2, 5], rotation: [0, 0, 0], scale: [1, 1, 1] },
+          camera: { fov: 50, near: 0.1, far: 1000 },
+        },
+        {
+          id: '__prefab_ambient',
+          name: 'Ambient Light',
+          type: 'ambient-light',
+          light: { color: '#ffffff', intensity: 0.5 },
+        },
+        {
+          id: '__prefab_dir_light',
+          name: 'Directional Light',
+          type: 'directional-light',
+          transform: { position: [5, 5, 5], rotation: [0, 0, 0], scale: [1, 1, 1] },
+          light: { color: '#ffffff', intensity: 1, castShadow: true },
+        },
+        prefab.entity,
+      ],
+    }
+  }, [])
+
+  const handleEditPrefab = useCallback(
+    async (name: string) => {
+      // Save current scene state
+      prePrefabSceneRef.current = activeSceneRef.current
+      prePrefabSceneDataRef.current = sceneDataRef.current
+      prePrefabSelectedIdRef.current = selectedIdRef.current
+      prePrefabCameraRef.current = sceneRef.current?.getEditorCamera() ?? null
+      prePrefabSavedJsonRef.current = savedSceneJson
+
+      try {
+        const prefab = await loadPrefabData(name)
+        const sceneFromPrefab = prefabToSceneData(prefab)
+        setEditingPrefab(name)
+        setSceneData(sceneFromPrefab)
+        setSavedSceneJson(JSON.stringify(sceneFromPrefab))
+        setSelectedId(prefab.entity.id)
+        historyRef.current.clear()
+        forceUpdate(n => n + 1)
+        await recreateScene(sceneFromPrefab, false)
+        log(`Editing prefab: ${name}`)
+      } catch (err) {
+        log(`Error loading prefab: ${(err as Error).message}`)
+      }
+    },
+    [log, sceneRef, recreateScene, savedSceneJson, prefabToSceneData],
+  )
+
+  const handleExitPrefab = useCallback(async () => {
+    setEditingPrefab(null)
+    const name = prePrefabSceneRef.current || activeSceneRef.current
+    const data = prePrefabSceneDataRef.current
+    if (data) {
+      setSceneData(data)
+      setActiveScene(name)
+      setSavedSceneJson(prePrefabSavedJsonRef.current)
+      await recreateScene(data, false, prePrefabCameraRef.current ?? undefined)
+    }
+    setSelectedId(prePrefabSelectedIdRef.current)
+    historyRef.current.clear()
+    forceUpdate(n => n + 1)
+    log('Exited prefab editing')
+  }, [log, recreateScene])
+
   // Scene switching during play mode (via useMana().loadScene)
   const handlePlaySceneSwitch = useCallback(
     (name: string) => {
@@ -361,8 +451,28 @@ export default function Editor({
       if (mod && e.key === 's') {
         e.preventDefault()
         const data = sceneDataRef.current
+        if (!data) return
+
+        // If editing a prefab, save the prefab entity (skip helper camera/lights)
+        const prefabName = editingPrefabRef.current
+        if (prefabName) {
+          const prefabEntity = data.entities.find(
+            ent => ent.id !== '__prefab_camera' && ent.id !== '__prefab_ambient' && ent.id !== '__prefab_dir_light',
+          )
+          if (prefabEntity) {
+            const prefabData: PrefabData = { entity: prefabEntity }
+            savePrefabData(prefabName, prefabData)
+              .then(() => {
+                setSavedSceneJson(JSON.stringify(data))
+                log(`Prefab saved: ${prefabName}`)
+              })
+              .catch(err => log(`Error saving prefab: ${err.message}`))
+          }
+          return
+        }
+
         const name = activeSceneRef.current
-        if (!data || !name) return
+        if (!name) return
         saveSceneData(name, data)
           .then(() => {
             setSavedSceneJson(JSON.stringify(data))
@@ -610,6 +720,7 @@ export default function Editor({
               onRenameEntity={handleRenameEntity}
               hiddenEntities={hiddenEntities}
               onToggleVisibility={handleToggleEntityVisibility}
+              onEditPrefab={handleEditPrefab}
             />
             <ResizeHandle
               direction="horizontal"
@@ -654,6 +765,8 @@ export default function Editor({
                     return next
                   })
                 }}
+                editingPrefab={editingPrefab}
+                onExitPrefab={handleExitPrefab}
               />
               <div style={{ flex: 1, overflow: 'hidden' }}>
                 <ManaContext.Provider value={manaContextValue}>
@@ -682,7 +795,7 @@ export default function Editor({
               })
             }
           />
-          <BottomPanel height={bottomHeight} />
+          <BottomPanel height={bottomHeight} onEditPrefab={handleEditPrefab} />
         </div>
         {/* Right: inspector (full height) */}
         <ResizeHandle

@@ -1,14 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { COLORS } from './colors.ts'
-import { Icon3D, IconAudio, IconData, IconFile, IconFolder, IconFont, IconImage, IconVideo } from './icons.tsx'
+import {
+  Icon3D,
+  IconAudio,
+  IconData,
+  IconFile,
+  IconFolder,
+  IconFont,
+  IconImage,
+  IconPlus,
+  IconPrefab,
+  IconVideo,
+} from './icons.tsx'
 import { type AssetEntry, assetFileUrl, fetchAssets } from './scene-api.ts'
 
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.bmp'])
 const AUDIO_EXTS = new Set(['.mp3', '.wav', '.ogg', '.flac'])
 
+function isPrefabFile(entry: AssetEntry): boolean {
+  return entry.type === 'file' && entry.name.endsWith('.prefab.yaml')
+}
+
 function getAssetIcon(entry: AssetEntry): React.ReactNode {
   if (entry.type === 'folder') return <IconFolder />
+  if (isPrefabFile(entry)) return <IconPrefab />
   if (!entry.ext) return <IconFile />
   if (IMAGE_EXTS.has(entry.ext) || entry.ext === '.ktx2' || entry.ext === '.hdr' || entry.ext === '.exr')
     return <IconImage />
@@ -22,6 +38,7 @@ function getAssetIcon(entry: AssetEntry): React.ReactNode {
 
 function getIconColor(entry: AssetEntry): string {
   if (entry.type === 'folder') return '#d4a843'
+  if (isPrefabFile(entry)) return '#22c55e'
   if (!entry.ext) return COLORS.textDim
   if (IMAGE_EXTS.has(entry.ext) || entry.ext === '.ktx2' || entry.ext === '.hdr' || entry.ext === '.exr') return '#4a9'
   if (['.gltf', '.glb', '.fbx', '.obj'].includes(entry.ext)) return '#a6e'
@@ -107,6 +124,40 @@ function Ktx2Preview({ url }: { url: string }) {
   return <canvas ref={canvasRef} width={128} height={128} style={{ maxWidth: '100%', maxHeight: '100%' }} />
 }
 
+function PrefabPreview({ name }: { name: string }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        gap: 6,
+        padding: 8,
+      }}
+    >
+      <div style={{ color: '#22c55e', display: 'flex' }}>
+        <svg
+          width={40}
+          height={40}
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="3" y="3" width="10" height="10" rx="2" />
+          <path d="M6 3v10M10 3v10M3 6h10M3 10h10" />
+        </svg>
+      </div>
+      <div style={{ fontSize: 10, color: COLORS.text, textAlign: 'center', wordBreak: 'break-all' }}>{name}</div>
+      <div style={{ fontSize: 9, color: COLORS.textMuted }}>Prefab</div>
+    </div>
+  )
+}
+
 function AssetPreview({ filePath, ext, size }: { filePath: string; ext: string | null; size: number | null }) {
   const url = assetFileUrl(filePath)
   const fileName = filePath.split('/').pop() ?? filePath
@@ -166,7 +217,7 @@ function AssetPreview({ filePath, ext, size }: { filePath: string; ext: string |
   )
 }
 
-export function BottomPanel({ height }: { height: number }) {
+export function BottomPanel({ height, onEditPrefab }: { height: number; onEditPrefab?: (name: string) => void }) {
   const [currentPath, setCurrentPath] = useState('')
   const [entries, setEntries] = useState<AssetEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -288,6 +339,53 @@ export function BottomPanel({ height }: { height: number }) {
             <span style={{ color: COLORS.textDim }}>/</span>
           </span>
         ))}
+        {currentPath === 'prefabs' && (
+          <>
+            <div style={{ flex: 1 }} />
+            <button
+              type="button"
+              onClick={() => {
+                const name = prompt('New prefab name (letters, numbers, - and _ only):')
+                if (name && /^[a-zA-Z0-9_-]+$/.test(name)) {
+                  fetch(`/__mana/prefabs/${name}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      entity: {
+                        id: 'root',
+                        name,
+                        type: 'mesh',
+                        transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+                        mesh: { geometry: 'box', material: { color: '#888888' } },
+                      },
+                    }),
+                  }).then(() => loadDir('prefabs'))
+                }
+              }}
+              style={{
+                background: 'none',
+                border: `1px solid ${COLORS.border}`,
+                color: '#22c55e',
+                padding: '1px 8px',
+                fontSize: 10,
+                borderRadius: 3,
+                fontFamily: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 3,
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.borderColor = '#22c55e'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = COLORS.border
+              }}
+            >
+              <IconPlus />
+              New Prefab
+            </button>
+          </>
+        )}
       </div>
 
       {/* Main area: file list + preview */}
@@ -366,9 +464,46 @@ export function BottomPanel({ height }: { height: number }) {
               background: COLORS.panelHeader,
               flexShrink: 0,
               overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
             }}
           >
-            <AssetPreview filePath={selectedFile} ext={selectedEntry.ext} size={selectedEntry.size} />
+            {isPrefabFile(selectedEntry) ? (
+              <>
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                  <PrefabPreview name={selectedEntry.name.replace(/\.prefab\.yaml$/, '')} />
+                </div>
+                {onEditPrefab && (
+                  <div style={{ padding: '4px 8px', flexShrink: 0, borderTop: `1px solid ${COLORS.border}` }}>
+                    <button
+                      type="button"
+                      onClick={() => onEditPrefab(selectedEntry.name.replace(/\.prefab\.yaml$/, ''))}
+                      style={{
+                        width: '100%',
+                        padding: '4px 0',
+                        background: '#22c55e',
+                        border: 'none',
+                        borderRadius: 4,
+                        color: '#fff',
+                        fontSize: 10,
+                        fontWeight: 600,
+                        fontFamily: 'inherit',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = '#16a34a'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = '#22c55e'
+                      }}
+                    >
+                      Edit Prefab
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <AssetPreview filePath={selectedFile} ext={selectedEntry.ext} size={selectedEntry.size} />
+            )}
           </div>
         )}
       </div>

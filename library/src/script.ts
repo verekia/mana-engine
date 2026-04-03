@@ -40,6 +40,15 @@ export interface ScriptContext {
   setRotation(x: number, y: number, z: number): void
   /** Find another entity by name and return its position, or null if not found. */
   findEntityPosition(name: string): { x: number; y: number; z: number } | null
+  /**
+   * Instantiate a prefab at runtime.
+   * The prefab must exist in the `prefabs/` directory as `<name>.prefab.yaml`.
+   * Returns the entity ID of the newly created instance, or null if the prefab is not found.
+   *
+   * @param name The prefab name (without .prefab.yaml extension)
+   * @param position Optional spawn position override
+   */
+  instantiatePrefab(name: string, position?: { x: number; y: number; z: number }): string | null
 }
 
 export interface ManaScript {

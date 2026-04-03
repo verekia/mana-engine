@@ -73,7 +73,20 @@ interface DiscoveredGame {
   scenes: { name: string; absPath: string }[]
   scripts: { name: string; absPath: string }[]
   uiComponents: { name: string; absPath: string }[]
+  prefabs: { name: string; absPath: string }[]
   cssPath: string | null
+}
+
+/** Discover .prefab.yaml files in the prefabs directory. */
+function discoverPrefabs(dir: string): { name: string; absPath: string }[] {
+  if (!existsSync(dir)) return []
+  const results: { name: string; absPath: string }[] = []
+  for (const file of readdirSync(dir)) {
+    if (file.endsWith('.prefab.yaml')) {
+      results.push({ name: file.replace(/\.prefab\.yaml$/, ''), absPath: resolve(dir, file) })
+    }
+  }
+  return results.toSorted((a, b) => a.name.localeCompare(b.name))
 }
 
 function discoverGame(gameDir: string): DiscoveredGame {
@@ -81,6 +94,7 @@ function discoverGame(gameDir: string): DiscoveredGame {
     scenes: discoverFiles(resolve(gameDir, 'scenes'), ['.yaml']),
     scripts: discoverFiles(resolve(gameDir, 'scripts'), ['.ts', '.js']),
     uiComponents: discoverFiles(resolve(gameDir, 'ui'), ['.tsx', '.jsx', '.ts', '.js']),
+    prefabs: discoverPrefabs(resolve(gameDir, 'prefabs')),
     cssPath: existsSync(resolve(gameDir, 'game.css')) ? resolve(gameDir, 'game.css') : null,
   }
 }
@@ -145,6 +159,11 @@ function generateGameImports(game: DiscoveredGame, startScene?: string): string 
     lines.push(`import ui_${i} from ${JSON.stringify(game.uiComponents[i].absPath)}`)
   }
 
+  // Prefabs
+  for (let i = 0; i < game.prefabs.length; i++) {
+    lines.push(`import prefab_${i} from ${JSON.stringify(game.prefabs[i].absPath)}`)
+  }
+
   lines.push('')
 
   // Scene map
@@ -158,6 +177,10 @@ function generateGameImports(game: DiscoveredGame, startScene?: string): string 
   // UI component map
   const uiEntries = game.uiComponents.map((s, i) => `  ${JSON.stringify(s.name)}: ui_${i}`).join(',\n')
   lines.push(`const uiComponents = {\n${uiEntries}\n}`)
+
+  // Prefab map
+  const prefabEntries = game.prefabs.map((s, i) => `  ${JSON.stringify(s.name)}: prefab_${i}`).join(',\n')
+  lines.push(`const prefabs = {\n${prefabEntries}\n}`)
 
   if (startScene) {
     lines.push(`const startScene = ${JSON.stringify(startScene)}`)
@@ -196,7 +219,7 @@ async function runBuild() {
       `export function mount(container, options) {`,
       `  if (options?.assetManifest) setAssetManifest(options.assetManifest)`,
       `  root = createRoot(container)`,
-      `  root.render(createElement(Game, { scenes, scripts, uiComponents, createRenderer, createPhysics, coordinateSystem${config.startScene ? ', startScene' : ''} }))`,
+      `  root.render(createElement(Game, { scenes, scripts, uiComponents, prefabs, createRenderer, createPhysics, coordinateSystem${config.startScene ? ', startScene' : ''} }))`,
       `}`,
       `export function unmount() {`,
       `  if (root) {`,
@@ -256,7 +279,7 @@ async function runDev() {
       `new MutationObserver(mirrorStyles).observe(document.head, { childList: true, subtree: true, characterData: true })`,
       `mirrorStyles()`,
       ``,
-      `createRoot(container).render(createElement(Game, { scenes, scripts, uiComponents, createRenderer, createPhysics, coordinateSystem${config.startScene ? ', startScene' : ''} }))`,
+      `createRoot(container).render(createElement(Game, { scenes, scripts, uiComponents, prefabs, createRenderer, createPhysics, coordinateSystem${config.startScene ? ', startScene' : ''} }))`,
     ].join('\n'),
   )
 
@@ -314,7 +337,7 @@ async function runEditor() {
       ``,
       generateGameImports({ ...game, scenes: [] }),
       ``,
-      `createRoot(document.getElementById('editor')!).render(createElement(Editor, { uiComponents, scripts, createRenderer, createPhysics, coordinateSystem }))`,
+      `createRoot(document.getElementById('editor')!).render(createElement(Editor, { uiComponents, scripts, prefabs, createRenderer, createPhysics, coordinateSystem }))`,
     ].join('\n'),
   )
 

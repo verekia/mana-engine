@@ -2,7 +2,7 @@ import { Input } from './input.ts'
 
 import type { PhysicsAdapter } from './adapters/physics-adapter.ts'
 import type { RendererAdapter, EditorCameraState, TransformMode } from './adapters/renderer-adapter.ts'
-import type { SceneData, SceneEntity, Transform } from './scene-data.ts'
+import type { PrefabData, SceneData, SceneEntity, Transform } from './scene-data.ts'
 import type { ManaScript } from './script.ts'
 
 // Re-export adapter types so existing consumers can keep importing from 'scene.ts'
@@ -39,6 +39,8 @@ export interface CreateSceneOptions {
   physics?: PhysicsAdapter
   /** Scripts to run during play mode. Ignored in editor mode (orbitControls: true). */
   scripts?: Record<string, ManaScript>
+  /** Prefab definitions, keyed by name. Used by `ctx.instantiatePrefab()` in scripts. */
+  prefabs?: Record<string, PrefabData>
   /** Enable editor orbit controls (edit mode). When false, the game camera is used. */
   orbitControls?: boolean
   /** Initial editor camera state (orbit controls mode only). */
@@ -173,6 +175,27 @@ export async function createScene(
         if (!id) return null
         const p = renderer.getEntityPosition(id)
         return p ? { x: p[0], y: p[1], z: p[2] } : null
+      },
+      instantiatePrefab(name, position) {
+        const prefab = options.prefabs?.[name]
+        if (!prefab) {
+          console.warn(`[mana] Prefab "${name}" not found`)
+          return null
+        }
+        const instanceId = `${name}_${Math.random().toString(36).slice(2, 10)}`
+        const entity: SceneEntity = {
+          ...structuredClone(prefab.entity),
+          id: instanceId,
+          name: `${prefab.entity.name} (instance)`,
+        }
+        if (position && entity.transform) {
+          entity.transform.position = [position.x, position.y, position.z]
+        } else if (position) {
+          entity.transform = { position: [position.x, position.y, position.z] }
+        }
+        renderer.addEntity(entity)
+        nameToId.set(entity.name, instanceId)
+        return instanceId
       },
     }
   }
