@@ -125,6 +125,8 @@ export function Toolbar({
   onToggleUI,
   showGizmos,
   onToggleGizmos,
+  editingPrefab,
+  onExitPrefab,
 }: {
   playing: boolean
   onPlay: () => void
@@ -140,13 +142,15 @@ export function Toolbar({
   onToggleUI: () => void
   showGizmos: boolean
   onToggleGizmos: () => void
+  editingPrefab?: string | null
+  onExitPrefab?: () => void
 }) {
   return (
     <div
       style={{
         height: 32,
-        background: playing ? '#0f1a2e' : COLORS.panelHeader,
-        borderBottom: `1px solid ${playing ? '#1e3a5f' : COLORS.border}`,
+        background: editingPrefab ? '#0a1f0a' : playing ? '#0f1a2e' : COLORS.panelHeader,
+        borderBottom: `1px solid ${editingPrefab ? '#1a3f1a' : playing ? '#1e3a5f' : COLORS.border}`,
         display: 'flex',
         alignItems: 'center',
         padding: '0 8px',
@@ -154,6 +158,43 @@ export function Toolbar({
         gap: 2,
       }}
     >
+      {/* Prefab editing mode indicator */}
+      {editingPrefab && (
+        <>
+          <button
+            onClick={onExitPrefab}
+            title="Back to scene"
+            style={{
+              background: 'none',
+              border: `1px solid #22c55e`,
+              borderRadius: 4,
+              color: '#22c55e',
+              fontSize: 10,
+              padding: '2px 8px',
+              fontFamily: 'inherit',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = '#22c55e'
+              e.currentTarget.style.color = '#000'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'none'
+              e.currentTarget.style.color = '#22c55e'
+            }}
+          >
+            Back
+          </button>
+          <ToolbarSeparator />
+          <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 600, letterSpacing: '0.03em' }}>
+            PREFAB: {editingPrefab}
+          </span>
+          <ToolbarSeparator />
+        </>
+      )}
       {/* Left: transform + undo/redo */}
       <ToolbarButton
         title="Translate (W)"

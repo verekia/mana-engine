@@ -46,6 +46,14 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 - **Rotation locking** — Per-axis `[x, y, z]` rotation lock on rigid bodies
 - **Independent physics** — Physics steps even without scripts attached to entities
 
+### Prefab System
+
+- **Reusable entity templates** — Prefabs are YAML files in `prefabs/` (e.g., `enemy.prefab.yaml`) containing a single entity definition
+- **Visual prefab editor** — Edit prefabs in a dedicated mode with green toolbar, auto-generated camera and lighting
+- **Runtime instantiation** — Spawn prefab instances from scripts via `ctx.instantiatePrefab('enemy', { x: 0, y: 1, z: 0 })`
+- **Asset browser integration** — Browse, create, and edit prefabs from the asset browser's virtual "prefabs" folder
+- **Left panel tabs** — Switch between Scenes and Prefabs tabs in the editor sidebar
+
 ### UI Components
 
 - **React components** — Rendered as scene entities, authored in the game directory
@@ -136,6 +144,7 @@ These APIs work identically regardless of which renderer or physics adapter is a
 | `ctx.setPosition(x, y, z)`     | Done   | Set entity position (bypasses physics)          |
 | `ctx.setRotation(x, y, z)`     | Done   | Set entity Euler rotation (radians)             |
 | `ctx.findEntityPosition(name)` | Done   | Find another entity's position by name          |
+| `ctx.instantiatePrefab(name)`  | Done   | Spawn a prefab instance at runtime              |
 | `ctx.entity`                   | Done   | Native renderer object (`unknown`, cast to use) |
 | `ctx.scene`                    | Done   | Native scene object (`unknown`, cast to use)    |
 | `ctx.dt` / `ctx.time`          | Done   | Frame delta and elapsed time                    |
@@ -199,6 +208,8 @@ scripts/
 ui/
   MainMenu.tsx        # React UI components
   HealthBar.tsx
+prefabs/              # Reusable entity templates
+  enemy.prefab.yaml
 assets/               # Static assets (textures, models, audio)
   textures/
   models/
@@ -267,7 +278,7 @@ export default {
 - `fixedUpdate(ctx)` — Called at fixed 60Hz (for physics)
 - `dispose()` — Called on scene cleanup
 
-`ScriptContext` provides: `entity` (native renderer object), `scene`, `dt` (seconds), `time` (elapsed seconds), `input` (keyboard/mouse state), `rigidBody` (adapter-agnostic physics body), plus helpers like `getPosition()`, `setPosition()`, `setRotation()`, and `findEntityPosition()`.
+`ScriptContext` provides: `entity` (native renderer object), `scene`, `dt` (seconds), `time` (elapsed seconds), `input` (keyboard/mouse state), `rigidBody` (adapter-agnostic physics body), plus helpers like `getPosition()`, `setPosition()`, `setRotation()`, `findEntityPosition()`, and `instantiatePrefab()`.
 
 ## Scene Switching
 
@@ -303,7 +314,6 @@ Bun workspaces, Vite, React 19, Tailwind CSS v4, oxlint, oxfmt, tsgo
 Features not yet implemented that would enhance the engine:
 
 - **Particle system** — Configurable emitters for effects like fire, smoke, and sparks
-- **Prefab system** — Reusable entity templates that can be instantiated at runtime
 - **Asset manager** — Centralized loading and caching of textures, models, and audio files (asset browser in editor is implemented)
 - **Post-processing** — Bloom, depth of field, tone mapping, color grading, SSAO
 - **Skybox / environment maps** — HDR environment lighting and reflections

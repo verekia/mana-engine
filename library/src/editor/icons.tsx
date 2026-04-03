@@ -256,6 +256,15 @@ export function IconGrid() {
   )
 }
 
+export function IconPrefab() {
+  return (
+    <svg {...svgProps} viewBox="0 0 16 16">
+      <rect x="3" y="3" width="10" height="10" rx="2" />
+      <path d="M6 3v10M10 3v10M3 6h10M3 10h10" />
+    </svg>
+  )
+}
+
 export function IconChevronDown() {
   return (
     <svg {...svgProps} viewBox="0 0 16 16" width={10} height={10}>

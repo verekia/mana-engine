@@ -335,6 +335,97 @@ function sceneApiPlugin(scenesDir: string): Plugin {
   }
 }
 
+function prefabApiPlugin(prefabsDir: string): Plugin {
+  return {
+    name: 'mana-prefab-api',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url?.startsWith('/__mana/prefabs')) return next()
+
+        if (req.url === '/__mana/prefabs' && req.method === 'GET') {
+          if (!existsSync(prefabsDir)) {
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify([]))
+            return
+          }
+          const files = readdirSync(prefabsDir)
+            .filter(f => f.endsWith('.prefab.yaml'))
+            .map(f => f.replace(/\.prefab\.yaml$/, ''))
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify(files))
+          return
+        }
+
+        const match = req.url.match(/^\/__mana\/prefabs\/([^/]+)$/)
+        if (!match) return next()
+        const prefabName = match[1]
+        if (!/^[a-zA-Z0-9_-]+$/.test(prefabName)) {
+          res.writeHead(400)
+          res.end('Invalid prefab name')
+          return
+        }
+        const filePath = resolve(prefabsDir, `${prefabName}.prefab.yaml`)
+
+        if (req.method === 'GET') {
+          if (!existsSync(filePath)) {
+            res.writeHead(404)
+            res.end('Prefab not found')
+            return
+          }
+          const data = load(readFileSync(filePath, 'utf-8'))
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify(data))
+          return
+        }
+
+        if (req.method === 'POST') {
+          let body = ''
+          let bodySize = 0
+          const MAX_BODY_SIZE = 5 * 1024 * 1024
+          req.on('data', (chunk: Buffer) => {
+            bodySize += chunk.length
+            if (bodySize > MAX_BODY_SIZE) {
+              res.writeHead(413)
+              res.end('Request body too large')
+              req.destroy()
+              return
+            }
+            body += chunk.toString()
+          })
+          req.on('end', () => {
+            if (bodySize > MAX_BODY_SIZE) return
+            try {
+              mkdirSync(prefabsDir, { recursive: true })
+              const data = JSON.parse(body)
+              writeFileSync(filePath, dump(data, { lineWidth: -1, quotingType: '"', flowLevel: 3 }))
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ ok: true }))
+            } catch {
+              res.writeHead(400, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ error: 'Invalid JSON' }))
+            }
+          })
+          return
+        }
+
+        if (req.method === 'DELETE') {
+          if (!existsSync(filePath)) {
+            res.writeHead(404)
+            res.end('Prefab not found')
+            return
+          }
+          unlinkSync(filePath)
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: true }))
+          return
+        }
+
+        next()
+      })
+    },
+  }
+}
+
 function basisTranscoderPlugin(threePath: string): Plugin {
   const basisDir = resolve(threePath, 'examples/jsm/libs/basis')
   return {
@@ -396,7 +487,7 @@ function validateAssetPath(assetsDir: string, relPath: string): string | null {
   return absPath
 }
 
-function assetsApiPlugin(assetsDir: string): Plugin {
+function assetsApiPlugin(assetsDir: string, prefabsDir?: string): Plugin {
   return {
     name: 'mana-assets-api',
     configureServer(server) {
@@ -442,6 +533,24 @@ function assetsApiPlugin(assetsDir: string): Plugin {
 
         // List directory: /__mana/assets?path=...
         const relPath = url.searchParams.get('path') || ''
+
+        // Virtual "prefabs" folder — list .prefab.yaml files from the prefabs directory
+        if (relPath === 'prefabs' && prefabsDir) {
+          const entries: { name: string; type: 'file' | 'folder'; ext: string | null; size: number | null }[] = []
+          if (existsSync(prefabsDir)) {
+            for (const name of readdirSync(prefabsDir)) {
+              if (!name.endsWith('.prefab.yaml')) continue
+              const fullPath = join(prefabsDir, name)
+              const fileStat = statSync(fullPath)
+              entries.push({ name, type: 'file', ext: '.yaml', size: fileStat.size })
+            }
+            entries.sort((a, b) => a.name.localeCompare(b.name))
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify(entries))
+          return
+        }
+
         const absPath = validateAssetPath(assetsDir, relPath)
         if (!absPath) {
           res.writeHead(400)
@@ -480,6 +589,11 @@ function assetsApiPlugin(assetsDir: string): Plugin {
             return a.name.localeCompare(b.name)
           })
 
+        // At root level, inject virtual "prefabs" folder
+        if (!relPath && prefabsDir) {
+          entries.unshift({ name: 'prefabs', type: 'folder', ext: null, size: null })
+        }
+
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify(entries))
       })
@@ -497,6 +611,7 @@ export function createEditorConfig(
 ): InlineConfig {
   const scenesDir = resolve(gameDir, 'scenes')
   const assetsDir = resolve(gameDir, 'assets')
+  const prefabsDir = resolve(gameDir, 'prefabs')
   return {
     root,
     plugins: [
@@ -505,7 +620,8 @@ export function createEditorConfig(
       react(),
       tailwindcss(),
       sceneApiPlugin(scenesDir),
-      assetsApiPlugin(assetsDir),
+      prefabApiPlugin(prefabsDir),
+      assetsApiPlugin(assetsDir, prefabsDir),
       basisTranscoderPlugin(threePath),
     ],
     resolve: {

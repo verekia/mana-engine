@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 
 import { COLORS, INPUT_STYLE } from './colors.ts'
 import {
@@ -10,8 +10,15 @@ import {
   IconModel,
   IconPlus,
   IconPointLight,
+  IconPrefab,
   IconUI,
 } from './icons.tsx'
+import {
+  createPrefab as apiCreatePrefab,
+  deletePrefab as apiDeletePrefab,
+  fetchPrefabList,
+  renamePrefab as apiRenamePrefab,
+} from './scene-api.ts'
 
 import type { SceneData, SceneEntity } from '../scene-data.ts'
 
@@ -422,6 +429,8 @@ const EntityRow = memo(function EntityRow({
   )
 })
 
+type LeftPanelTab = 'scenes' | 'prefabs'
+
 export function LeftPanel({
   width,
   sceneList,
@@ -438,6 +447,7 @@ export function LeftPanel({
   onRenameEntity,
   hiddenEntities,
   onToggleVisibility,
+  onEditPrefab,
 }: {
   width: number
   sceneList: string[]
@@ -454,7 +464,9 @@ export function LeftPanel({
   onRenameEntity: (id: string, name: string) => void
   hiddenEntities: Set<string>
   onToggleVisibility: (id: string) => void
+  onEditPrefab?: (name: string) => void
 }) {
+  const [activeTab, setActiveTab] = useState<LeftPanelTab>('scenes')
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [addMenuPos, setAddMenuPos] = useState<{ x: number; y: number } | null>(null)
   const addButtonRef = useRef<HTMLButtonElement>(null)
@@ -464,6 +476,21 @@ export function LeftPanel({
   const [sceneContextMenu, setSceneContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [renamingScene, setRenamingScene] = useState(false)
   const [sceneRenameValue, setSceneRenameValue] = useState('')
+
+  // Prefab list state
+  const [prefabList, setPrefabList] = useState<string[]>([])
+  const [prefabContextMenu, setPrefabContextMenu] = useState<{ x: number; y: number; name: string } | null>(null)
+  const [renamingPrefab, setRenamingPrefab] = useState<string | null>(null)
+  const [prefabRenameValue, setPrefabRenameValue] = useState('')
+
+  const loadPrefabs = useCallback(() => {
+    fetchPrefabList().then(setPrefabList)
+  }, [])
+
+  useEffect(() => {
+    loadPrefabs()
+  }, [loadPrefabs])
+
   return (
     <div
       style={{
@@ -476,357 +503,634 @@ export function LeftPanel({
         overflow: 'hidden',
       }}
     >
-      {/* Scene selector */}
+      {/* Tab bar */}
       <div
         style={{
-          height: 32,
-          padding: '0 8px',
-          borderBottom: `1px solid ${COLORS.border}`,
           display: 'flex',
-          alignItems: 'center',
-          gap: 4,
+          borderBottom: `1px solid ${COLORS.border}`,
           flexShrink: 0,
         }}
       >
-        <div style={{ flex: 1, position: 'relative' }}>
-          {renamingScene ? (
-            <input
-              autoFocus
-              value={sceneRenameValue}
-              onFocus={e => e.target.select()}
-              onChange={e => setSceneRenameValue(e.target.value)}
-              onBlur={() => {
-                const v = sceneRenameValue.trim()
-                if (v && v !== activeScene && /^[a-zA-Z0-9_-]+$/.test(v)) {
-                  onRenameScene(activeScene, v)
-                }
-                setRenamingScene(false)
-              }}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  const v = sceneRenameValue.trim()
-                  if (v && v !== activeScene && /^[a-zA-Z0-9_-]+$/.test(v)) {
-                    onRenameScene(activeScene, v)
-                  }
-                  setRenamingScene(false)
-                }
-                if (e.key === 'Escape') setRenamingScene(false)
-              }}
-              style={{
-                ...INPUT_STYLE,
-                width: '100%',
-                borderColor: COLORS.accent,
-                boxShadow: COLORS.focusRing,
-              }}
-            />
-          ) : (
-            <>
-              <select
-                value={activeScene}
-                onChange={e => onSwitchScene(e.target.value)}
-                onContextMenu={e => {
-                  e.preventDefault()
-                  setSceneContextMenu({ x: e.clientX, y: e.clientY })
-                }}
-                style={{
-                  ...INPUT_STYLE,
-                  width: '100%',
-                  paddingRight: 18,
-                  appearance: 'none',
-                }}
-              >
-                {sceneList.map(name => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-              <span
-                style={{
-                  position: 'absolute',
-                  right: 5,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  pointerEvents: 'none',
-                  color: COLORS.textMuted,
-                  display: 'flex',
-                }}
-              >
-                <IconChevronDown />
-              </span>
-            </>
-          )}
-        </div>
-        <button
-          onClick={() => {
-            const name = prompt('New scene name (letters, numbers, - and _ only):')
-            if (name && /^[a-zA-Z0-9_-]+$/.test(name)) {
-              onCreateScene(name)
-            }
-          }}
-          title="New scene"
-          style={{
-            background: 'none',
-            border: 'none',
-            color: COLORS.textMuted,
-            padding: 0,
-            display: 'flex',
-            alignItems: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <IconPlus />
-        </button>
-      </div>
-
-      {/* Scene context menu */}
-      {sceneContextMenu && (
-        <>
-          <div
-            onClick={() => setSceneContextMenu(null)}
-            onContextMenu={e => {
-              e.preventDefault()
-              setSceneContextMenu(null)
-            }}
-            style={{ position: 'fixed', inset: 0, zIndex: 1000 }}
-          />
-          <div
+        {(['scenes', 'prefabs'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
             style={{
-              position: 'fixed',
-              left: sceneContextMenu.x,
-              top: sceneContextMenu.y,
-              background: COLORS.panel,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: 6,
-              padding: '4px 0',
-              zIndex: 1001,
-              minWidth: 120,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+              flex: 1,
+              padding: '6px 0',
+              background: activeTab === tab ? COLORS.panel : COLORS.panelHeader,
+              border: 'none',
+              borderBottom:
+                activeTab === tab
+                  ? `2px solid ${tab === 'prefabs' ? '#22c55e' : COLORS.accent}`
+                  : '2px solid transparent',
+              color: activeTab === tab ? COLORS.text : COLORS.textMuted,
+              fontSize: 10,
+              fontWeight: 600,
+              fontFamily: 'inherit',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}
+            onMouseEnter={e => {
+              if (activeTab !== tab) e.currentTarget.style.color = COLORS.text
+            }}
+            onMouseLeave={e => {
+              if (activeTab !== tab) e.currentTarget.style.color = COLORS.textMuted
             }}
           >
+            {tab === 'scenes' ? 'Scenes' : 'Prefabs'}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'scenes' && (
+        <>
+          {/* Scene selector */}
+          <div
+            style={{
+              height: 32,
+              padding: '0 8px',
+              borderBottom: `1px solid ${COLORS.border}`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ flex: 1, position: 'relative' }}>
+              {renamingScene ? (
+                <input
+                  autoFocus
+                  value={sceneRenameValue}
+                  onFocus={e => e.target.select()}
+                  onChange={e => setSceneRenameValue(e.target.value)}
+                  onBlur={() => {
+                    const v = sceneRenameValue.trim()
+                    if (v && v !== activeScene && /^[a-zA-Z0-9_-]+$/.test(v)) {
+                      onRenameScene(activeScene, v)
+                    }
+                    setRenamingScene(false)
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      const v = sceneRenameValue.trim()
+                      if (v && v !== activeScene && /^[a-zA-Z0-9_-]+$/.test(v)) {
+                        onRenameScene(activeScene, v)
+                      }
+                      setRenamingScene(false)
+                    }
+                    if (e.key === 'Escape') setRenamingScene(false)
+                  }}
+                  style={{
+                    ...INPUT_STYLE,
+                    width: '100%',
+                    borderColor: COLORS.accent,
+                    boxShadow: COLORS.focusRing,
+                  }}
+                />
+              ) : (
+                <>
+                  <select
+                    value={activeScene}
+                    onChange={e => onSwitchScene(e.target.value)}
+                    onContextMenu={e => {
+                      e.preventDefault()
+                      setSceneContextMenu({ x: e.clientX, y: e.clientY })
+                    }}
+                    style={{
+                      ...INPUT_STYLE,
+                      width: '100%',
+                      paddingRight: 18,
+                      appearance: 'none',
+                    }}
+                  >
+                    {sceneList.map(name => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                  <span
+                    style={{
+                      position: 'absolute',
+                      right: 5,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      pointerEvents: 'none',
+                      color: COLORS.textMuted,
+                      display: 'flex',
+                    }}
+                  >
+                    <IconChevronDown />
+                  </span>
+                </>
+              )}
+            </div>
             <button
               onClick={() => {
-                setSceneRenameValue(activeScene)
-                setRenamingScene(true)
-                setSceneContextMenu(null)
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = COLORS.hover
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent'
-              }}
-              style={{
-                display: 'block',
-                width: '100%',
-                padding: '5px 12px',
-                background: 'transparent',
-                border: 'none',
-                color: COLORS.text,
-                fontSize: 11,
-                textAlign: 'left',
-              }}
-            >
-              Rename
-            </button>
-            <button
-              onClick={() => {
-                if (sceneList.length <= 1) {
-                  alert('Cannot delete the last scene.')
-                } else if (confirm(`Delete scene "${activeScene}"?`)) {
-                  onDeleteScene(activeScene)
+                const name = prompt('New scene name (letters, numbers, - and _ only):')
+                if (name && /^[a-zA-Z0-9_-]+$/.test(name)) {
+                  onCreateScene(name)
                 }
-                setSceneContextMenu(null)
               }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(239,68,68,0.15)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent'
-              }}
+              title="New scene"
               style={{
-                display: 'block',
-                width: '100%',
-                padding: '5px 12px',
-                background: 'transparent',
+                background: 'none',
                 border: 'none',
-                color: COLORS.danger,
-                fontSize: 11,
-                textAlign: 'left',
+                color: COLORS.textMuted,
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                flexShrink: 0,
               }}
             >
-              Delete
+              <IconPlus />
             </button>
           </div>
+
+          {/* Scene context menu */}
+          {sceneContextMenu && (
+            <>
+              <div
+                onClick={() => setSceneContextMenu(null)}
+                onContextMenu={e => {
+                  e.preventDefault()
+                  setSceneContextMenu(null)
+                }}
+                style={{ position: 'fixed', inset: 0, zIndex: 1000 }}
+              />
+              <div
+                style={{
+                  position: 'fixed',
+                  left: sceneContextMenu.x,
+                  top: sceneContextMenu.y,
+                  background: COLORS.panel,
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: 6,
+                  padding: '4px 0',
+                  zIndex: 1001,
+                  minWidth: 120,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                }}
+              >
+                <button
+                  onClick={() => {
+                    setSceneRenameValue(activeScene)
+                    setRenamingScene(true)
+                    setSceneContextMenu(null)
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = COLORS.hover
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'transparent'
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '5px 12px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: COLORS.text,
+                    fontSize: 11,
+                    textAlign: 'left',
+                  }}
+                >
+                  Rename
+                </button>
+                <button
+                  onClick={() => {
+                    if (sceneList.length <= 1) {
+                      alert('Cannot delete the last scene.')
+                    } else if (confirm(`Delete scene "${activeScene}"?`)) {
+                      onDeleteScene(activeScene)
+                    }
+                    setSceneContextMenu(null)
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'rgba(239,68,68,0.15)'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'transparent'
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '5px 12px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: COLORS.danger,
+                    fontSize: 11,
+                    textAlign: 'left',
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Entity list */}
+          <div
+            onContextMenu={e => {
+              e.preventDefault()
+              setAddMenuOpen(false)
+              setAddMenuPos({ x: e.clientX, y: e.clientY })
+            }}
+            style={{
+              flex: 1,
+              overflow: 'auto',
+              padding: '4px 0',
+            }}
+          >
+            {sceneData ? (
+              sceneData.entities.map(entity => (
+                <EntityRow
+                  key={entity.id}
+                  entity={entity}
+                  isSelected={selectedId === entity.id}
+                  isHidden={hiddenEntities.has(entity.id)}
+                  isRenaming={renamingId === entity.id}
+                  renameValue={renamingId === entity.id ? renameValue : ''}
+                  onSelect={() => onSelect(entity.id)}
+                  onDoubleClick={() => {
+                    setRenamingId(entity.id)
+                    setRenameValue(entity.name)
+                  }}
+                  onContextMenu={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onSelect(entity.id)
+                    setContextMenu({ x: e.clientX, y: e.clientY, entityId: entity.id })
+                  }}
+                  onToggleVisibility={() => onToggleVisibility(entity.id)}
+                  onRenameChange={setRenameValue}
+                  onRenameCommit={() => {
+                    if (renameValue.trim()) onRenameEntity(entity.id, renameValue.trim())
+                    setRenamingId(null)
+                  }}
+                  onRenameCancel={() => setRenamingId(null)}
+                />
+              ))
+            ) : (
+              <div style={{ padding: 10, color: COLORS.textMuted, fontSize: 11 }}>Loading...</div>
+            )}
+          </div>
+
+          {/* Add object button */}
+          <div style={{ padding: '4px 6px', borderTop: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
+            <button
+              ref={addButtonRef}
+              onClick={() => {
+                setAddMenuPos(null)
+                setAddMenuOpen(s => !s)
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = COLORS.active
+                e.currentTarget.style.color = COLORS.text
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = COLORS.hover
+                e.currentTarget.style.color = COLORS.textMuted
+              }}
+              style={{
+                width: '100%',
+                padding: '4px 0',
+                background: COLORS.hover,
+                border: 'none',
+                borderRadius: 4,
+                color: COLORS.textMuted,
+                fontSize: 11,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
+              }}
+            >
+              <IconPlus />
+              Add Object
+            </button>
+          </div>
+
+          {addMenuOpen && (
+            <AddEntityPopover anchorRef={addButtonRef} onAdd={onAddEntity} onClose={() => setAddMenuOpen(false)} />
+          )}
+
+          {addMenuPos && (
+            <AddEntityPopover position={addMenuPos} onAdd={onAddEntity} onClose={() => setAddMenuPos(null)} />
+          )}
+
+          {/* Context menu */}
+          {contextMenu && (
+            <>
+              <div
+                onClick={() => setContextMenu(null)}
+                onContextMenu={e => {
+                  e.preventDefault()
+                  setContextMenu(null)
+                }}
+                style={{ position: 'fixed', inset: 0, zIndex: 1000 }}
+              />
+              <div
+                style={{
+                  position: 'fixed',
+                  left: contextMenu.x,
+                  top: contextMenu.y,
+                  background: COLORS.panel,
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: 6,
+                  padding: '4px 0',
+                  zIndex: 1001,
+                  minWidth: 120,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                }}
+              >
+                <button
+                  onClick={() => {
+                    const entity = sceneData?.entities.find(e => e.id === contextMenu.entityId)
+                    if (entity) {
+                      setRenamingId(entity.id)
+                      setRenameValue(entity.name)
+                    }
+                    setContextMenu(null)
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = COLORS.hover
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'transparent'
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '5px 12px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: COLORS.text,
+                    fontSize: 11,
+                    textAlign: 'left',
+                  }}
+                >
+                  Rename
+                </button>
+                <button
+                  onClick={() => {
+                    onDeleteEntity(contextMenu.entityId)
+                    setContextMenu(null)
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'rgba(239,68,68,0.15)'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'transparent'
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '5px 12px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: COLORS.danger,
+                    fontSize: 11,
+                    textAlign: 'left',
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            </>
+          )}
         </>
       )}
 
-      {/* Entity list */}
-      <div
-        onContextMenu={e => {
-          e.preventDefault()
-          setAddMenuOpen(false)
-          setAddMenuPos({ x: e.clientX, y: e.clientY })
-        }}
-        style={{
-          flex: 1,
-          overflow: 'auto',
-          padding: '4px 0',
-        }}
-      >
-        {sceneData ? (
-          sceneData.entities.map(entity => (
-            <EntityRow
-              key={entity.id}
-              entity={entity}
-              isSelected={selectedId === entity.id}
-              isHidden={hiddenEntities.has(entity.id)}
-              isRenaming={renamingId === entity.id}
-              renameValue={renamingId === entity.id ? renameValue : ''}
-              onSelect={() => onSelect(entity.id)}
-              onDoubleClick={() => {
-                setRenamingId(entity.id)
-                setRenameValue(entity.name)
-              }}
-              onContextMenu={e => {
-                e.preventDefault()
-                e.stopPropagation()
-                onSelect(entity.id)
-                setContextMenu({ x: e.clientX, y: e.clientY, entityId: entity.id })
-              }}
-              onToggleVisibility={() => onToggleVisibility(entity.id)}
-              onRenameChange={setRenameValue}
-              onRenameCommit={() => {
-                if (renameValue.trim()) onRenameEntity(entity.id, renameValue.trim())
-                setRenamingId(null)
-              }}
-              onRenameCancel={() => setRenamingId(null)}
-            />
-          ))
-        ) : (
-          <div style={{ padding: 10, color: COLORS.textMuted, fontSize: 11 }}>Loading...</div>
-        )}
-      </div>
-
-      {/* Add object button */}
-      <div style={{ padding: '4px 6px', borderTop: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
-        <button
-          ref={addButtonRef}
-          onClick={() => {
-            setAddMenuPos(null)
-            setAddMenuOpen(s => !s)
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = COLORS.active
-            e.currentTarget.style.color = COLORS.text
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = COLORS.hover
-            e.currentTarget.style.color = COLORS.textMuted
-          }}
-          style={{
-            width: '100%',
-            padding: '4px 0',
-            background: COLORS.hover,
-            border: 'none',
-            borderRadius: 4,
-            color: COLORS.textMuted,
-            fontSize: 11,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 4,
-          }}
-        >
-          <IconPlus />
-          Add Object
-        </button>
-      </div>
-
-      {addMenuOpen && (
-        <AddEntityPopover anchorRef={addButtonRef} onAdd={onAddEntity} onClose={() => setAddMenuOpen(false)} />
-      )}
-
-      {addMenuPos && <AddEntityPopover position={addMenuPos} onAdd={onAddEntity} onClose={() => setAddMenuPos(null)} />}
-
-      {/* Context menu */}
-      {contextMenu && (
+      {/* ── Prefabs tab ────────────────────────────────────────────────── */}
+      {activeTab === 'prefabs' && (
         <>
-          <div
-            onClick={() => setContextMenu(null)}
-            onContextMenu={e => {
-              e.preventDefault()
-              setContextMenu(null)
-            }}
-            style={{ position: 'fixed', inset: 0, zIndex: 1000 }}
-          />
-          <div
-            style={{
-              position: 'fixed',
-              left: contextMenu.x,
-              top: contextMenu.y,
-              background: COLORS.panel,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: 6,
-              padding: '4px 0',
-              zIndex: 1001,
-              minWidth: 120,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-            }}
-          >
+          {/* Prefab list */}
+          <div style={{ flex: 1, overflow: 'auto', padding: '4px 0' }}>
+            {prefabList.length === 0 ? (
+              <div style={{ padding: 10, color: COLORS.textMuted, fontSize: 11 }}>
+                No prefabs yet. Click + to create one.
+              </div>
+            ) : (
+              prefabList.map(name => (
+                <div
+                  key={name}
+                  onDoubleClick={() => {
+                    if (onEditPrefab) onEditPrefab(name)
+                  }}
+                  onContextMenu={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setPrefabContextMenu({ x: e.clientX, y: e.clientY, name })
+                  }}
+                  style={{
+                    padding: '3px 8px 3px 10px',
+                    borderRadius: 4,
+                    margin: '0 4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    color: COLORS.textMuted,
+                    userSelect: 'none',
+                    fontSize: 12,
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = COLORS.hover
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'transparent'
+                  }}
+                >
+                  {renamingPrefab === name ? (
+                    <input
+                      autoFocus
+                      value={prefabRenameValue}
+                      onFocus={e => e.target.select()}
+                      onChange={e => setPrefabRenameValue(e.target.value)}
+                      onBlur={() => {
+                        const v = prefabRenameValue.trim()
+                        if (v && v !== name && /^[a-zA-Z0-9_-]+$/.test(v)) {
+                          apiRenamePrefab(name, v).then(loadPrefabs)
+                        }
+                        setRenamingPrefab(null)
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          const v = prefabRenameValue.trim()
+                          if (v && v !== name && /^[a-zA-Z0-9_-]+$/.test(v)) {
+                            apiRenamePrefab(name, v).then(loadPrefabs)
+                          }
+                          setRenamingPrefab(null)
+                        }
+                        if (e.key === 'Escape') setRenamingPrefab(null)
+                      }}
+                      onClick={e => e.stopPropagation()}
+                      style={{
+                        ...INPUT_STYLE,
+                        width: '100%',
+                        fontSize: 12,
+                        padding: '1px 4px',
+                        borderColor: '#22c55e',
+                        boxShadow: '0 0 0 1.5px #22c55e',
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <span style={{ color: '#22c55e', display: 'flex', flexShrink: 0 }}>
+                        <IconPrefab />
+                      </span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                        {name}
+                      </span>
+                    </>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* New prefab button */}
+          <div style={{ padding: '4px 6px', borderTop: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
             <button
               onClick={() => {
-                const entity = sceneData?.entities.find(e => e.id === contextMenu.entityId)
-                if (entity) {
-                  setRenamingId(entity.id)
-                  setRenameValue(entity.name)
+                const name = prompt('New prefab name (letters, numbers, - and _ only):')
+                if (name && /^[a-zA-Z0-9_-]+$/.test(name)) {
+                  apiCreatePrefab(name).then(loadPrefabs)
                 }
-                setContextMenu(null)
               }}
               onMouseEnter={e => {
+                e.currentTarget.style.background = COLORS.active
+                e.currentTarget.style.color = '#22c55e'
+              }}
+              onMouseLeave={e => {
                 e.currentTarget.style.background = COLORS.hover
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent'
+                e.currentTarget.style.color = COLORS.textMuted
               }}
               style={{
-                display: 'block',
                 width: '100%',
-                padding: '5px 12px',
-                background: 'transparent',
+                padding: '4px 0',
+                background: COLORS.hover,
                 border: 'none',
-                color: COLORS.text,
+                borderRadius: 4,
+                color: COLORS.textMuted,
                 fontSize: 11,
-                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
               }}
             >
-              Rename
-            </button>
-            <button
-              onClick={() => {
-                onDeleteEntity(contextMenu.entityId)
-                setContextMenu(null)
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(239,68,68,0.15)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent'
-              }}
-              style={{
-                display: 'block',
-                width: '100%',
-                padding: '5px 12px',
-                background: 'transparent',
-                border: 'none',
-                color: COLORS.danger,
-                fontSize: 11,
-                textAlign: 'left',
-              }}
-            >
-              Delete
+              <IconPlus />
+              New Prefab
             </button>
           </div>
+
+          {/* Prefab context menu */}
+          {prefabContextMenu && (
+            <>
+              <div
+                onClick={() => setPrefabContextMenu(null)}
+                onContextMenu={e => {
+                  e.preventDefault()
+                  setPrefabContextMenu(null)
+                }}
+                style={{ position: 'fixed', inset: 0, zIndex: 1000 }}
+              />
+              <div
+                style={{
+                  position: 'fixed',
+                  left: prefabContextMenu.x,
+                  top: prefabContextMenu.y,
+                  background: COLORS.panel,
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: 6,
+                  padding: '4px 0',
+                  zIndex: 1001,
+                  minWidth: 120,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                }}
+              >
+                {onEditPrefab && (
+                  <button
+                    onClick={() => {
+                      onEditPrefab(prefabContextMenu.name)
+                      setPrefabContextMenu(null)
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = COLORS.hover
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'transparent'
+                    }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '5px 12px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: COLORS.text,
+                      fontSize: 11,
+                      textAlign: 'left',
+                    }}
+                  >
+                    Edit
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setRenamingPrefab(prefabContextMenu.name)
+                    setPrefabRenameValue(prefabContextMenu.name)
+                    setPrefabContextMenu(null)
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = COLORS.hover
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'transparent'
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '5px 12px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: COLORS.text,
+                    fontSize: 11,
+                    textAlign: 'left',
+                  }}
+                >
+                  Rename
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm(`Delete prefab "${prefabContextMenu.name}"?`)) {
+                      apiDeletePrefab(prefabContextMenu.name).then(loadPrefabs)
+                    }
+                    setPrefabContextMenu(null)
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'rgba(239,68,68,0.15)'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'transparent'
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '5px 12px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: COLORS.danger,
+                    fontSize: 11,
+                    textAlign: 'left',
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

@@ -86,17 +86,17 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 ## Project Structure & Auto-Discovery
 
 - Running `mana editor`, `mana dev`, or `mana build` in a directory auto-scaffolds a new project if no `mana.json` or `mana.config.js` exists
-- Scaffolding creates: `mana.json`, `scenes/default.yaml` (camera + light + cube), `scripts/`, `ui/`, `assets/` dirs, and `game.css`
+- Scaffolding creates: `mana.json`, `scenes/default.yaml` (camera + light + cube), `scripts/`, `ui/`, `assets/`, `prefabs/` dirs, and `game.css`
 - `mana.json` is the project config: `{ "gameDir": ".", "outDir": ".mana/build", "startScene": "default", "renderer": "three", "physics": "rapier", "coordinateSystem": "y-up" }`
 - `renderer` defaults to `"three"` (Three.js WebGPU); supported values: `"three"`, `"voidcore"`
 - `physics` defaults to `"rapier"`; supported values: `"rapier"`, `"crashcat"`, `"none"`
 - `coordinateSystem` defaults to `"y-up"`; supported values: `"y-up"`, `"z-up"`
 - The CLI reads these and injects the correct adapter factories + `coordinateSystem` into the generated entry files — no manual adapter wiring needed
 - `gameDir` defaults to `.` (project root); set to e.g. `"game"` for embedding use cases
-- The CLI auto-discovers scenes (`scenes/*.yaml`), scripts (`scripts/*.ts`), and UI components (`ui/*.tsx`) — no manual registration needed
+- The CLI auto-discovers scenes (`scenes/*.yaml`), scripts (`scripts/*.ts`), UI components (`ui/*.tsx`), and prefabs (`prefabs/*.prefab.yaml`) — no manual registration needed
 - Generated entry files in `.mana/` wire everything together: imports, maps, and the library's `Game` component
-- The `Game` component (`library/src/Game.tsx`) is part of the engine, not user code — it receives `scenes`, `scripts`, `uiComponents`, and optional `startScene` as props
-- Users only author: scene YAML (via editor), script `.ts` files, React UI `.tsx` components, and assets
+- The `Game` component (`library/src/Game.tsx`) is part of the engine, not user code — it receives `scenes`, `scripts`, `uiComponents`, `prefabs`, and optional `startScene` as props
+- Users only author: scene YAML (via editor), script `.ts` files, React UI `.tsx` components, prefab YAML files, and assets
 - Legacy `mana.config.js`/`mana.config.mjs` files are still supported as fallback
 
 ## Scene System
@@ -108,6 +108,20 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - UI entities reference React components by name via `ui: { component: ComponentName }`
 - Entities can have `scripts: [scriptName]` to attach behavior scripts
 - The `Game` component in the library manages scene switching via `ManaContext`
+
+## Prefab System
+
+- Prefabs are reusable entity templates stored as YAML files in `prefabs/` (e.g., `enemy.prefab.yaml`)
+- The `prefabs/` directory is auto-scaffolded on project creation alongside `scenes/`, `scripts/`, `ui/`, `assets/`
+- `PrefabData` in `scene-data.ts` contains a single `entity: SceneEntity` field (the root entity definition)
+- Prefabs are auto-discovered by the CLI (`discoverPrefabs()`) and imported into generated entry files
+- The prefab map is passed to `Game`, `Editor`, and `createScene` for runtime instantiation
+- **Prefab API** — Vite middleware at `/__mana/prefabs` (GET list, GET/POST/DELETE by name), mirroring the scene API pattern
+  - Client functions in `scene-api.ts`: `fetchPrefabList`, `loadPrefabData`, `savePrefabData`, `createPrefab`, `deletePrefab`, `renamePrefab`
+- **Asset browser integration** — A virtual "prefabs" folder appears at the root of the asset browser; when browsing it, a "New Prefab" button appears in the breadcrumb bar; selecting a `.prefab.yaml` file shows a preview with an "Edit Prefab" button
+- **Left panel tabs** — The left sidebar has "Scenes" and "Prefabs" tabs; the Prefabs tab lists all prefabs with create/rename/delete/edit via context menu
+- **Prefab editing mode** — Activated via "Edit" from the asset browser or prefab list; creates a temporary scene with a camera, ambient light, directional light, and the prefab entity; the toolbar turns green with a "PREFAB: name" label and a "Back" button; Cmd+S saves only the prefab entity (stripping helper entities); exiting restores the previous scene state
+- **Script instantiation** — `ctx.instantiatePrefab(name, position?)` in `ScriptContext` creates a new entity from a prefab at runtime; returns the entity ID or null if not found; uses `structuredClone` to deep-copy the prefab data and generates a unique instance ID
 
 ## Materials & Textures
 
@@ -163,6 +177,7 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - In scene YAML, scripts are `ScriptEntry[]`: `[{ name: rotate, params: { speed: 3 } }]`
 - Params are merged at runtime: script defaults are overridden by scene YAML values, accessible via `ctx.params`
 - `fixedUpdate` runs at a fixed 60Hz timestep with accumulator
+- `ctx.instantiatePrefab(name, position?)` creates a new entity from a prefab at runtime, returns the entity ID
 - Scripts are auto-discovered from `scripts/` directory by the CLI — no manual registration needed
 - Scripts only run during gameplay (dev/prod/editor play mode), NOT in editor edit mode
 
@@ -205,7 +220,9 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
   - Toolbar buttons for undo/redo with enabled/disabled state
   - Tracks: transform changes (gizmo drag), entity add/delete, rename, property updates
   - History is cleared when switching scenes
-- The editor entry auto-imports discovered `uiComponents` and `scripts` (no `game/index.tsx` needed)
+- The editor entry auto-imports discovered `uiComponents`, `scripts`, and `prefabs` (no `game/index.tsx` needed)
+- Left panel has two tabs: "Scenes" (scene list + entity hierarchy) and "Prefabs" (prefab list with create/rename/delete)
+- Prefab editing mode: green toolbar with "PREFAB: name" label, "Back" button, auto-generated camera/lights, Cmd+S saves prefab data
 
 ## Scene Switching API
 

@@ -83,6 +83,16 @@ export interface SceneEntity {
   receiveShadow?: boolean
 }
 
+/**
+ * A prefab is a reusable entity template stored as a YAML file in `prefabs/`.
+ * It contains a single root entity (with optional children in the future).
+ * Prefabs can be instantiated at runtime via `ctx.instantiatePrefab()` in scripts.
+ */
+export interface PrefabData {
+  /** The root entity definition for this prefab. */
+  entity: SceneEntity
+}
+
 export interface SceneData {
   background?: string
   /**

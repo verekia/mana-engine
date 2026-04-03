@@ -51,7 +51,16 @@ export function scaffoldProject(): void {
   }
 
   // Create directories
-  for (const dir of ['scenes', 'scripts', 'ui', 'assets', 'assets/models', 'assets/textures', 'assets/audio']) {
+  for (const dir of [
+    'scenes',
+    'scripts',
+    'ui',
+    'assets',
+    'assets/models',
+    'assets/textures',
+    'assets/audio',
+    'prefabs',
+  ]) {
     mkdirSync(resolve(cwd, dir), { recursive: true })
   }
 

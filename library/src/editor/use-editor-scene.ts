@@ -4,7 +4,7 @@ import { createScene, type CreateSceneOptions, type EditorCameraState, type Mana
 
 import type { PhysicsAdapter } from '../adapters/physics-adapter.ts'
 import type { RendererAdapter } from '../adapters/renderer-adapter.ts'
-import type { SceneData } from '../scene-data.ts'
+import type { PrefabData, SceneData } from '../scene-data.ts'
 import type { ManaScript } from '../script.ts'
 
 /** Encapsulates the renderer scene lifecycle for the editor, including creation, disposal, and recreation. */
@@ -12,6 +12,7 @@ export function useEditorScene({
   canvasRef,
   sceneData,
   scripts,
+  prefabs,
   showGizmos,
   transformMode,
   createRenderer,
@@ -24,6 +25,7 @@ export function useEditorScene({
   canvasRef: React.RefObject<HTMLCanvasElement | null>
   sceneData: SceneData | null
   scripts: Record<string, ManaScript>
+  prefabs?: Record<string, PrefabData>
   showGizmos: boolean
   transformMode: string
   createRenderer: () => RendererAdapter
@@ -98,6 +100,7 @@ export function useEditorScene({
         renderer,
         physics: isPlaying ? createPhysics?.() : undefined,
         scripts: isPlaying ? scripts : undefined,
+        prefabs: isPlaying ? prefabs : undefined,
         orbitControls: !isPlaying,
         editorCamera: !isPlaying ? editorCamera : undefined,
         onTransformStart: !isPlaying ? onTransformStart : undefined,
@@ -111,6 +114,7 @@ export function useEditorScene({
     },
     [
       scripts,
+      prefabs,
       canvasRef,
       createRenderer,
       createPhysics,
