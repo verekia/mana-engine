@@ -173,7 +173,7 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - Scenes are YAML files in `scenes/` (e.g., `main-menu.yaml`, `first-world.yaml`)
 - YAML is used for authoring; at build time a Vite plugin (`yamlPlugin`) transforms `.yaml` imports into JSON so `js-yaml` stays out of the production bundle
 - Each scene has a `background` color and an `entities` array
-- Entity types: `camera`, `mesh`, `model`, `directional-light`, `ambient-light`, `point-light`, `ui`
+- Entity types: `camera`, `mesh`, `model`, `directional-light`, `ambient-light`, `point-light`, `ui`, `audio`
 - UI entities reference React components by name via `ui: { component: ComponentName }`
 - Entities can have `scripts: [scriptName]` to attach behavior scripts
 - The `Game` component in the library manages scene switching via `ManaContext`
@@ -194,6 +194,16 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - **Entity destruction** — `ctx.destroyEntity(id)` removes an entity from the renderer, physics simulation, and active scripts; works for both scene entities and runtime-instantiated prefab instances
 - **Prefab instances in scenes** — Entities can reference a prefab by name via the `prefab` field on `SceneEntity`; at runtime, `scene.ts` resolves prefab references by merging the prefab's entity definition with per-instance overrides (position, rotation, etc.); the editor shows prefab instances with a green icon and "Prefab: name" label in the inspector
 - **Nested entities** — `SceneEntity` has an optional `children: SceneEntity[]` field for multi-entity hierarchies; children are flattened before being processed by renderers, physics, and scripts; prefabs can contain children for complex multi-part entities
+
+## Materials & Textures
+
+### Audio Entities
+
+- `AudioData` in `scene-data.ts` defines `src` (asset path), `volume` (0–1, default 1), `loop` (boolean, default false)
+- Audio entities have a speaker-icon gizmo helper in the Three.js adapter (concentric sphere wireframes)
+- Editor inspector shows Source, Volume, and Loop controls for audio entities
+- Audio entities can be created via the Add Entity menu or by dragging audio files from the asset browser
+- VoidCore adapter: audio entities are skipped (no visual representation yet)
 
 ## Materials & Textures
 
@@ -294,7 +304,14 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - Context menu (right-click entity): Rename, Duplicate, Copy, Paste as Child, Unparent (move to root), Delete
 - Entity tree helpers in `scene-data.ts`: `findEntityInTree`, `removeEntityFromTree`, `cloneEntity`, `mapEntityTree`
 - All entity operations (add, delete, rename, update, transform) are tree-aware via these helpers
-- Inspector panel shows editable properties (transform, camera, material, light, UI component, scripts)
+- Asset drag-and-drop from bottom panel into viewport:
+  - Prefab files (`.prefab.yaml`) → spawn as prefab instance entity
+  - 3D models (`.gltf`, `.glb`) → create model entity
+  - Audio files (`.mp3`, `.wav`, `.ogg`, `.flac`) → create audio entity
+  - Textures (`.png`, `.jpg`, `.ktx2`, etc.) dropped onto a mesh/model → apply as material map
+  - Asset items in BottomPanel set `application/mana-asset` drag data with `{ path, ext }`
+  - Viewport accepts drops, raycasts to find entity under cursor for texture application
+- Inspector panel shows editable properties (transform, camera, material, light, audio, UI component, scripts)
 - Cmd+S / Ctrl+S saves the current scene to disk
 - Play/Stop toolbar buttons toggle play mode:
   - Edit mode: editor manages its own canvas, scripts don't run, UI overlay has `pointerEvents: none`

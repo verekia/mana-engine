@@ -84,13 +84,14 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 - **Inspector panel** — Editable properties for transform, camera, mesh, light, UI, rigid body, collider, and scripts
 - **Viewport** — Live 3D preview with raycast-based entity selection and orbit controls
 - **Asset browser** — Bottom panel file browser for `assets/` with folder navigation, type icons, previews (images, KTX2, audio), and path copying
+- **Asset drag-and-drop** — Drag prefabs, models, audio files into the viewport to create entities; drag textures onto meshes to apply them
 - **Scene selector** — Dropdown to switch between scene files
 - **Play/Stop mode** — Toggle between editing and running the game with full interactivity
 - **Save hotkey** — Cmd+S / Ctrl+S saves the current scene to disk
-- **Add Entity menu** — Presets for empty, camera, box, sphere, plane, cylinder, capsule, and lights
+- **Add Entity menu** — Presets for empty, camera, box, sphere, plane, cylinder, capsule, lights, and audio
 - **Add Component menu** — Attach rigid body, collider, or scripts to entities
 - **Selection outline** — Blue outline highlighting for selected entities
-- **Gizmo helpers** — Camera, directional light, and point light helpers visible in edit mode
+- **Gizmo helpers** — Camera, directional light, point light, and audio helpers visible in edit mode
 - **Collider wireframe gizmos** — Visible in editor edit mode
 - **UI overlay toggle** — Show/hide React UI components in the viewport
 - **Transform gizmos** — Translate (W), rotate (E), scale (R) gizmos for manipulating entities in the viewport

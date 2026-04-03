@@ -12,6 +12,7 @@ export function Viewport({
   playing,
   onCanvasClick,
   onSelectEntity,
+  onAssetDrop,
   hiddenEntities,
 }: {
   canvasRef: React.RefObject<HTMLCanvasElement | null>
@@ -21,12 +22,36 @@ export function Viewport({
   playing: boolean
   onCanvasClick?: (e: React.MouseEvent<HTMLCanvasElement>) => void
   onSelectEntity?: (id: string) => void
+  onAssetDrop?: (path: string, ext: string, hitEntityId: string | null) => void
   hiddenEntities?: Set<string>
 }) {
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null)
 
   return (
     <div
+      onDragOver={e => {
+        if (e.dataTransfer.types.includes('application/mana-asset')) {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'copy'
+        }
+      }}
+      onDrop={e => {
+        const raw = e.dataTransfer.getData('application/mana-asset')
+        if (!raw || !onAssetDrop) return
+        e.preventDefault()
+        const { path, ext } = JSON.parse(raw)
+        // Raycast to find entity under cursor for texture drops
+        const canvas = canvasRef.current
+        let hitEntityId: string | null = null
+        if (canvas) {
+          const rect = canvas.getBoundingClientRect()
+          const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1
+          const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1
+          // Pass NDC coords encoded in the hitEntityId — Editor will raycast
+          hitEntityId = `__ndc:${ndcX}:${ndcY}`
+        }
+        onAssetDrop(path, ext, hitEntityId)
+      }}
       style={{
         width: '100%',
         height: '100%',

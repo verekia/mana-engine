@@ -416,19 +416,24 @@ export class ThreeRendererAdapter implements RendererAdapter {
       }
       applyShadowProps(obj, entity)
     }
+    // Sync audio helper transform
+    if (entity.type === 'audio') {
+      const helper = this.maps.gizmoHelpers.get(id)
+      if (helper) applyTransform(helper, entity.transform)
+    }
   }
 
   setEntityVisible(id: string, visible: boolean): void {
     const obj = this.maps.entityObjects.get(id)
     if (!obj) return
-    const isLight = obj instanceof DirectionalLight || obj instanceof AmbientLight || obj instanceof PointLight
-    if (isLight) {
+    const isHelperOnly = obj instanceof DirectionalLight || obj instanceof AmbientLight || obj instanceof PointLight
+    if (isHelperOnly) {
       const helper = this.maps.gizmoHelpers.get(id)
       if (helper) helper.visible = visible
     } else {
       obj.visible = visible
     }
-    if (!isLight) {
+    if (!isHelperOnly) {
       const wireframe = this.maps.debugWireframes.get(id)
       if (wireframe) wireframe.visible = visible
       const helper = this.maps.gizmoHelpers.get(id)
@@ -489,6 +494,8 @@ export class ThreeRendererAdapter implements RendererAdapter {
           } else if (helper instanceof PointLightHelper) {
             const entity = this.maps.entityObjects.get(id) as PointLight
             mat.color.copy(entity.color)
+          } else {
+            mat.color.set(0xe99444) // Audio / default helper color
           }
         }
       })

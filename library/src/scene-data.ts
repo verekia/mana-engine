@@ -40,6 +40,15 @@ export interface LightData {
   castShadow?: boolean
 }
 
+export interface AudioData {
+  /** Path to audio file relative to assets/ */
+  src: string
+  /** Playback volume (0–1). Default: 1 */
+  volume?: number
+  /** Whether the audio loops. Default: false */
+  loop?: boolean
+}
+
 export interface UiData {
   component: string
 }
@@ -79,13 +88,14 @@ export interface ScriptEntry {
 export interface SceneEntity {
   id: string
   name: string
-  type: 'camera' | 'mesh' | 'directional-light' | 'ambient-light' | 'point-light' | 'ui' | 'model'
+  type: 'camera' | 'mesh' | 'directional-light' | 'ambient-light' | 'point-light' | 'ui' | 'model' | 'audio'
   transform?: Transform
   camera?: CameraData
   mesh?: MeshData
   model?: ModelData
   light?: LightData
   ui?: UiData
+  audio?: AudioData
   scripts?: ScriptEntry[]
   rigidBody?: RigidBodyData
   collider?: ColliderData

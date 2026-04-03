@@ -300,6 +300,28 @@ export function createThreeEntityObject(
       obj = light
       break
     }
+    case 'audio': {
+      const audioGroup = new Group()
+      applyTransform(audioGroup, entity.transform)
+      scene.add(audioGroup)
+      obj = audioGroup
+      // Speaker icon helper — two concentric ring outlines around a small sphere
+      const helperGroup = new Group()
+      const helperMat = new LineBasicMaterial({ color: 0xe99444, depthTest: false })
+      const center = new Mesh(new SphereGeometry(0.12, 8, 8), new MeshLambertMaterial({ color: 0xe99444 }))
+      helperGroup.add(center)
+      // Inner ring
+      const innerRing = new LineSegments(new EdgesGeometry(new SphereGeometry(0.3, 16, 8)), helperMat)
+      helperGroup.add(innerRing)
+      // Outer ring
+      const outerRing = new LineSegments(new EdgesGeometry(new SphereGeometry(0.5, 16, 8)), helperMat)
+      helperGroup.add(outerRing)
+      applyTransform(helperGroup, entity.transform)
+      helperGroup.visible = options.showGizmos
+      scene.add(helperGroup)
+      maps.gizmoHelpers.set(entity.id, helperGroup)
+      break
+    }
   }
 
   if (obj) {

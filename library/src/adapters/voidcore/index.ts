@@ -354,7 +354,8 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
         break
       }
 
-      case 'ui': {
+      case 'ui':
+      case 'audio': {
         return
       }
     }

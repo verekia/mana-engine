@@ -119,6 +119,8 @@ function entityTypeLabel(type: SceneEntity['type']): string {
       return 'Point Light'
     case 'ui':
       return 'UI Component'
+    case 'audio':
+      return 'Audio'
   }
 }
 
@@ -335,6 +337,13 @@ function getAddComponentOptions(
     options.push({
       label: 'Collider',
       action: () => onUpdate({ ...entity, collider: colliderForGeo() }),
+    })
+  }
+
+  if (!entity.audio) {
+    options.push({
+      label: 'Audio',
+      action: () => onUpdate({ ...entity, audio: { src: '', volume: 1, loop: false } }),
     })
   }
 
@@ -757,6 +766,48 @@ export function RightPanel({
                       if (model) onUpdate({ ...entity, model: { ...model, material: mat } })
                     }}
                   />
+                )}
+              </>
+            )}
+
+            {/* Audio */}
+            {entity.audio && (
+              <>
+                <SectionLabel {...s('audio')}>Audio</SectionLabel>
+                {!collapsed.has('audio') && (
+                  <>
+                    <TextInput
+                      label="Source"
+                      value={entity.audio.src ?? ''}
+                      onChange={v =>
+                        onUpdate({
+                          ...entity,
+                          audio: { src: v, volume: entity.audio?.volume, loop: entity.audio?.loop },
+                        })
+                      }
+                    />
+                    <NumberInput
+                      label="Volume"
+                      value={entity.audio.volume ?? 1}
+                      step={0.05}
+                      onChange={v =>
+                        onUpdate({
+                          ...entity,
+                          audio: { src: entity.audio?.src ?? '', volume: v, loop: entity.audio?.loop },
+                        })
+                      }
+                    />
+                    <CheckboxInput
+                      label="Loop"
+                      value={entity.audio.loop ?? false}
+                      onChange={v =>
+                        onUpdate({
+                          ...entity,
+                          audio: { src: entity.audio?.src ?? '', volume: entity.audio?.volume, loop: v },
+                        })
+                      }
+                    />
+                  </>
                 )}
               </>
             )}

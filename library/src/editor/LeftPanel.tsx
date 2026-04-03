@@ -4,6 +4,7 @@ import { findEntityInTree } from '../scene-data.ts'
 import { COLORS, INPUT_STYLE } from './colors.ts'
 import {
   IconAmbientLight,
+  IconAudio,
   IconCamera,
   IconChevronDown,
   IconDirectionalLight,
@@ -56,6 +57,8 @@ function entityTypeIcon(type: SceneEntity['type']): React.ReactNode {
       return <IconPointLight />
     case 'ui':
       return <IconUI />
+    case 'audio':
+      return <IconAudio />
   }
 }
 
@@ -192,6 +195,18 @@ const ADD_OBJECT_OPTIONS: { label: string; category: string; icon: React.ReactNo
       name: 'Ambient Light',
       type: 'ambient-light',
       light: { color: '#ffffff', intensity: 0.3 },
+    }),
+  },
+  {
+    label: 'Audio',
+    category: 'General',
+    icon: <IconAudio />,
+    create: () => ({
+      id: generateId(),
+      name: 'Audio',
+      type: 'audio',
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      audio: { src: '', volume: 1, loop: false },
     }),
   },
 ]

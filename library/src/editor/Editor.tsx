@@ -28,6 +28,10 @@ import type { PrefabData, SceneData, SceneEntity, Transform } from '../scene-dat
 import type { EditorCameraState, TransformMode } from '../scene.ts'
 import type { ManaScript } from '../script.ts'
 
+const TEXTURE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.bmp', '.ktx2', '.hdr', '.exr'])
+const MODEL_EXTS = new Set(['.gltf', '.glb', '.fbx', '.obj'])
+const AUDIO_EXTS = new Set(['.mp3', '.wav', '.ogg', '.flac'])
+
 export default function Editor({
   uiComponents = {},
   scripts = {},
@@ -855,6 +859,104 @@ export default function Editor({
     [],
   )
 
+  const handleAssetDrop = useCallback(
+    (path: string, ext: string, hitInfo: string | null) => {
+      const generateId = () => Math.random().toString(36).slice(2, 10)
+
+      // Texture drop onto an existing mesh → apply as material map
+      if (TEXTURE_EXTS.has(ext) && hitInfo?.startsWith('__ndc:')) {
+        const [, nx, ny] = hitInfo.split(':')
+        const hitId = sceneRef.current?.raycast(Number(nx), Number(ny)) ?? null
+        if (hitId) {
+          const data = sceneDataRef.current
+          if (data) {
+            const found = findEntityInTree(data.entities, hitId)
+            if (found && found.entity.type === 'mesh') {
+              const updated = {
+                ...found.entity,
+                mesh: {
+                  ...found.entity.mesh,
+                  material: { ...found.entity.mesh?.material, map: path },
+                },
+              }
+              handleUpdateEntity(updated)
+              return
+            }
+            if (found && found.entity.type === 'model' && found.entity.model) {
+              const updated = {
+                ...found.entity,
+                model: {
+                  ...found.entity.model,
+                  material: { ...found.entity.model.material, map: path },
+                },
+              }
+              handleUpdateEntity(updated)
+              return
+            }
+          }
+        }
+        return
+      }
+
+      // Prefab drop → create prefab instance entity
+      if (path.endsWith('.prefab.yaml')) {
+        const prefabName =
+          path
+            .replace(/\.prefab\.yaml$/, '')
+            .split('/')
+            .pop() ?? path
+        const prefabData = prefabs[prefabName]
+        if (prefabData) {
+          const entity: SceneEntity = {
+            ...structuredClone(prefabData.entity),
+            id: generateId(),
+            name: `${prefabData.entity.name} (${prefabName})`,
+            prefab: prefabName,
+            transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+          }
+          handleAddEntity(entity)
+        }
+        return
+      }
+
+      // 3D model drop → create model entity
+      if (MODEL_EXTS.has(ext)) {
+        const name =
+          path
+            .split('/')
+            .pop()
+            ?.replace(/\.[^.]+$/, '') ?? 'Model'
+        handleAddEntity({
+          id: generateId(),
+          name,
+          type: 'model',
+          transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+          model: { src: path },
+        })
+        return
+      }
+
+      // Audio drop → create audio entity
+      if (AUDIO_EXTS.has(ext)) {
+        const name =
+          path
+            .split('/')
+            .pop()
+            ?.replace(/\.[^.]+$/, '') ?? 'Audio'
+        handleAddEntity({
+          id: generateId(),
+          name,
+          type: 'audio',
+          transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+          audio: { src: path, volume: 1, loop: false },
+        })
+        return
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
+    [handleAddEntity, handleUpdateEntity, prefabs],
+  )
+
   // Keyboard shortcuts: Cmd+S (save), Cmd+Z (undo), Cmd+Shift+Z (redo), W/E/R (transform mode), Ctrl+C/V/D, Delete
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1044,6 +1146,7 @@ export default function Editor({
                     playing={playing}
                     onCanvasClick={handleCanvasClick}
                     onSelectEntity={setSelectedId}
+                    onAssetDrop={handleAssetDrop}
                     hiddenEntities={hiddenEntities}
                   />
                 </ManaContext.Provider>
