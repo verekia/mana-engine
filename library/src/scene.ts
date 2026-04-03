@@ -1,3 +1,4 @@
+import { Audio } from './audio.ts'
 import { Input } from './input.ts'
 import { flattenEntities } from './scene-data.ts'
 
@@ -240,6 +241,23 @@ export async function createScene(
       rigidBody: physicsAdapter?.getBody(entityId),
       input: inputVal,
       params,
+      playSound(path, options) {
+        if (!audio) return Promise.resolve('')
+        return audio.playSound(path, options)
+      },
+      stopSound(id) {
+        audio?.stopSound(id)
+      },
+      playMusic(path, options) {
+        if (!audio) return Promise.resolve()
+        return audio.playMusic(path, options)
+      },
+      stopMusic() {
+        audio?.stopMusic()
+      },
+      setMasterVolume(volume) {
+        audio?.setMasterVolume(volume)
+      },
       getPosition() {
         const p = renderer.getEntityPosition(entityId)
         return p ? { x: p[0], y: p[1], z: p[2] } : { x: 0, y: 0, z: 0 }
@@ -329,6 +347,9 @@ export async function createScene(
   // Input system (play mode with scripts only) — only create if we actually have scripts
   const scriptInput = activeScripts.length > 0 && !enableOrbitControls ? new Input(canvas) : null
 
+  // Audio system (play mode only)
+  const audio = !enableOrbitControls ? new Audio() : null
+
   // Run init() on all scripts
   let elapsed = 0
   for (const { script, entityId, params } of activeScripts) {
@@ -415,6 +436,7 @@ export async function createScene(
         script.dispose?.()
       }
       scriptInput?.dispose()
+      audio?.dispose()
       physicsAdapter?.dispose()
       renderer.dispose()
     },

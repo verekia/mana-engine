@@ -30,6 +30,30 @@ export interface ScriptContext {
   /** Script parameters configured in the editor */
   params: Record<string, number | string | boolean>
 
+  // ── Audio ────────────────────────────────────────────────────────────────────
+
+  /**
+   * Play a one-shot sound effect.
+   * @param path Asset path (e.g. 'audio/hit.mp3')
+   * @param options.volume Volume 0–1 (default 1)
+   * @param options.loop Loop playback (default false)
+   * @returns Promise resolving to a sound ID for stopSound()
+   */
+  playSound(path: string, options?: { volume?: number; loop?: boolean }): Promise<string>
+  /** Stop a sound effect by its ID. */
+  stopSound(id: string): void
+  /**
+   * Play a music track (loops by default). Stops any current music.
+   * @param path Asset path (e.g. 'audio/bgm.mp3')
+   * @param options.volume Volume 0–1 (default 1)
+   * @param options.loop Loop playback (default true)
+   */
+  playMusic(path: string, options?: { volume?: number; loop?: boolean }): Promise<void>
+  /** Stop the current music track. */
+  stopMusic(): void
+  /** Set master volume (0–1) for all sounds and music. */
+  setMasterVolume(volume: number): void
+
   // ── Adapter-agnostic helpers ─────────────────────────────────────────────────
 
   /** Get this entity's current position. */
