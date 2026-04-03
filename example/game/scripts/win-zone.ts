@@ -1,13 +1,15 @@
 import type { ManaScript } from 'mana-engine/game'
 
-let triggered = false
+/** Per-entity triggered state to avoid shared module-level variables. */
+const triggeredMap = new WeakMap<object, boolean>()
 
 export default {
-  init() {
-    triggered = false
+  init(ctx) {
+    triggeredMap.set(ctx.entity as object, false)
   },
   update(ctx) {
-    if (triggered) return
+    const entityObj = ctx.entity as object
+    if (triggeredMap.get(entityObj)) return
 
     const playerPos = ctx.findEntityPosition('Player')
     if (!playerPos) return
@@ -18,7 +20,7 @@ export default {
     const dist = Math.sqrt(dx * dx + dy * dy)
 
     if (dist < 2) {
-      triggered = true
+      triggeredMap.set(entityObj, true)
       document.dispatchEvent(new CustomEvent('mana:level-complete'))
     }
   },

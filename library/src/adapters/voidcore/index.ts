@@ -283,7 +283,8 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
           far: entity.camera?.far ?? 100,
         })
         applyTransform(cam, entity.transform)
-        cam.lookAt([0, 0, 0])
+        // Only apply default lookAt when no rotation was authored in the scene data
+        if (!entity.transform?.rotation) cam.lookAt([0, 0, 0])
         cam.name = entity.name
         this.sceneRoot.add(cam)
         this.entityNodes.set(entity.id, cam)

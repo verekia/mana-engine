@@ -1,7 +1,5 @@
 import type { ManaScript } from 'mana-engine/game'
 
-let playerPos: { x: number; y: number; z: number } | null = null
-
 export default {
   params: {
     offsetZ: { type: 'number', default: 8 },
@@ -10,7 +8,7 @@ export default {
   },
   init(ctx) {
     const { params } = ctx
-    playerPos = ctx.findEntityPosition('Player')
+    const playerPos = ctx.findEntityPosition('Player')
     // Reset rotation to look straight down -Z (undo the engine's default lookAt)
     ctx.setRotation(0, 0, 0)
     if (playerPos) {
@@ -19,7 +17,7 @@ export default {
   },
   update(ctx) {
     const { params } = ctx
-    playerPos = ctx.findEntityPosition('Player')
+    const playerPos = ctx.findEntityPosition('Player')
     if (!playerPos) return
 
     const pos = ctx.getPosition()

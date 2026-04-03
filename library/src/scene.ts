@@ -320,16 +320,14 @@ export async function createScene(
     }
   }
 
-  // Input system (play mode with scripts only)
-  const input = scriptDefs && !enableOrbitControls ? new Input(canvas) : null
-
   // Script setup — flatten entities to catch scripts on children too
   const allEntities = processedData ? flattenEntities(processedData.entities) : []
   if (processedData && scriptDefs) {
     activeScripts.push(...setupScripts(allEntities, scriptDefs))
   }
 
-  const scriptInput = activeScripts.length > 0 ? (input ?? new Input(canvas)) : null
+  // Input system (play mode with scripts only) — only create if we actually have scripts
+  const scriptInput = activeScripts.length > 0 && !enableOrbitControls ? new Input(canvas) : null
 
   // Run init() on all scripts
   let elapsed = 0

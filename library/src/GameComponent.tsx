@@ -36,23 +36,15 @@ export function Game({
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !sceneData) return
-    let disposed = false
-    let manaScene: Awaited<ReturnType<typeof createScene>> | null = null
 
     const renderer = createRenderer()
     const physics = createPhysics?.()
     const data = coordinateSystem ? { ...sceneData, coordinateSystem } : sceneData
 
-    createScene(canvas, data, { renderer, physics, scripts, prefabs }).then(s => {
-      if (disposed) {
-        s.dispose()
-        return
-      }
-      manaScene = s
-    })
+    const scenePromise = createScene(canvas, data, { renderer, physics, scripts, prefabs })
     return () => {
-      disposed = true
-      manaScene?.dispose()
+      // Dispose the scene once the promise resolves (handles both already-resolved and pending cases)
+      scenePromise.then(s => s.dispose())
     }
   }, [sceneData, scripts, prefabs, createRenderer, createPhysics, coordinateSystem])
 
