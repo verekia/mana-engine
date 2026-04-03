@@ -111,7 +111,7 @@ The engine is decoupled from any specific 3D renderer or physics library. Choose
 | **Orbit controls**               | Yes                        | Yes                       |
 | **Raycasting / click-to-select** | Yes                        | Yes                       |
 | **Selection outline**            | Yes (post-processing)      | Yes (native mesh outline) |
-| **Transform gizmos** (W/E/R)     | Yes (TransformControls)    | —                         |
+| **Transform gizmos** (W/E/R)     | Yes (TransformControls)    | Yes (custom gizmos)       |
 | **Collider wireframe gizmos**    | Yes (green wireframes)     | —                         |
 | **Light helper gizmos**          | Camera, directional, point | —                         |
 

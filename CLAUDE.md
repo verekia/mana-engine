@@ -45,7 +45,10 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
   - No GLTF model loading yet (creates placeholder Group)
   - No point lights yet (VoidCore has no PointLight)
   - Editor features: raycasting (VoidCore `Raycaster`), selection outline (native `MeshOutline`), orbit controls
-  - No transform gizmos yet, no collider wireframe gizmos, no light helper gizmos
+  - Custom transform gizmos (`transform-gizmo.ts`): translate (arrow handles), rotate (torus rings), scale (cube handles + center sphere) — built with VoidCore `BasicMaterial`, `CylinderGeometry`, `ConeGeometry`, `SphereGeometry`, and a custom torus `Geometry`
+    - Screen-constant sizing, axis hover highlighting, click capture to prevent deselection
+    - Drag uses ray-axis/ray-plane intersection in scene-local space (sceneRoot inverse transform)
+  - No collider wireframe gizmos yet, no light helper gizmos
   - Uses `Engine.create()` for async WebGPU init with WebGL2 fallback
 - `RapierPhysicsAdapter` wraps Rapier 3D world setup, rigid body/collider creation, and transform readback
 - `CrashcatPhysicsAdapter` wraps Crashcat — a pure-JS physics engine (no WASM, synchronous init)
