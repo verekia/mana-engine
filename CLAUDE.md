@@ -18,13 +18,13 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 
 ### RendererAdapter (`library/src/adapters/renderer-adapter.ts`)
 
-- Defines all rendering operations: `init`, `loadScene`, `addEntity`, `removeEntity`, `updateEntity`, `setEntityVisible`, `setEntityPhysicsTransform`, `getEntityInitialPhysicsTransform`, `getEntityNativeObject`, `getNativeScene`
+- Defines all rendering operations: `init`, `loadScene`, `addEntity`, `removeEntity`, `updateEntity`, `setEntityVisible`, `setEntityPhysicsTransform`, `getEntityInitialPhysicsTransform`, `getEntityNativeObject`, `getNativeScene`, `setEntityScale`
 - Editor-specific: `setGizmos`, `setSelectedEntities`, `raycast`, `setTransformTarget`, `setTransformMode`, `getEditorCamera`, `setEditorCamera`
 - Implementations live in `library/src/adapters/<name>/index.ts`
 
 ### PhysicsAdapter (`library/src/adapters/physics-adapter.ts`)
 
-- Defines physics operations: `init`, `dispose`, `step`, `getTransforms`, `getBody`
+- Defines physics operations: `init`, `dispose`, `step`, `getTransforms`, `getBody`, `addEntity`, `removeEntity`
 - `init` receives a callback to read initial entity transforms from the renderer
 - `getTransforms()` returns only dynamic/kinematic bodies (fixed bodies never move)
 - Physics sync: after each `step()`, the engine calls `renderer.setEntityPhysicsTransform()` for each changed transform
@@ -119,9 +119,12 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - **Prefab API** — Vite middleware at `/__mana/prefabs` (GET list, GET/POST/DELETE by name), mirroring the scene API pattern
   - Client functions in `scene-api.ts`: `fetchPrefabList`, `loadPrefabData`, `savePrefabData`, `createPrefab`, `deletePrefab`, `renamePrefab`
 - **Asset browser integration** — A virtual "prefabs" folder appears at the root of the asset browser; when browsing it, a "New Prefab" button appears in the breadcrumb bar; selecting a `.prefab.yaml` file shows a preview with an "Edit Prefab" button
-- **Left panel tabs** — The left sidebar has "Scenes" and "Prefabs" tabs; the Prefabs tab lists all prefabs with create/rename/delete/edit via context menu
+- **Left panel tabs** — The left sidebar has "Scenes" and "Prefabs" tabs; the Prefabs tab lists all prefabs with create/rename/delete/edit via context menu; "Add to Scene" in context menu creates a prefab instance entity
 - **Prefab editing mode** — Activated via "Edit" from the asset browser or prefab list; creates a temporary scene with a camera, ambient light, directional light, and the prefab entity; the toolbar turns green with a "PREFAB: name" label and a "Back" button; Cmd+S saves only the prefab entity (stripping helper entities); exiting restores the previous scene state
-- **Script instantiation** — `ctx.instantiatePrefab(name, position?)` in `ScriptContext` creates a new entity from a prefab at runtime; returns the entity ID or null if not found; uses `structuredClone` to deep-copy the prefab data and generates a unique instance ID
+- **Script instantiation** — `ctx.instantiatePrefab(name, position?)` in `ScriptContext` creates a new entity from a prefab at runtime; returns the entity ID or null if not found; uses `structuredClone` to deep-copy the prefab data and generates a unique instance ID; physics bodies and scripts on the prefab are automatically initialized
+- **Entity destruction** — `ctx.destroyEntity(id)` removes an entity from the renderer, physics simulation, and active scripts; works for both scene entities and runtime-instantiated prefab instances
+- **Prefab instances in scenes** — Entities can reference a prefab by name via the `prefab` field on `SceneEntity`; at runtime, `scene.ts` resolves prefab references by merging the prefab's entity definition with per-instance overrides (position, rotation, etc.); the editor shows prefab instances with a green icon and "Prefab: name" label in the inspector
+- **Nested entities** — `SceneEntity` has an optional `children: SceneEntity[]` field for multi-entity hierarchies; children are flattened before being processed by renderers, physics, and scripts; prefabs can contain children for complex multi-part entities
 
 ## Materials & Textures
 
@@ -177,7 +180,9 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - In scene YAML, scripts are `ScriptEntry[]`: `[{ name: rotate, params: { speed: 3 } }]`
 - Params are merged at runtime: script defaults are overridden by scene YAML values, accessible via `ctx.params`
 - `fixedUpdate` runs at a fixed 60Hz timestep with accumulator
-- `ctx.instantiatePrefab(name, position?)` creates a new entity from a prefab at runtime, returns the entity ID
+- `ctx.instantiatePrefab(name, position?)` creates a new entity from a prefab at runtime, returns the entity ID; physics bodies and scripts on the prefab are auto-initialized
+- `ctx.destroyEntity(id)` removes an entity from the renderer, physics, and scripts at runtime
+- `ctx.setScale(x, y, z)` sets the entity's scale
 - Scripts are auto-discovered from `scripts/` directory by the CLI — no manual registration needed
 - Scripts only run during gameplay (dev/prod/editor play mode), NOT in editor edit mode
 

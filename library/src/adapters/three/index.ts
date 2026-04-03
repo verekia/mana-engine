@@ -36,6 +36,18 @@ import {
 import type { SceneData, SceneEntity } from '../../scene-data.ts'
 import type { RendererAdapter, RendererAdapterOptions, EditorCameraState, TransformMode } from '../renderer-adapter.ts'
 
+/** Flatten a tree of entities (with children) into a flat array. */
+function flattenEntities(entities: SceneEntity[]): SceneEntity[] {
+  const result: SceneEntity[] = []
+  for (const entity of entities) {
+    result.push(entity)
+    if (entity.children?.length) {
+      result.push(...flattenEntities(entity.children))
+    }
+  }
+  return result
+}
+
 const rendererCache = new WeakMap<HTMLCanvasElement, WebGPURenderer>()
 
 async function getOrCreateRenderer(canvas: HTMLCanvasElement): Promise<WebGPURenderer> {
@@ -276,7 +288,8 @@ export class ThreeRendererAdapter implements RendererAdapter {
     this.sceneRoot.rotation.x = sceneData.coordinateSystem === 'z-up' ? -Math.PI / 2 : 0
     this.gameCam = null
 
-    for (const entity of sceneData.entities) {
+    const allEntities = flattenEntities(sceneData.entities)
+    for (const entity of allEntities) {
       const obj = createThreeEntityObject(entity, this.sceneRoot, this.maps, {
         enableOrbitControls: this.enableOrbitControls,
         showGizmos: this.showGizmos,
@@ -558,5 +571,10 @@ export class ThreeRendererAdapter implements RendererAdapter {
   setEntityEulerRotation(id: string, x: number, y: number, z: number): void {
     const obj = this.maps.entityObjects.get(id)
     if (obj) obj.rotation.set(x, y, z)
+  }
+
+  setEntityScale(id: string, x: number, y: number, z: number): void {
+    const obj = this.maps.entityObjects.get(id)
+    if (obj) obj.scale.set(x, y, z)
   }
 }

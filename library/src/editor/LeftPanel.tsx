@@ -20,7 +20,7 @@ import {
   renamePrefab as apiRenamePrefab,
 } from './scene-api.ts'
 
-import type { SceneData, SceneEntity } from '../scene-data.ts'
+import type { PrefabData, SceneData, SceneEntity } from '../scene-data.ts'
 
 function entityTypeIcon(type: SceneEntity['type']): React.ReactNode {
   switch (type) {
@@ -361,13 +361,13 @@ const EntityRow = memo(function EntityRow({
         <>
           <span
             style={{
-              color: isHidden ? COLORS.textDim : isSelected ? COLORS.text : COLORS.textDim,
+              color: entity.prefab ? '#22c55e' : isHidden ? COLORS.textDim : isSelected ? COLORS.text : COLORS.textDim,
               display: 'flex',
               flexShrink: 0,
               opacity: isHidden ? 0.4 : 1,
             }}
           >
-            {entityTypeIcon(entity.type)}
+            {entity.prefab ? <IconPrefab /> : entityTypeIcon(entity.type)}
           </span>
           <span
             style={{
@@ -451,6 +451,7 @@ export function LeftPanel({
   editingPrefab,
   prefabRefreshKey,
   onPrefabListChanged,
+  prefabs,
 }: {
   width: number
   sceneList: string[]
@@ -471,6 +472,7 @@ export function LeftPanel({
   editingPrefab?: string | null
   prefabRefreshKey?: number
   onPrefabListChanged?: () => void
+  prefabs?: Record<string, PrefabData>
 }) {
   const [activeTab, setActiveTab] = useState<LeftPanelTab>('scenes')
   const [addMenuOpen, setAddMenuOpen] = useState(false)
@@ -1092,6 +1094,43 @@ export function LeftPanel({
                   boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
                 }}
               >
+                {!editingPrefab && (
+                  <button
+                    onClick={() => {
+                      const name = prefabContextMenu.name
+                      const prefabData = prefabs?.[name]
+                      if (prefabData) {
+                        const entity: SceneEntity = {
+                          ...structuredClone(prefabData.entity),
+                          id: generateId(),
+                          name: `${prefabData.entity.name} (${name})`,
+                          prefab: name,
+                          transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+                        }
+                        onAddEntity(entity)
+                      }
+                      setPrefabContextMenu(null)
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = COLORS.hover
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'transparent'
+                    }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '5px 12px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: COLORS.text,
+                      fontSize: 11,
+                      textAlign: 'left',
+                    }}
+                  >
+                    Add to Scene
+                  </button>
+                )}
                 {onEditPrefab && (
                   <button
                     onClick={() => {

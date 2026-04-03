@@ -468,7 +468,9 @@ export function RightPanel({
           <div style={{ flex: 1, minWidth: 0 }}>
             <InspectorName entity={entity} onRename={onRename} />
           </div>
-          <span style={{ color: COLORS.textDim, fontSize: 10, flexShrink: 0 }}>{entityTypeLabel(entity.type)}</span>
+          <span style={{ color: entity.prefab ? '#22c55e' : COLORS.textDim, fontSize: 10, flexShrink: 0 }}>
+            {entity.prefab ? `Prefab: ${entity.prefab}` : entityTypeLabel(entity.type)}
+          </span>
           {activeSections.length > 0 && (
             <button
               onClick={() => setAll(!allCollapsed, activeSections)}

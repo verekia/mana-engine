@@ -48,9 +48,12 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 
 ### Prefab System
 
-- **Reusable entity templates** — Prefabs are YAML files in `prefabs/` (e.g., `enemy.prefab.yaml`) containing a single entity definition
+- **Reusable entity templates** — Prefabs are YAML files in `prefabs/` (e.g., `enemy.prefab.yaml`) with optional `children` for multi-entity hierarchies
 - **Visual prefab editor** — Edit prefabs in a dedicated mode with green toolbar, auto-generated camera and lighting
-- **Runtime instantiation** — Spawn prefab instances from scripts via `ctx.instantiatePrefab('enemy', { x: 0, y: 1, z: 0 })`
+- **Runtime instantiation** — Spawn prefab instances from scripts via `ctx.instantiatePrefab('enemy', { x: 0, y: 1, z: 0 })` — physics and scripts auto-initialize
+- **Entity destruction** — Remove entities at runtime via `ctx.destroyEntity(id)` — cleans up renderer, physics, and scripts
+- **Scene-placed instances** — Place prefab instances in scenes via the editor (right-click prefab → "Add to Scene"); the `prefab` field references the template, with per-instance overrides
+- **Nested entities** — `SceneEntity` supports `children` for hierarchical multi-part entities (e.g. vehicle with wheels)
 - **Asset browser integration** — Browse, create, and edit prefabs from the asset browser's virtual "prefabs" folder
 - **Left panel tabs** — Switch between Scenes and Prefabs tabs in the editor sidebar
 
@@ -138,18 +141,20 @@ The engine is decoupled from any specific 3D renderer or physics library. Choose
 
 These APIs work identically regardless of which renderer or physics adapter is active:
 
-| API                            | Status | Description                                     |
-| ------------------------------ | ------ | ----------------------------------------------- |
-| `ctx.getPosition()`            | Done   | Get entity position                             |
-| `ctx.setPosition(x, y, z)`     | Done   | Set entity position (bypasses physics)          |
-| `ctx.setRotation(x, y, z)`     | Done   | Set entity Euler rotation (radians)             |
-| `ctx.findEntityPosition(name)` | Done   | Find another entity's position by name          |
-| `ctx.instantiatePrefab(name)`  | Done   | Spawn a prefab instance at runtime              |
-| `ctx.entity`                   | Done   | Native renderer object (`unknown`, cast to use) |
-| `ctx.scene`                    | Done   | Native scene object (`unknown`, cast to use)    |
-| `ctx.dt` / `ctx.time`          | Done   | Frame delta and elapsed time                    |
-| `ctx.input`                    | Done   | Keyboard, mouse, and axis input                 |
-| `ctx.params`                   | Done   | Script parameters from editor                   |
+| API                            | Status | Description                                      |
+| ------------------------------ | ------ | ------------------------------------------------ |
+| `ctx.getPosition()`            | Done   | Get entity position                              |
+| `ctx.setPosition(x, y, z)`     | Done   | Set entity position (bypasses physics)           |
+| `ctx.setRotation(x, y, z)`     | Done   | Set entity Euler rotation (radians)              |
+| `ctx.setScale(x, y, z)`        | Done   | Set entity scale                                 |
+| `ctx.findEntityPosition(name)` | Done   | Find another entity's position by name           |
+| `ctx.instantiatePrefab(name)`  | Done   | Spawn a prefab instance (with physics + scripts) |
+| `ctx.destroyEntity(id)`        | Done   | Remove entity from renderer, physics, scripts    |
+| `ctx.entity`                   | Done   | Native renderer object (`unknown`, cast to use)  |
+| `ctx.scene`                    | Done   | Native scene object (`unknown`, cast to use)     |
+| `ctx.dt` / `ctx.time`          | Done   | Frame delta and elapsed time                     |
+| `ctx.input`                    | Done   | Keyboard, mouse, and axis input                  |
+| `ctx.params`                   | Done   | Script parameters from editor                    |
 
 ### Adapter-Agnostic Physics API (`ManaRigidBody`)
 
@@ -182,7 +187,6 @@ These features are not yet implemented in the shared abstraction or any adapter:
 - **Cylinder collider** — Supported as a geometry but not as a collider shape
 - **Standard/PBR material** — Roughness, metalness, normal maps (only Lambert exists)
 - **Spot light** — Cone-shaped light source
-- **Entity parenting** — Nested entity hierarchies with parent-child transforms
 - **Animation system** — Keyframe and skeletal animation playback
 - **Audio system** — Positional and global audio
 
@@ -278,7 +282,7 @@ export default {
 - `fixedUpdate(ctx)` — Called at fixed 60Hz (for physics)
 - `dispose()` — Called on scene cleanup
 
-`ScriptContext` provides: `entity` (native renderer object), `scene`, `dt` (seconds), `time` (elapsed seconds), `input` (keyboard/mouse state), `rigidBody` (adapter-agnostic physics body), plus helpers like `getPosition()`, `setPosition()`, `setRotation()`, `findEntityPosition()`, and `instantiatePrefab()`.
+`ScriptContext` provides: `entity` (native renderer object), `scene`, `dt` (seconds), `time` (elapsed seconds), `input` (keyboard/mouse state), `rigidBody` (adapter-agnostic physics body), plus helpers like `getPosition()`, `setPosition()`, `setRotation()`, `setScale()`, `findEntityPosition()`, `instantiatePrefab()`, and `destroyEntity()`.
 
 ## Scene Switching
 
@@ -319,7 +323,6 @@ Features not yet implemented that would enhance the engine:
 - **Skybox / environment maps** — HDR environment lighting and reflections
 - **Terrain** — Heightmap-based terrain generation
 - **Networking** — Multiplayer state synchronization
-- **Scene graph** — Drag-and-drop entity reordering and parenting in the hierarchy panel
 - **Multi-select** — Select and manipulate multiple entities at once in the editor
 - **Copy/paste entities** — Duplicate entities within and across scenes
 - **Editor camera bookmarks** — Save and restore camera positions
