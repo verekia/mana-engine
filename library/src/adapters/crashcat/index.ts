@@ -181,6 +181,13 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
       ...(allowedDOF !== undefined ? { allowedDegreesOfFreedom: allowedDOF } : {}),
     })
 
+    if (entity.collider?.friction !== undefined) {
+      body.friction = entity.collider.friction
+    }
+    if (entity.collider?.restitution !== undefined) {
+      body.restitution = entity.collider.restitution
+    }
+
     this.bodyMap.set(entity.id, body)
     this.originalMotionType.set(entity.id, motionType)
     this.manaBodyMap.set(entity.id, createManaRigidBody(this.world, body, entity.id, this.originalMotionType))

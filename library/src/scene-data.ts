@@ -65,6 +65,10 @@ export interface ColliderData {
    * Collision events (onCollisionEnter/onCollisionExit) are still fired.
    */
   sensor?: boolean
+  /** Friction coefficient (0 = frictionless, 1 = high friction). Default: 0.5 */
+  friction?: number
+  /** Restitution / bounciness (0 = no bounce, 1 = perfectly elastic). Default: 0 */
+  restitution?: number
 }
 
 export interface ScriptEntry {

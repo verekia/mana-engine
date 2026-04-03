@@ -1001,6 +1001,24 @@ export function RightPanel({
                         onUpdate({ ...entity, collider: { shape, ...entity.collider, sensor: v } })
                       }}
                     />
+                    <NumberInput
+                      label="Friction"
+                      value={entity.collider.friction ?? 0.5}
+                      step={0.05}
+                      onChange={v => {
+                        const shape = entity.collider?.shape ?? 'box'
+                        onUpdate({ ...entity, collider: { shape, ...entity.collider, friction: v } })
+                      }}
+                    />
+                    <NumberInput
+                      label="Restitution"
+                      value={entity.collider.restitution ?? 0}
+                      step={0.05}
+                      onChange={v => {
+                        const shape = entity.collider?.shape ?? 'box'
+                        onUpdate({ ...entity, collider: { shape, ...entity.collider, restitution: v } })
+                      }}
+                    />
                   </>
                 )}
               </>
