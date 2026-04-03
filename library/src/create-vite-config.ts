@@ -97,19 +97,39 @@ function collectStrings(value: unknown): string[] {
   return []
 }
 
-/** Find asset paths referenced in scene YAML files. */
-function findReferencedAssets(scenesDir: string, allAssets: Set<string>): Set<string> {
+/** Find asset paths referenced in scene YAML files and script/source files. */
+function findReferencedAssets(scenesDir: string, allAssets: Set<string>, gameDir?: string): Set<string> {
   const referenced = new Set<string>()
-  if (!existsSync(scenesDir)) return referenced
-  for (const file of readdirSync(scenesDir)) {
-    if (!file.endsWith('.yaml')) continue
-    const data = load(readFileSync(resolve(scenesDir, file), 'utf-8'))
-    for (const str of collectStrings(data)) {
-      // Strip optional "assets/" prefix to match against the asset set
-      const key = str.replace(/^assets\//, '')
-      if (allAssets.has(key)) referenced.add(key)
+
+  // Scan scene YAML files
+  if (existsSync(scenesDir)) {
+    for (const file of readdirSync(scenesDir)) {
+      if (!file.endsWith('.yaml')) continue
+      const data = load(readFileSync(resolve(scenesDir, file), 'utf-8'))
+      for (const str of collectStrings(data)) {
+        const key = str.replace(/^assets\//, '')
+        if (allAssets.has(key)) referenced.add(key)
+      }
     }
   }
+
+  // Scan script and source files for string literals referencing assets
+  if (gameDir) {
+    const sourceDirs = ['scripts', 'ui', 'lib'].map(d => resolve(gameDir, d))
+    for (const dir of sourceDirs) {
+      if (!existsSync(dir)) continue
+      for (const relPath of scanDir(dir, '')) {
+        if (!/\.(ts|tsx|js|jsx)$/.test(relPath)) continue
+        const content = readFileSync(resolve(dir, relPath), 'utf-8')
+        // Match string literals (single and double quoted)
+        for (const match of content.matchAll(/['"]([^'"]+)['"]/g)) {
+          const key = match[1].replace(/^assets\//, '')
+          if (allAssets.has(key)) referenced.add(key)
+        }
+      }
+    }
+  }
+
   return referenced
 }
 
@@ -118,7 +138,7 @@ const VIRTUAL_ASSETS = 'virtual:mana-asset-manifest'
 const RESOLVED_ASSETS = '\0virtual:mana-asset-manifest'
 const ASSETS_PLACEHOLDER = '__MANA_ASSET_MANIFEST_PLACEHOLDER__'
 
-function manaAssetsPlugin(assetsDir: string, scenesDir: string): Plugin {
+function manaAssetsPlugin(assetsDir: string, scenesDir: string, gameDir: string): Plugin {
   // Map from relative path (key in manifest) to Rollup referenceId
   const refIds = new Map<string, string>()
 
@@ -135,7 +155,7 @@ function manaAssetsPlugin(assetsDir: string, scenesDir: string): Plugin {
     buildStart() {
       const allFiles = scanDir(assetsDir, '')
       const allSet = new Set(allFiles)
-      const referenced = findReferencedAssets(scenesDir, allSet)
+      const referenced = findReferencedAssets(scenesDir, allSet, gameDir)
 
       for (const relPath of referenced) {
         const absPath = resolve(assetsDir, relPath)
@@ -192,7 +212,7 @@ export function createBuildConfig(
       tailwindResolvePlugin(tailwindPath),
       react(),
       tailwindcss(),
-      manaAssetsPlugin(assetsDir, scenesDir),
+      manaAssetsPlugin(assetsDir, scenesDir, gameDir),
       cssInlinePlugin(),
     ],
     build: {
