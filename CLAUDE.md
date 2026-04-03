@@ -5,7 +5,9 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 ## Architecture
 
 - `library/` — The `mana-engine` npm package: CLI (`mana build`/`mana dev`/`mana editor`), runtime (`mountGame`, `createScene`), and Vite plugins
-- `example/` — Consumer example: host page that builds the game with `mana build` then mounts it via `mountGame`
+- `examples/` — Consumer examples, each a Bun workspace:
+  - `examples/platformer/` — Full platformer demo with host page, scripts, UI, and multiple scenes
+  - `examples/<renderer>-<physics>-<coord>/` — Minimal examples for every adapter combination (e.g. `three-rapier-yup`, `voidcore-crashcat-zup`), containing only `mana.json` and a single scene
 - The CLI generates entry files in `.mana/`, runs Vite programmatically, and bundles React/Tailwind into the game output
 - `cssInlinePlugin` extracts CSS into a JS export so `mountGame` can inject it into the Shadow DOM
 - `tailwindResolvePlugin` rewrites `@import 'tailwindcss'` to an absolute path because `@tailwindcss/vite` uses `enhanced-resolve` which can't find packages in bun's `.bun/` layout
@@ -273,9 +275,9 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 Always run `bun install` first to ensure dependencies (including CLI tools like `oxfmt`, `oxlint`, `tsgo`) are installed. All commands below are defined in the root `package.json` and must be run from the repository root. Always run `bun run format` before committing, and run `bun run all` to validate everything passes before pushing.
 
 - `bun run all` — lint + format check + typecheck + test + build (the full CI pipeline)
-- `bun run dev:game` — starts the game in dev mode
-- `bun run dev:host` — builds the production game, then starts the host in dev mode
-- `bun run build` — build library then example
+- `bun run dev:game` — starts the platformer example in dev mode
+- `bun run dev:host` — builds the production game, then starts the platformer host in dev mode
+- `bun run build` — build library then platformer example
 - `bun run lint` — oxlint
 - `bun run format` — oxfmt (write), `bun run format:check` (check only)
 - `bun run typecheck` — tsgo

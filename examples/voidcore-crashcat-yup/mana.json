@@ -1,0 +1,5 @@
+{
+  "renderer": "voidcore",
+  "physics": "crashcat",
+  "coordinateSystem": "y-up"
+}

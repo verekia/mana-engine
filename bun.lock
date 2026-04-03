@@ -10,8 +10,8 @@
         "oxlint": "1.57.0",
       },
     },
-    "example": {
-      "name": "example",
+    "examples/platformer": {
+      "name": "platformer",
       "version": "0.0.1",
       "dependencies": {
         "mana-engine": "workspace:*",
@@ -20,6 +20,62 @@
         "@tailwindcss/vite": "4.2.2",
         "tailwindcss": "4.2.2",
         "vite": "8.0.2",
+      },
+    },
+    "examples/three-crashcat-yup": {
+      "name": "three-crashcat-yup",
+      "version": "0.0.1",
+      "dependencies": {
+        "mana-engine": "workspace:*",
+      },
+    },
+    "examples/three-crashcat-zup": {
+      "name": "three-crashcat-zup",
+      "version": "0.0.1",
+      "dependencies": {
+        "mana-engine": "workspace:*",
+      },
+    },
+    "examples/three-rapier-yup": {
+      "name": "three-rapier-yup",
+      "version": "0.0.1",
+      "dependencies": {
+        "mana-engine": "workspace:*",
+      },
+    },
+    "examples/three-rapier-zup": {
+      "name": "three-rapier-zup",
+      "version": "0.0.1",
+      "dependencies": {
+        "mana-engine": "workspace:*",
+      },
+    },
+    "examples/voidcore-crashcat-yup": {
+      "name": "voidcore-crashcat-yup",
+      "version": "0.0.1",
+      "dependencies": {
+        "mana-engine": "workspace:*",
+      },
+    },
+    "examples/voidcore-crashcat-zup": {
+      "name": "voidcore-crashcat-zup",
+      "version": "0.0.1",
+      "dependencies": {
+        "mana-engine": "workspace:*",
+      },
+    },
+    "examples/voidcore-rapier-yup": {
+      "name": "voidcore-rapier-yup",
+      "version": "0.0.1",
+      "dependencies": {
+        "mana-engine": "workspace:*",
+      },
+    },
+    "examples/voidcore-rapier-zup": {
+      "name": "voidcore-rapier-zup",
+      "version": "0.0.1",
+      "dependencies": {
+        "mana-engine": "workspace:*",
       },
     },
     "library": {
@@ -266,8 +322,6 @@
 
     "entities": ["entities@7.0.1", "", {}, "sha512-TWrgLOFUQTH994YUyl1yT4uyavY5nNB5muff+RtWaqNVCAK408b5ZnnbNAUEWLTCpum9w6arT70i1XdQ4UeOPA=="],
 
-    "example": ["example@workspace:example"],
-
     "fdir": ["fdir@6.5.0", "", { "peerDependencies": { "picomatch": "^3 || ^4" }, "optionalPeers": ["picomatch"] }, "sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg=="],
 
     "fflate": ["fflate@0.8.2", "", {}, "sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A=="],
@@ -324,6 +378,8 @@
 
     "picomatch": ["picomatch@4.0.3", "", {}, "sha512-5gTmgEY/sqK6gFXLIsQNH19lWb4ebPDLA4SdLP7dsWkIXHWlG66oPuVvXSGFPppYZz8ZDZq0dYYrbHfBCVUb1Q=="],
 
+    "platformer": ["platformer@workspace:examples/platformer"],
+
     "postcss": ["postcss@8.5.8", "", { "dependencies": { "nanoid": "^3.3.11", "picocolors": "^1.1.1", "source-map-js": "^1.2.1" } }, "sha512-OW/rX8O/jXnm82Ey1k44pObPtdblfiuWnrd8X7GJ7emImCOstunGbXUpp7HdBrFQX6rJzn3sPT397Wp5aCwCHg=="],
 
     "react": ["react@19.2.4", "", {}, "sha512-9nfp2hYpCwOjAN+8TZFGhtWEwgvWHXqESH8qT89AT/lWklpLON22Lc8pEtnpsZz7VmawabSU0gCjnj8aC0euHQ=="],
@@ -344,6 +400,14 @@
 
     "three": ["three@0.183.2", "", {}, "sha512-di3BsL2FEQ1PA7Hcvn4fyJOlxRRgFYBpMTcyOgkwJIaDOdJMebEFPA+t98EvjuljDx4hNulAGwF6KIjtwI5jgQ=="],
 
+    "three-crashcat-yup": ["three-crashcat-yup@workspace:examples/three-crashcat-yup"],
+
+    "three-crashcat-zup": ["three-crashcat-zup@workspace:examples/three-crashcat-zup"],
+
+    "three-rapier-yup": ["three-rapier-yup@workspace:examples/three-rapier-yup"],
+
+    "three-rapier-zup": ["three-rapier-zup@workspace:examples/three-rapier-zup"],
+
     "tinyglobby": ["tinyglobby@0.2.15", "", { "dependencies": { "fdir": "^6.5.0", "picomatch": "^4.0.3" } }, "sha512-j2Zq4NyQYG5XMST4cbs02Ak8iJUdxRM0XI5QyxXuZOzKOINmWurp3smXu3y5wDcJrptwpSjgXHzIQxR0omXljQ=="],
 
     "tinypool": ["tinypool@2.1.0", "", {}, "sha512-Pugqs6M0m7Lv1I7FtxN4aoyToKg1C4tu+/381vH35y8oENM/Ai7f7C4StcoK4/+BSw9ebcS8jRiVrORFKCALLw=="],
@@ -355,6 +419,14 @@
     "vite": ["vite@8.0.2", "", { "dependencies": { "lightningcss": "^1.32.0", "picomatch": "^4.0.3", "postcss": "^8.5.8", "rolldown": "1.0.0-rc.11", "tinyglobby": "^0.2.15" }, "optionalDependencies": { "fsevents": "~2.3.3" }, "peerDependencies": { "@types/node": "^20.19.0 || >=22.12.0", "@vitejs/devtools": "^0.1.0", "esbuild": "^0.27.0", "jiti": ">=1.21.0", "less": "^4.0.0", "sass": "^1.70.0", "sass-embedded": "^1.70.0", "stylus": ">=0.54.8", "sugarss": "^5.0.0", "terser": "^5.16.0", "tsx": "^4.8.1", "yaml": "^2.4.2" }, "optionalPeers": ["@types/node", "@vitejs/devtools", "esbuild", "jiti", "less", "sass", "sass-embedded", "stylus", "sugarss", "terser", "tsx", "yaml"], "bin": { "vite": "bin/vite.js" } }, "sha512-1gFhNi+bHhRE/qKZOJXACm6tX4bA3Isy9KuKF15AgSRuRazNBOJfdDemPBU16/mpMxApDPrWvZ08DcLPEoRnuA=="],
 
     "voidcore": ["voidcore@0.0.14", "", { "dependencies": { "react-reconciler": "^0.31.0" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }, "sha512-SdowM37CjBUAJ4OVoI2dRJhPFQteo/nxHysb3jeyNAqYo/01btIAY4TN38S4JvH+6+UjgIEMENdbq9ijyFrKnw=="],
+
+    "voidcore-crashcat-yup": ["voidcore-crashcat-yup@workspace:examples/voidcore-crashcat-yup"],
+
+    "voidcore-crashcat-zup": ["voidcore-crashcat-zup@workspace:examples/voidcore-crashcat-zup"],
+
+    "voidcore-rapier-yup": ["voidcore-rapier-yup@workspace:examples/voidcore-rapier-yup"],
+
+    "voidcore-rapier-zup": ["voidcore-rapier-zup@workspace:examples/voidcore-rapier-zup"],
 
     "whatwg-mimetype": ["whatwg-mimetype@3.0.0", "", {}, "sha512-nt+N2dzIutVRxARx1nghPKGv1xHikU7HKdfafKkLNLindmPU/ch3U31NOCGGA/dmPcmb1VlofO0vnKAcsm0o/Q=="],
 

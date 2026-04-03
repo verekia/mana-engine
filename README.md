@@ -323,6 +323,31 @@ The built-in editor (`mana editor`) provides:
 - **Play/Stop** — Toggle play mode to test the game with full interactivity
 - **Cmd+S / Ctrl+S** — Save scene changes to disk
 
+## Examples
+
+The `examples/` directory contains Bun workspace packages demonstrating different configurations:
+
+- **`examples/platformer/`** — Full platformer demo with host page, scripts, UI components, and multiple scenes
+- **`examples/<renderer>-<physics>-<coord>/`** — Minimal examples for every adapter combination (a plane + falling cube):
+
+| Example                 | Renderer | Physics  | Coordinate System |
+| ----------------------- | -------- | -------- | ----------------- |
+| `three-rapier-yup`      | Three.js | Rapier   | Y-up              |
+| `three-rapier-zup`      | Three.js | Rapier   | Z-up              |
+| `three-crashcat-yup`    | Three.js | Crashcat | Y-up              |
+| `three-crashcat-zup`    | Three.js | Crashcat | Z-up              |
+| `voidcore-rapier-yup`   | VoidCore | Rapier   | Y-up              |
+| `voidcore-rapier-zup`   | VoidCore | Rapier   | Z-up              |
+| `voidcore-crashcat-yup` | VoidCore | Crashcat | Y-up              |
+| `voidcore-crashcat-zup` | VoidCore | Crashcat | Z-up              |
+
+To run any minimal example:
+
+```bash
+cd examples/three-rapier-yup
+bun run editor
+```
+
 ## Stack
 
 Bun workspaces, Vite, React 19, Tailwind CSS v4, oxlint, oxfmt, tsgo

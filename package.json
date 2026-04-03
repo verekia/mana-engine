@@ -3,7 +3,7 @@
   "private": true,
   "workspaces": [
     "library",
-    "example"
+    "examples/*"
   ],
   "type": "module",
   "scripts": {
@@ -13,11 +13,11 @@
     "typecheck": "tsgo --noEmit",
     "test": "bun test",
     "all": "bun run lint && bun run format:check && bun run typecheck && bun run test && bun run build",
-    "editor": "bun run --filter 'example' editor",
-    "dev": "bun run --filter 'example' dev:game",
-    "dev:host": "bun run --filter 'example' dev:host",
-    "build": "bun run --filter 'mana-engine' build && bun run --filter 'example' build",
-    "start": "bun run --filter 'example' start"
+    "editor": "bun run --filter 'platformer' editor",
+    "dev": "bun run --filter 'platformer' dev:game",
+    "dev:host": "bun run --filter 'platformer' dev:host",
+    "build": "bun run --filter 'mana-engine' build && bun run --filter 'platformer' build",
+    "start": "bun run --filter 'platformer' start"
   },
   "devDependencies": {
     "@typescript/native-preview": "7.0.0-dev.20260322.1",

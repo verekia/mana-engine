@@ -1,0 +1,5 @@
+{
+  "renderer": "three",
+  "physics": "rapier",
+  "coordinateSystem": "z-up"
+}

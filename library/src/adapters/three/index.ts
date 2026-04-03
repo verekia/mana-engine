@@ -101,6 +101,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
   private enableOrbitControls = false
   private showGizmos = false
   private _setTransformSpace: ((space: 'local' | 'world') => void) | null = null
+  private isYUp = true
 
   async init(canvas: HTMLCanvasElement, options: RendererAdapterOptions): Promise<void> {
     this.options = options
@@ -288,6 +289,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
     // Three.js is Y-up natively; a Z-up project rotates the root -90° around X so the visual
     // "up" axis matches without any per-entity coordinate conversion.
     const isZUp = sceneData.coordinateSystem === 'z-up'
+    this.isYUp = !isZUp
     this.sceneRoot.rotation.x = isZUp ? -Math.PI / 2 : 0
     // In z-up mode, use local space for TransformControls so gizmo axes align with
     // scene axes (green=Y forward, blue=Z up) instead of Three.js world axes.
@@ -300,6 +302,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
         enableOrbitControls: this.enableOrbitControls,
         showGizmos: this.showGizmos,
         renderer: this.renderer,
+        isYUp: this.isYUp,
       })
       if (entity.type === 'camera' && obj instanceof PerspectiveCamera) {
         this.gameCam = obj
@@ -329,6 +332,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
       enableOrbitControls: this.enableOrbitControls,
       showGizmos: this.showGizmos,
       renderer: this.renderer,
+      isYUp: this.isYUp,
     })
   }
 

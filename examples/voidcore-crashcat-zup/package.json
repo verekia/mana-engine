@@ -1,0 +1,12 @@
+{
+  "name": "voidcore-crashcat-zup",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "editor": "mana editor"
+  },
+  "dependencies": {
+    "mana-engine": "workspace:*"
+  }
+}

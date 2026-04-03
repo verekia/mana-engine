@@ -1,0 +1,8 @@
+{
+  "gameDir": "game",
+  "outDir": ".mana/build",
+  "startScene": "main-menu",
+  "renderer": "voidcore",
+  "physics": "rapier",
+  "coordinateSystem": "z-up"
+}

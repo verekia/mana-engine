@@ -309,9 +309,10 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
         const mesh = new Mesh(geometry, material)
         mesh.castShadow = entity.castShadow ?? false
 
-        // VoidCore capsule extends along Z (its native up). In Y-up scene space,
-        // it should extend along Y, so pre-rotate -90° around X.
-        if (geomType === 'capsule' && this.isYUp) {
+        // VoidCore creates capsules along Z and planes in XY (facing +Z). In Y-up
+        // scene space, capsules should extend along Y and planes should lie in XZ
+        // (facing +Y), so pre-rotate -90° around X.
+        if ((geomType === 'capsule' || geomType === 'plane') && this.isYUp) {
           const [qx, qy, qz, qw] = eulerToQuat(-Math.PI / 2, 0, 0)
           mesh.setRotation(qx, qy, qz, qw)
           const wrapper = new Group()

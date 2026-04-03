@@ -185,7 +185,7 @@ export function createThreeEntityObject(
   entity: SceneEntity,
   scene: Object3D,
   maps: ThreeEntityMaps,
-  options: { enableOrbitControls: boolean; showGizmos: boolean; renderer?: WebGPURenderer },
+  options: { enableOrbitControls: boolean; showGizmos: boolean; renderer?: WebGPURenderer; isYUp?: boolean },
 ): Object3D | null {
   let obj: Object3D | null = null
 
@@ -210,6 +210,11 @@ export function createThreeEntityObject(
     }
     case 'mesh': {
       const geometry = createGeometry(entity.mesh?.geometry)
+      // PlaneGeometry is created in XY (facing +Z). In Y-up scenes, rotate it
+      // to lie in XZ (facing +Y) so it acts as a ground plane by default.
+      if (entity.mesh?.geometry === 'plane' && options.isYUp !== false) {
+        geometry.rotateX(-Math.PI / 2)
+      }
       const material = new MeshLambertMaterial()
       applyMaterialData(material, entity.mesh?.material, options.renderer)
       const mesh = new Mesh(geometry, material)
