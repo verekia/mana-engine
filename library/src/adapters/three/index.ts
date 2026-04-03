@@ -107,6 +107,9 @@ export class ThreeRendererAdapter implements RendererAdapter {
   private _setTransformSpace: ((space: 'local' | 'world') => void) | null = null
   private isYUp = true
   private gridHelper: GridHelper | null = null
+  private isOrtho = false
+  private orthoAzimuth = 0
+  private orthoPolar = 0
   /** Animation clips stored per entity from GLTF loading. */
   private entityClips = new Map<string, AnimationClip[]>()
   /** Active AnimationMixers per entity. */
@@ -250,6 +253,26 @@ export class ThreeRendererAdapter implements RendererAdapter {
   }
 
   render(): void {
+    if (this.isOrtho) {
+      // Override projection to orthographic based on distance to target
+      const dist = this.camera.position.distanceTo(
+        this.controls
+          ? new Vector3(this.controls.target.x, this.controls.target.y, this.controls.target.z)
+          : new Vector3(),
+      )
+      const halfH = dist * Math.tan(((this.camera.fov / 2) * Math.PI) / 180)
+      const halfW = halfH * this.camera.aspect
+      this.camera.projectionMatrix.makeOrthographic(
+        -halfW,
+        halfW,
+        halfH,
+        -halfH,
+        this.camera.near,
+        this.camera.far,
+        this.renderer.coordinateSystem,
+      )
+      this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert()
+    }
     if (this.renderPipeline) {
       this.renderPipeline.render()
     } else {
@@ -258,7 +281,20 @@ export class ThreeRendererAdapter implements RendererAdapter {
   }
 
   updateControls(): void {
-    this.controls?.update()
+    if (!this.controls) return
+    this.controls.update()
+
+    // Detect orbit rotation while in ortho mode — return to perspective
+    if (this.isOrtho) {
+      const t = this.controls.target
+      const offset = new Vector3().subVectors(this.camera.position, new Vector3(t.x, t.y, t.z))
+      const az = Math.atan2(offset.x, offset.z)
+      const polar = Math.acos(Math.max(-1, Math.min(1, offset.y / offset.length())))
+      if (Math.abs(az - this.orthoAzimuth) > 0.01 || Math.abs(polar - this.orthoPolar) > 0.01) {
+        this.isOrtho = false
+        this.camera.updateProjectionMatrix()
+      }
+    }
   }
 
   dispose(): void {
@@ -656,6 +692,39 @@ export class ThreeRendererAdapter implements RendererAdapter {
     this.camera.position.set(...state.position)
     this.controls.target.set(...state.target)
     this.controls.update()
+  }
+
+  setOrthographicView(view: 'front' | 'back' | 'right' | 'left' | 'top' | 'bottom' | 'perspective'): void {
+    if (!this.controls) return
+
+    if (view === 'perspective') {
+      this.isOrtho = false
+      this.camera.updateProjectionMatrix()
+      return
+    }
+
+    const t = this.controls.target
+    const target = new Vector3(t.x, t.y, t.z)
+    const dist = this.camera.position.distanceTo(target)
+
+    // Position camera along the view axis at the current distance
+    const offsets: Record<string, [number, number, number]> = {
+      front: [0, 0, 1],
+      back: [0, 0, -1],
+      right: [1, 0, 0],
+      left: [-1, 0, 0],
+      top: [0, 1, 0],
+      bottom: [0, -1, 0],
+    }
+    const dir = offsets[view]
+    this.camera.position.set(target.x + dir[0] * dist, target.y + dir[1] * dist, target.z + dir[2] * dist)
+    this.camera.lookAt(target)
+    this.controls.update()
+    // Store spherical coords to detect user rotation later
+    const offset = new Vector3().subVectors(this.camera.position, target)
+    this.orthoAzimuth = Math.atan2(offset.x, offset.z)
+    this.orthoPolar = Math.acos(Math.max(-1, Math.min(1, offset.y / offset.length())))
+    this.isOrtho = true
   }
 
   /** Get the initial transform of an entity for physics seeding (position + quaternion). */

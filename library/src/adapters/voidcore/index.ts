@@ -33,6 +33,38 @@ import type { PhysicsTransform } from '../physics-adapter.ts'
 import type { RendererAdapter, RendererAdapterOptions, EditorCameraState, TransformMode } from '../renderer-adapter.ts'
 
 /** Parse a CSS hex color string into [r, g, b] in 0–1 range. */
+/** Build an orthographic projection matrix (clip-space Z from 0 to 1 for WebGPU). */
+function orthoMatrixZO(
+  out: Float32Array,
+  left: number,
+  right: number,
+  bottom: number,
+  top: number,
+  near: number,
+  far: number,
+): Float32Array {
+  const lr = 1 / (left - right)
+  const bt = 1 / (bottom - top)
+  const nf = 1 / (near - far)
+  out[0] = -2 * lr
+  out[1] = 0
+  out[2] = 0
+  out[3] = 0
+  out[4] = 0
+  out[5] = -2 * bt
+  out[6] = 0
+  out[7] = 0
+  out[8] = 0
+  out[9] = 0
+  out[10] = nf
+  out[11] = 0
+  out[12] = (left + right) * lr
+  out[13] = (top + bottom) * bt
+  out[14] = near * nf
+  out[15] = 1
+  return out
+}
+
 function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace('#', '')
   const n = parseInt(h.length === 3 ? h[0] + h[0] + h[1] + h[1] + h[2] + h[2] : h, 16)
@@ -187,6 +219,7 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   private options!: RendererAdapterOptions
   private showGizmos = false
   private gridGroup: Group | null = null
+  private isOrtho = false
   private transformGizmo: TransformGizmo | null = null
   private currentTransformMode: TransformMode = 'translate'
   /** Outline thickness for selected entities. */
@@ -737,12 +770,70 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     this.controls.update(0)
   }
 
+  setOrthographicView(view: 'front' | 'back' | 'right' | 'left' | 'top' | 'bottom' | 'perspective'): void {
+    if (!this.controls) return
+
+    if (view === 'perspective') {
+      this.isOrtho = false
+      this.camera._projectionDirty = true
+      return
+    }
+
+    const t = this.controls.target
+    const dist = this.controls.distance
+
+    // View directions in scene coordinates (y-up), converted if needed
+    const sceneOffsets: Record<string, [number, number, number]> = {
+      front: [0, 0, 1],
+      back: [0, 0, -1],
+      right: [1, 0, 0],
+      left: [-1, 0, 0],
+      top: [0, 1, 0],
+      bottom: [0, -1, 0],
+    }
+    let [ox, oy, oz] = sceneOffsets[view]
+    if (this.isYUp) {
+      ;[ox, oy, oz] = yUpToZUp(ox, oy, oz)
+    }
+
+    const cx = t[0] + ox * dist
+    const cy = t[1] + oy * dist
+    const cz = t[2] + oz * dist
+    const dx = cx - t[0],
+      dy = cy - t[1],
+      dz = cz - t[2]
+    this.controls.distance = dist
+    this.controls.elevation = Math.asin(Math.max(-1, Math.min(1, dz / dist)))
+    this.controls.azimuth = Math.atan2(dy, dx)
+    // Kill any inertia so the view snaps cleanly
+    ;(this.controls as any)._velocityAz = 0
+    ;(this.controls as any)._velocityEl = 0
+    ;(this.controls as any)._velocityDist = 0
+    ;(this.controls as any)._velocityPanX = 0
+    ;(this.controls as any)._velocityPanY = 0
+    this.controls.update(0)
+    this.isOrtho = true
+  }
+
   updateControls(): void {
     if (!this.controls) return
     const now = performance.now() / 1000
     const dt = now - this.lastFrameTime
     this.lastFrameTime = now
-    this.controls.update(dt)
+
+    if (this.isOrtho) {
+      const prevAz = this.controls.azimuth
+      const prevEl = this.controls.elevation
+      this.controls.update(dt)
+      const dAz = Math.abs(this.controls.azimuth - prevAz)
+      const dEl = Math.abs(this.controls.elevation - prevEl)
+      if (dAz > 0.001 || dEl > 0.001) {
+        this.isOrtho = false
+        this.camera._projectionDirty = true
+      }
+    } else {
+      this.controls.update(dt)
+    }
     this.transformGizmo?.update()
   }
 
@@ -753,6 +844,13 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     if (!this.controls) {
       this.scene.updateGraph()
       mat4Invert(this.camera._viewMatrix, this.camera._worldMatrix)
+    }
+    if (this.isOrtho) {
+      const dist = this.controls?.distance ?? 10
+      const halfH = dist * Math.tan(((this.camera.fov / 2) * Math.PI) / 180)
+      const halfW = halfH * this.camera.aspect
+      orthoMatrixZO(this.camera._projectionMatrix, -halfW, halfW, -halfH, halfH, this.camera.near, this.camera.far)
+      this.camera._projectionDirty = false
     }
     this.engine.render(this.scene, this.camera)
   }

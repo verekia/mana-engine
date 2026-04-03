@@ -1056,10 +1056,24 @@ export default function Editor({
       if (e.key === 'w' && !mod) setTransformMode('translate')
       if (e.key === 'e' && !mod) setTransformMode('rotate')
       if (e.key === 'r' && !mod) setTransformMode('scale')
+
+      // Orthographic view shortcuts (Blender-style numpad)
+      if (e.key === '1') {
+        sceneRef.current?.setOrthographicView?.(mod ? 'back' : 'front')
+        return
+      }
+      if (e.key === '3') {
+        sceneRef.current?.setOrthographicView?.(mod ? 'left' : 'right')
+        return
+      }
+      if (e.key === '7') {
+        sceneRef.current?.setOrthographicView?.(mod ? 'bottom' : 'top')
+        return
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [log, handleCopyEntity, handlePasteEntity, handleDuplicateEntity, handleDeleteEntity])
+  }, [log, handleCopyEntity, handlePasteEntity, handleDuplicateEntity, handleDeleteEntity, sceneRef])
 
   return (
     <div

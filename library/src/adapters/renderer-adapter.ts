@@ -181,6 +181,9 @@ export interface RendererAdapter {
   /** Restore the editor camera to a previously saved state. */
   setEditorCamera(state: EditorCameraState): void
 
+  /** Switch to an orthographic view. 'perspective' returns to perspective mode. */
+  setOrthographicView?(view: 'front' | 'back' | 'right' | 'left' | 'top' | 'bottom' | 'perspective'): void
+
   // ── Frame loop ──────────────────────────────────────────────────────────────
 
   /**

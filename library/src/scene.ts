@@ -29,6 +29,8 @@ export interface ManaScene {
   setTransformTarget(id: string | null): void
   /** Show or hide an entity in the viewport. For lights, only hides the gizmo helper. */
   setEntityVisible(id: string, visible: boolean): void
+  /** Switch to an orthographic view or back to perspective. */
+  setOrthographicView?(view: 'front' | 'back' | 'right' | 'left' | 'top' | 'bottom' | 'perspective'): void
 }
 
 export interface CreateSceneOptions {
@@ -573,6 +575,9 @@ export async function createScene(
     },
     setEntityVisible(id: string, visible: boolean) {
       renderer.setEntityVisible(id, visible)
+    },
+    setOrthographicView(view) {
+      renderer.setOrthographicView?.(view)
     },
   }
 }
