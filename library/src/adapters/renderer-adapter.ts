@@ -3,6 +3,16 @@ import type { PhysicsTransform } from './physics-adapter.ts'
 
 export type TransformMode = 'translate' | 'rotate' | 'scale'
 
+/** Result of a world-space raycast from a script. */
+export interface RaycastHit {
+  /** The entity ID of the hit object. */
+  entityId: string
+  /** Distance from the ray origin to the hit point. */
+  distance: number
+  /** World-space hit point. */
+  point: { x: number; y: number; z: number }
+}
+
 export interface EditorCameraState {
   position: [number, number, number]
   target: [number, number, number]
@@ -110,6 +120,20 @@ export interface RendererAdapter {
    * The concrete type depends on the adapter.
    */
   getNativeScene(): unknown
+
+  // ── Script helpers ──────────────────────────────────────────────────────────
+
+  /**
+   * Raycast from a world-space origin in a given direction.
+   * Returns the first entity hit and hit details, or null if nothing was hit.
+   * Used by scripts via ctx.raycast() for gameplay logic (shooting, line-of-sight, etc.).
+   * @param maxDistance Maximum ray distance (default: 1000).
+   */
+  raycastWorld(
+    origin: { x: number; y: number; z: number },
+    direction: { x: number; y: number; z: number },
+    maxDistance?: number,
+  ): RaycastHit | null
 
   // ── Editor helpers ──────────────────────────────────────────────────────────
 

@@ -59,6 +59,12 @@ export interface ColliderData {
   radius?: number
   /** Half-height of the cylindrical part for capsule colliders */
   halfHeight?: number
+  /**
+   * If true, this collider is a sensor (trigger volume).
+   * Sensors detect overlaps without producing physical contact forces.
+   * Collision events (onCollisionEnter/onCollisionExit) are still fired.
+   */
+  sensor?: boolean
 }
 
 export interface ScriptEntry {

@@ -19,7 +19,7 @@ import { flattenEntities } from '../../scene-data.ts'
 import type { RigidBody, World } from 'crashcat'
 
 import type { SceneData, SceneEntity } from '../../scene-data.ts'
-import type { ManaRigidBody, PhysicsAdapter, PhysicsTransform } from '../physics-adapter.ts'
+import type { CollisionEvent, ManaRigidBody, PhysicsAdapter, PhysicsTransform } from '../physics-adapter.ts'
 
 // registerAll() is idempotent — safe to call multiple times
 let registered = false
@@ -127,6 +127,13 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
   private manaBodyMap = new Map<string, ManaRigidBody>()
   /** Original motion type per body, used to restore after setEnabled(true). */
   private originalMotionType = new Map<string, MotionType>()
+  /** Map from Crashcat BodyId to entity ID. */
+  private bodyIdToEntity = new Map<number, string>()
+  /** Map from entity ID to whether its collider is a sensor. */
+  private sensorMap = new Map<string, boolean>()
+  /** Set of currently active contact pairs (entityA:entityB, sorted). */
+  private activeContacts = new Set<string>()
+  private pendingCollisionEvents: CollisionEvent[] = []
   private staticLayer = 0
   private dynamicLayer = 1
 
@@ -177,6 +184,8 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
     this.bodyMap.set(entity.id, body)
     this.originalMotionType.set(entity.id, motionType)
     this.manaBodyMap.set(entity.id, createManaRigidBody(this.world, body, entity.id, this.originalMotionType))
+    this.bodyIdToEntity.set(body.id, entity.id)
+    this.sensorMap.set(entity.id, entity.collider?.sensor === true)
 
     if (motionType !== MotionType.STATIC) {
       this.dynamicBodies.push({ id: entity.id, body })
@@ -213,11 +222,69 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
     this.bodyMap.clear()
     this.manaBodyMap.clear()
     this.originalMotionType.clear()
+    this.bodyIdToEntity.clear()
+    this.sensorMap.clear()
+    this.activeContacts.clear()
+    this.pendingCollisionEvents = []
+  }
+
+  /** Make a sorted contact pair key from two entity IDs. */
+  private _pairKey(a: string, b: string): string {
+    return a < b ? `${a}:${b}` : `${b}:${a}`
   }
 
   step(dt: number): void {
     if (!this.world) return
-    updateWorld(this.world, undefined, dt)
+
+    const currentContacts = new Set<string>()
+
+    updateWorld(
+      this.world,
+      {
+        onContactAdded: (bodyA, bodyB) => {
+          const entityA = this.bodyIdToEntity.get(bodyA.id)
+          const entityB = this.bodyIdToEntity.get(bodyB.id)
+          if (!entityA || !entityB) return
+          const key = this._pairKey(entityA, entityB)
+          currentContacts.add(key)
+          if (!this.activeContacts.has(key)) {
+            const sensorA = this.sensorMap.get(entityA) === true
+            const sensorB = this.sensorMap.get(entityB) === true
+            this.pendingCollisionEvents.push({
+              entityIdA: entityA,
+              entityIdB: entityB,
+              started: true,
+              sensor: sensorA || sensorB,
+            })
+          }
+        },
+        onContactPersisted: (bodyA, bodyB) => {
+          const entityA = this.bodyIdToEntity.get(bodyA.id)
+          const entityB = this.bodyIdToEntity.get(bodyB.id)
+          if (!entityA || !entityB) return
+          currentContacts.add(this._pairKey(entityA, entityB))
+        },
+        onContactRemoved: (bodyIdA, bodyIdB) => {
+          const entityA = this.bodyIdToEntity.get(bodyIdA)
+          const entityB = this.bodyIdToEntity.get(bodyIdB)
+          if (!entityA || !entityB) return
+          const key = this._pairKey(entityA, entityB)
+          if (this.activeContacts.has(key)) {
+            const sensorA = this.sensorMap.get(entityA) === true
+            const sensorB = this.sensorMap.get(entityB) === true
+            this.pendingCollisionEvents.push({
+              entityIdA: entityA,
+              entityIdB: entityB,
+              started: false,
+              sensor: sensorA || sensorB,
+            })
+          }
+        },
+      },
+      dt,
+    )
+
+    this.activeContacts = currentContacts
   }
 
   getTransforms(): Map<string, PhysicsTransform> {
@@ -238,6 +305,12 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
     return this.manaBodyMap.get(entityId)
   }
 
+  getCollisionEvents(): CollisionEvent[] {
+    const events = this.pendingCollisionEvents
+    this.pendingCollisionEvents = []
+    return events
+  }
+
   addEntity(entity: SceneEntity, getInitialTransform: (id: string) => PhysicsTransform | null): void {
     if (!entity.rigidBody || !this.world) return
     ensureRegistered()
@@ -247,11 +320,13 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
   removeEntity(entityId: string): void {
     const body = this.bodyMap.get(entityId)
     if (body && this.world) {
+      this.bodyIdToEntity.delete(body.id)
       rigidBody.remove(this.world, body)
     }
     this.bodyMap.delete(entityId)
     this.manaBodyMap.delete(entityId)
     this.originalMotionType.delete(entityId)
+    this.sensorMap.delete(entityId)
     this.dynamicBodies = this.dynamicBodies.filter(e => e.id !== entityId)
   }
 }

@@ -1,3 +1,4 @@
+import { Audio } from './audio.ts'
 import { Input } from './input.ts'
 import { flattenEntities } from './scene-data.ts'
 
@@ -240,6 +241,23 @@ export async function createScene(
       rigidBody: physicsAdapter?.getBody(entityId),
       input: inputVal,
       params,
+      playSound(path, opts) {
+        if (!audio) return Promise.resolve('')
+        return audio.playSound(path, opts)
+      },
+      stopSound(id) {
+        audio?.stopSound(id)
+      },
+      playMusic(path, opts) {
+        if (!audio) return Promise.resolve()
+        return audio.playMusic(path, opts)
+      },
+      stopMusic() {
+        audio?.stopMusic()
+      },
+      setMasterVolume(volume) {
+        audio?.setMasterVolume(volume)
+      },
       getPosition() {
         const p = renderer.getEntityPosition(entityId)
         return p ? { x: p[0], y: p[1], z: p[2] } : { x: 0, y: 0, z: 0 }
@@ -258,6 +276,9 @@ export async function createScene(
         if (!id) return null
         const p = renderer.getEntityPosition(id)
         return p ? { x: p[0], y: p[1], z: p[2] } : null
+      },
+      raycast(origin, direction, maxDistance) {
+        return renderer.raycastWorld(origin, direction, maxDistance)
       },
       instantiatePrefab(name, position, rotation) {
         const prefab = prefabs[name]
@@ -329,6 +350,9 @@ export async function createScene(
   // Input system (play mode with scripts only) — only create if we actually have scripts
   const scriptInput = activeScripts.length > 0 && !enableOrbitControls ? new Input(canvas) : null
 
+  // Audio system (play mode with scripts only)
+  const audio = scriptInput ? new Audio() : null
+
   // Run init() on all scripts
   let elapsed = 0
   for (const { script, entityId, params } of activeScripts) {
@@ -354,6 +378,29 @@ export async function createScene(
     fixedAccumulator += dt
     while (fixedAccumulator >= FIXED_DT) {
       physicsAdapter?.step(FIXED_DT)
+
+      // Dispatch collision events to scripts
+      if (physicsAdapter && scriptInput) {
+        for (const event of physicsAdapter.getCollisionEvents()) {
+          for (const { script, entityId, params } of activeScripts) {
+            if (entityId === event.entityIdA) {
+              const info = { entityId: event.entityIdB, sensor: event.sensor }
+              if (event.started) {
+                script.onCollisionEnter?.(makeCtx(entityId, FIXED_DT, elapsed, scriptInput, params), info)
+              } else {
+                script.onCollisionExit?.(makeCtx(entityId, FIXED_DT, elapsed, scriptInput, params), info)
+              }
+            } else if (entityId === event.entityIdB) {
+              const info = { entityId: event.entityIdA, sensor: event.sensor }
+              if (event.started) {
+                script.onCollisionEnter?.(makeCtx(entityId, FIXED_DT, elapsed, scriptInput, params), info)
+              } else {
+                script.onCollisionExit?.(makeCtx(entityId, FIXED_DT, elapsed, scriptInput, params), info)
+              }
+            }
+          }
+        }
+      }
 
       if (scriptInput) {
         for (const { script, entityId, params } of activeScripts) {
@@ -392,6 +439,7 @@ export async function createScene(
         script.dispose?.()
       }
       scriptInput?.dispose()
+      audio?.dispose()
       physicsAdapter?.dispose()
       renderer.dispose()
     },

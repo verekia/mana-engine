@@ -923,6 +923,14 @@ export function RightPanel({
                         }}
                       />
                     )}
+                    <CheckboxInput
+                      label="Sensor"
+                      value={entity.collider.sensor ?? false}
+                      onChange={v => {
+                        const shape = entity.collider?.shape ?? 'box'
+                        onUpdate({ ...entity, collider: { shape, ...entity.collider, sensor: v } })
+                      }}
+                    />
                   </>
                 )}
               </>

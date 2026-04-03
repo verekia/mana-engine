@@ -27,8 +27,10 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 ### Script System
 
 - **Unity-like lifecycle** — `init(ctx)`, `update(ctx)`, `fixedUpdate(ctx)`, `dispose()`
+- **Collision callbacks** — `onCollisionEnter(ctx, other)`, `onCollisionExit(ctx, other)` fired on contact start/end
 - **Script parameters** — Declare typed params (`number`, `string`, `boolean`) with defaults, editable in the editor
 - **Fixed timestep** — `fixedUpdate` runs at 60Hz with accumulator for deterministic physics
+- **World-space raycasting** — `ctx.raycast(origin, direction)` for shooting, line-of-sight, ground detection
 - **ScriptContext** — Provides `entity`, `scene`, `dt`, `time`, `rigidBody`, `input`, `params`
 
 ### Input System
@@ -43,8 +45,17 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 - **Pluggable physics** — Choose between Rapier 3D (WASM) or Crashcat (pure JS) via `mana.json`
 - **3 rigid body types** — `dynamic`, `fixed`, `kinematic`
 - **3 collider shapes** — `box`, `sphere`, `capsule`
+- **Sensor/trigger volumes** — Colliders with `sensor: true` detect overlaps without physical response
+- **Collision events** — `onCollisionEnter`/`onCollisionExit` callbacks on scripts, works with both adapters
 - **Rotation locking** — Per-axis `[x, y, z]` rotation lock on rigid bodies
 - **Independent physics** — Physics steps even without scripts attached to entities
+
+### Audio
+
+- **Sound effects** — `ctx.playSound('audio/hit.mp3')` with volume and loop options, returns ID for stopping
+- **Music playback** — `ctx.playMusic('audio/bgm.mp3')` with looping by default, stops previous track
+- **Master volume** — `ctx.setMasterVolume(0.5)` affects all sounds and music
+- **Web Audio API** — Buffer caching, automatic AudioContext resume for browser autoplay policy
 
 ### Prefab System
 
@@ -155,6 +166,12 @@ These APIs work identically regardless of which renderer or physics adapter is a
 | `ctx.dt` / `ctx.time`          | Done   | Frame delta and elapsed time                     |
 | `ctx.input`                    | Done   | Keyboard, mouse, and axis input                  |
 | `ctx.params`                   | Done   | Script parameters from editor                    |
+| `ctx.raycast(origin, dir)`     | Done   | World-space raycast for gameplay (shooting, LOS) |
+| `ctx.playSound(path)`          | Done   | Play a one-shot sound effect                     |
+| `ctx.stopSound(id)`            | Done   | Stop a sound by ID                               |
+| `ctx.playMusic(path)`          | Done   | Play looping music (stops previous)              |
+| `ctx.stopMusic()`              | Done   | Stop current music                               |
+| `ctx.setMasterVolume(vol)`     | Done   | Set master volume (0–1)                          |
 
 ### Adapter-Agnostic Physics API (`ManaRigidBody`)
 
@@ -179,16 +196,13 @@ Exposed via `ctx.rigidBody` — works with both Rapier and Crashcat:
 
 These features are not yet implemented in the shared abstraction or any adapter:
 
-- **Collision/contact callbacks** — `onCollisionEnter`, `onCollisionExit` events for scripts
-- **Raycasting API for scripts** — `ctx.raycast(origin, direction)` for gameplay logic (line-of-sight, shooting)
 - **Joint/constraint system** — Hinge, ball, fixed, prismatic joints between bodies
-- **Trigger volumes** — Colliders that detect overlap without physical response
 - **Mass/density/restitution/friction** — Per-collider physics material properties
 - **Cylinder collider** — Supported as a geometry but not as a collider shape
 - **Standard/PBR material** — Roughness, metalness, normal maps (only Lambert exists)
 - **Spot light** — Cone-shaped light source
 - **Animation system** — Keyframe and skeletal animation playback
-- **Audio system** — Positional and global audio
+- **Positional audio** — 3D spatialized sound sources attached to entities
 
 ## Quick Start
 
