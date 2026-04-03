@@ -281,7 +281,19 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - `basisTranscoderPlugin` serves Three.js basis transcoder files at `/__mana/basis/` for KTX2 decoding
 - Scene names are validated to only contain `[a-zA-Z0-9_-]` characters (prevents path traversal)
 - Scene selector dropdown to switch between scenes
-- Hierarchy panel shows entities from the active scene; click to select
+- Hierarchy panel shows entities from the active scene as a collapsible tree; click to select
+- Entity hierarchy supports nesting (parent/child relationships via `children` on `SceneEntity`)
+  - Indented rows with collapse/expand triangles; collapsed state persisted to localStorage
+  - Drag-and-drop reordering: drop above/below to reorder, drop on center to reparent as child
+  - Root-level drop target at bottom of entity list
+- Copy/paste/duplicate:
+  - Ctrl+C / Cmd+C copies the selected entity (with children) to clipboard
+  - Ctrl+V / Cmd+V pastes clipboard as child of selected entity, or at root if nothing selected
+  - Ctrl+D / Cmd+D duplicates the selected entity in-place (inserted after original in same parent)
+  - Delete / Backspace deletes the selected entity and all children
+- Context menu (right-click entity): Rename, Duplicate, Copy, Paste as Child, Unparent (move to root), Delete
+- Entity tree helpers in `scene-data.ts`: `findEntityInTree`, `removeEntityFromTree`, `cloneEntity`, `mapEntityTree`
+- All entity operations (add, delete, rename, update, transform) are tree-aware via these helpers
 - Inspector panel shows editable properties (transform, camera, material, light, UI component, scripts)
 - Cmd+S / Ctrl+S saves the current scene to disk
 - Play/Stop toolbar buttons toggle play mode:

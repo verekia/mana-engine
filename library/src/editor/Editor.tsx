@@ -1,6 +1,7 @@
 import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ManaContext } from '../scene-context.ts'
+import { cloneEntity, findEntityInTree, flattenEntities, mapEntityTree, removeEntityFromTree } from '../scene-data.ts'
 import { BottomPanel } from './BottomPanel.tsx'
 import { COLORS, EDITOR_CSS } from './colors.ts'
 import { UndoHistory } from './history.ts'
@@ -55,6 +56,7 @@ export default function Editor({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [savedSceneJson, setSavedSceneJson] = useState('')
+  const [clipboard, setClipboard] = useState<SceneEntity | null>(null)
 
   // Hidden entities per scene (editor-only, persisted to localStorage)
   const [hiddenEntities, setHiddenEntities] = useState<Set<string>>(() => {
@@ -120,9 +122,9 @@ export default function Editor({
 
   // Transform gizmo callbacks
   const handleTransformStart = useCallback((id: string) => {
-    const entity = sceneDataRef.current?.entities.find(e => e.id === id)
-    if (entity) {
-      transformStartRef.current = { id, transform: { ...entity.transform } }
+    const found = sceneDataRef.current ? findEntityInTree(sceneDataRef.current.entities, id) : null
+    if (found) {
+      transformStartRef.current = { id, transform: { ...found.entity.transform } }
     }
   }, [])
 
@@ -131,7 +133,7 @@ export default function Editor({
       if (!prev) return prev
       return {
         ...prev,
-        entities: prev.entities.map(e => (e.id === id ? { ...e, transform } : e)),
+        entities: mapEntityTree(prev.entities, e => (e.id === id ? { ...e, transform } : e)),
       }
     })
   }, [])
@@ -149,12 +151,12 @@ export default function Editor({
           if (!prev) return prev
           return {
             ...prev,
-            entities: prev.entities.map(e => (e.id === id ? { ...e, transform: capturedOld } : e)),
+            entities: mapEntityTree(prev.entities, e => (e.id === id ? { ...e, transform: capturedOld } : e)),
           }
         })
-        const entity = sceneDataRef.current?.entities.find(e => e.id === id)
-        if (entity) {
-          sceneRef.current?.updateEntity(id, { ...entity, transform: capturedOld })
+        const found = sceneDataRef.current ? findEntityInTree(sceneDataRef.current.entities, id) : null
+        if (found) {
+          sceneRef.current?.updateEntity(id, { ...found.entity, transform: capturedOld })
         }
       },
       redo: () => {
@@ -162,12 +164,12 @@ export default function Editor({
           if (!prev) return prev
           return {
             ...prev,
-            entities: prev.entities.map(e => (e.id === id ? { ...e, transform: capturedNew } : e)),
+            entities: mapEntityTree(prev.entities, e => (e.id === id ? { ...e, transform: capturedNew } : e)),
           }
         })
-        const entity = sceneDataRef.current?.entities.find(e => e.id === id)
-        if (entity) {
-          sceneRef.current?.updateEntity(id, { ...entity, transform: capturedNew })
+        const found = sceneDataRef.current ? findEntityInTree(sceneDataRef.current.entities, id) : null
+        if (found) {
+          sceneRef.current?.updateEntity(id, { ...found.entity, transform: capturedNew })
         }
       },
     })
@@ -447,7 +449,413 @@ export default function Editor({
     [playing, handlePlaySceneSwitch, noopLoadScene, activeScene],
   )
 
-  // Keyboard shortcuts: Cmd+S (save), Cmd+Z (undo), Cmd+Shift+Z (redo), W/E/R (transform mode)
+  const handleDeleteEntity = useCallback((id: string) => {
+    const data = sceneDataRef.current
+    if (!data) return
+    const found = findEntityInTree(data.entities, id)
+    if (!found) return
+    const deleted = found.entity
+    const parentId = data.entities.includes(found.entity)
+      ? null
+      : (() => {
+          // Find parent entity that contains this child
+          const findParent = (entities: SceneEntity[]): string | null => {
+            for (const e of entities) {
+              if (e.children?.some(c => c.id === id)) return e.id
+              if (e.children) {
+                const r = findParent(e.children)
+                if (r) return r
+              }
+            }
+            return null
+          }
+          return findParent(data.entities)
+        })()
+    const index = found.index
+
+    // Remove from renderer (including children)
+    const allIds = flattenEntities([deleted]).map(e => e.id)
+    for (const eid of allIds) sceneRef.current?.removeEntity(eid)
+
+    setSceneData(prev => {
+      if (!prev) return prev
+      const entities = structuredClone(prev.entities)
+      removeEntityFromTree(entities, id)
+      return { ...prev, entities }
+    })
+    setSelectedId(prev => (prev && allIds.includes(prev) ? null : prev))
+
+    historyRef.current.push({
+      description: `Delete ${deleted.name}`,
+      undo: () => {
+        setSceneData(prev => {
+          if (!prev) return prev
+          const entities = structuredClone(prev.entities)
+          if (parentId) {
+            const parentFound = findEntityInTree(entities, parentId)
+            if (parentFound) {
+              if (!parentFound.entity.children) parentFound.entity.children = []
+              parentFound.entity.children.splice(index, 0, deleted)
+            }
+          } else {
+            entities.splice(index, 0, deleted)
+          }
+          return { ...prev, entities }
+        })
+        for (const e of flattenEntities([deleted])) sceneRef.current?.addEntity(e)
+      },
+      redo: () => {
+        const ids = flattenEntities([deleted]).map(e => e.id)
+        for (const eid of ids) sceneRef.current?.removeEntity(eid)
+        setSceneData(prev => {
+          if (!prev) return prev
+          const entities = structuredClone(prev.entities)
+          removeEntityFromTree(entities, id)
+          return { ...prev, entities }
+        })
+        setSelectedId(prev => (prev && ids.includes(prev) ? null : prev))
+      },
+    })
+    forceUpdate(n => n + 1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
+  }, [])
+
+  const handleRenameEntity = useCallback((id: string, name: string) => {
+    const found = sceneDataRef.current ? findEntityInTree(sceneDataRef.current.entities, id) : null
+    const oldName = found?.entity.name
+    setSceneData(prev => {
+      if (!prev) return prev
+      return { ...prev, entities: mapEntityTree(prev.entities, e => (e.id === id ? { ...e, name } : e)) }
+    })
+
+    if (oldName && oldName !== name) {
+      historyRef.current.push({
+        description: `Rename ${oldName} to ${name}`,
+        undo: () => {
+          setSceneData(prev => {
+            if (!prev) return prev
+            return { ...prev, entities: mapEntityTree(prev.entities, e => (e.id === id ? { ...e, name: oldName } : e)) }
+          })
+        },
+        redo: () => {
+          setSceneData(prev => {
+            if (!prev) return prev
+            return { ...prev, entities: mapEntityTree(prev.entities, e => (e.id === id ? { ...e, name } : e)) }
+          })
+        },
+      })
+      forceUpdate(n => n + 1)
+    }
+  }, [])
+
+  const handleAddEntity = useCallback((entity: SceneEntity) => {
+    setSceneData(prev => {
+      if (!prev) return prev
+      return { ...prev, entities: [...prev.entities, entity] }
+    })
+    for (const e of flattenEntities([entity])) sceneRef.current?.addEntity(e)
+    setSelectedId(entity.id)
+
+    historyRef.current.push({
+      description: `Add ${entity.name}`,
+      undo: () => {
+        const allIds = flattenEntities([entity]).map(e => e.id)
+        for (const eid of allIds) sceneRef.current?.removeEntity(eid)
+        setSceneData(prev => {
+          if (!prev) return prev
+          const entities = structuredClone(prev.entities)
+          removeEntityFromTree(entities, entity.id)
+          return { ...prev, entities }
+        })
+        setSelectedId(prev => (prev === entity.id ? null : prev))
+      },
+      redo: () => {
+        setSceneData(prev => {
+          if (!prev) return prev
+          return { ...prev, entities: [...prev.entities, entity] }
+        })
+        for (const e of flattenEntities([entity])) sceneRef.current?.addEntity(e)
+        setSelectedId(entity.id)
+      },
+    })
+    forceUpdate(n => n + 1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
+  }, [])
+
+  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = e.currentTarget
+    const rect = canvas.getBoundingClientRect()
+    const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1
+    const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1
+    const hitId = sceneRef.current?.raycast(ndcX, ndcY) ?? null
+    setSelectedId(hitId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
+  }, [])
+
+  const selectedEntity =
+    sceneData && selectedId ? (findEntityInTree(sceneData.entities, selectedId)?.entity ?? null) : null
+
+  useEffect(() => {
+    sceneRef.current?.setSelectedObjects(selectedId ? [selectedId] : [])
+    sceneRef.current?.setTransformTarget(selectedId)
+  }, [selectedId, sceneRef])
+
+  // Apply hidden entity visibility when scene is created/recreated
+  const hiddenEntitiesRef = useRef(hiddenEntities)
+  hiddenEntitiesRef.current = hiddenEntities
+  useEffect(() => {
+    if (!sceneData) return
+    // Small delay to ensure Three.js scene is ready after async creation
+    const t = setTimeout(() => {
+      for (const id of hiddenEntitiesRef.current) {
+        sceneRef.current?.setEntityVisible(id, false)
+      }
+    }, 100)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- apply once per scene load
+  }, [sceneData, sceneRef])
+
+  // Debounced undo for inspector property edits — collapses rapid changes into one undo entry
+  const updateUndoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const updateUndoBeforeRef = useRef<SceneEntity | null>(null)
+
+  const handleUpdateEntity = useCallback((updated: SceneEntity) => {
+    // Capture the "before" state only on the first change in a batch
+    if (!updateUndoBeforeRef.current || updateUndoBeforeRef.current.id !== updated.id) {
+      const found = sceneDataRef.current ? findEntityInTree(sceneDataRef.current.entities, updated.id) : null
+      updateUndoBeforeRef.current = found ? { ...found.entity } : null
+    }
+
+    setSceneData(sd => {
+      if (!sd) return sd
+      return { ...sd, entities: mapEntityTree(sd.entities, e => (e.id === updated.id ? updated : e)) }
+    })
+    sceneRef.current?.updateEntity(updated.id, updated)
+
+    // Reset the debounce timer
+    if (updateUndoTimer.current) clearTimeout(updateUndoTimer.current)
+    const capturedBefore = updateUndoBeforeRef.current
+    updateUndoTimer.current = setTimeout(() => {
+      if (capturedBefore) {
+        const oldEntity = { ...capturedBefore }
+        const newEntity = { ...updated }
+        historyRef.current.push({
+          description: `Update ${updated.name}`,
+          undo: () => {
+            setSceneData(sd => {
+              if (!sd) return sd
+              return { ...sd, entities: mapEntityTree(sd.entities, e => (e.id === oldEntity.id ? oldEntity : e)) }
+            })
+            sceneRef.current?.updateEntity(oldEntity.id, oldEntity)
+          },
+          redo: () => {
+            setSceneData(sd => {
+              if (!sd) return sd
+              return { ...sd, entities: mapEntityTree(sd.entities, e => (e.id === newEntity.id ? newEntity : e)) }
+            })
+            sceneRef.current?.updateEntity(newEntity.id, newEntity)
+          },
+        })
+        forceUpdate(n => n + 1)
+      }
+      updateUndoBeforeRef.current = null
+      updateUndoTimer.current = null
+    }, 500)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
+  }, [])
+
+  const handleDuplicateEntity = useCallback(
+    (id: string) => {
+      const data = sceneDataRef.current
+      if (!data) return
+      const found = findEntityInTree(data.entities, id)
+      if (!found) return
+      const duped = cloneEntity(found.entity)
+      duped.name = `${found.entity.name} Copy`
+
+      // Insert after the original in the same parent array
+      setSceneData(prev => {
+        if (!prev) return prev
+        const entities = structuredClone(prev.entities)
+        const f = findEntityInTree(entities, id)
+        if (f) f.parent.splice(f.index + 1, 0, duped)
+        return { ...prev, entities }
+      })
+      for (const e of flattenEntities([duped])) sceneRef.current?.addEntity(e)
+      setSelectedId(duped.id)
+
+      historyRef.current.push({
+        description: `Duplicate ${found.entity.name}`,
+        undo: () => {
+          const allIds = flattenEntities([duped]).map(e => e.id)
+          for (const eid of allIds) sceneRef.current?.removeEntity(eid)
+          setSceneData(prev => {
+            if (!prev) return prev
+            const entities = structuredClone(prev.entities)
+            removeEntityFromTree(entities, duped.id)
+            return { ...prev, entities }
+          })
+          setSelectedId(prev => (prev === duped.id ? id : prev))
+        },
+        redo: () => {
+          setSceneData(prev => {
+            if (!prev) return prev
+            const entities = structuredClone(prev.entities)
+            const f = findEntityInTree(entities, id)
+            if (f) f.parent.splice(f.index + 1, 0, duped)
+            return { ...prev, entities }
+          })
+          for (const e of flattenEntities([duped])) sceneRef.current?.addEntity(e)
+          setSelectedId(duped.id)
+        },
+      })
+      forceUpdate(n => n + 1)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
+    [],
+  )
+
+  const handleCopyEntity = useCallback((id: string) => {
+    const data = sceneDataRef.current
+    if (!data) return
+    const found = findEntityInTree(data.entities, id)
+    if (found) setClipboard(structuredClone(found.entity))
+  }, [])
+
+  const handlePasteEntity = useCallback(
+    (parentId: string | null) => {
+      if (!clipboard) return
+      const pasted = cloneEntity(clipboard)
+
+      setSceneData(prev => {
+        if (!prev) return prev
+        const entities = structuredClone(prev.entities)
+        if (parentId) {
+          const parentFound = findEntityInTree(entities, parentId)
+          if (parentFound) {
+            if (!parentFound.entity.children) parentFound.entity.children = []
+            parentFound.entity.children.push(pasted)
+          } else {
+            entities.push(pasted)
+          }
+        } else {
+          entities.push(pasted)
+        }
+        return { ...prev, entities }
+      })
+      for (const e of flattenEntities([pasted])) sceneRef.current?.addEntity(e)
+      setSelectedId(pasted.id)
+
+      historyRef.current.push({
+        description: `Paste ${pasted.name}`,
+        undo: () => {
+          const allIds = flattenEntities([pasted]).map(e => e.id)
+          for (const eid of allIds) sceneRef.current?.removeEntity(eid)
+          setSceneData(prev => {
+            if (!prev) return prev
+            const entities = structuredClone(prev.entities)
+            removeEntityFromTree(entities, pasted.id)
+            return { ...prev, entities }
+          })
+          setSelectedId(prev => (prev === pasted.id ? null : prev))
+        },
+        redo: () => {
+          setSceneData(prev => {
+            if (!prev) return prev
+            const entities = structuredClone(prev.entities)
+            if (parentId) {
+              const parentFound = findEntityInTree(entities, parentId)
+              if (parentFound) {
+                if (!parentFound.entity.children) parentFound.entity.children = []
+                parentFound.entity.children.push(pasted)
+              } else {
+                entities.push(pasted)
+              }
+            } else {
+              entities.push(pasted)
+            }
+            return { ...prev, entities }
+          })
+          for (const e of flattenEntities([pasted])) sceneRef.current?.addEntity(e)
+          setSelectedId(pasted.id)
+        },
+      })
+      forceUpdate(n => n + 1)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
+    [clipboard],
+  )
+
+  const handleMoveEntity = useCallback(
+    (entityId: string, targetId: string | null, position: 'before' | 'after' | 'inside') => {
+      const data = sceneDataRef.current
+      if (!data) return
+      const prevEntities = structuredClone(data.entities)
+
+      setSceneData(prev => {
+        if (!prev) return prev
+        const entities = structuredClone(prev.entities)
+        const removed = removeEntityFromTree(entities, entityId)
+        if (!removed) return prev
+
+        if (targetId === null) {
+          // Move to root
+          entities.push(removed)
+        } else if (position === 'inside') {
+          const target = findEntityInTree(entities, targetId)
+          if (target) {
+            if (!target.entity.children) target.entity.children = []
+            target.entity.children.push(removed)
+          }
+        } else {
+          const target = findEntityInTree(entities, targetId)
+          if (target) {
+            const insertIdx = position === 'before' ? target.index : target.index + 1
+            target.parent.splice(insertIdx, 0, removed)
+          }
+        }
+        return { ...prev, entities }
+      })
+
+      historyRef.current.push({
+        description: 'Move entity',
+        undo: () => {
+          setSceneData(prev => {
+            if (!prev) return prev
+            return { ...prev, entities: structuredClone(prevEntities) }
+          })
+        },
+        redo: () => {
+          setSceneData(prev => {
+            if (!prev) return prev
+            const entities = structuredClone(prevEntities)
+            const removed = removeEntityFromTree(entities, entityId)
+            if (!removed) return prev
+            if (targetId === null) {
+              entities.push(removed)
+            } else if (position === 'inside') {
+              const target = findEntityInTree(entities, targetId)
+              if (target) {
+                if (!target.entity.children) target.entity.children = []
+                target.entity.children.push(removed)
+              }
+            } else {
+              const target = findEntityInTree(entities, targetId)
+              if (target) {
+                const insertIdx = position === 'before' ? target.index : target.index + 1
+                target.parent.splice(insertIdx, 0, removed)
+              }
+            }
+            return { ...prev, entities }
+          })
+        },
+      })
+      forceUpdate(n => n + 1)
+    },
+    [],
+  )
+
+  // Keyboard shortcuts: Cmd+S (save), Cmd+Z (undo), Cmd+Shift+Z (redo), W/E/R (transform mode), Ctrl+C/V/D, Delete
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey
@@ -457,7 +865,6 @@ export default function Editor({
         const data = sceneDataRef.current
         if (!data) return
 
-        // If editing a prefab, save the prefab entity by its tracked ID
         const prefabName = editingPrefabRef.current
         if (prefabName) {
           const prefabEntity = data.entities.find(ent => ent.id === prefabEntityIdRef.current)
@@ -496,194 +903,42 @@ export default function Editor({
         return
       }
 
+      if (mod && e.key === 'c') {
+        e.preventDefault()
+        const id = selectedIdRef.current
+        if (id) handleCopyEntity(id)
+        return
+      }
+
+      if (mod && e.key === 'v') {
+        e.preventDefault()
+        handlePasteEntity(selectedIdRef.current)
+        return
+      }
+
+      if (mod && e.key === 'd') {
+        e.preventDefault()
+        const id = selectedIdRef.current
+        if (id) handleDuplicateEntity(id)
+        return
+      }
+
       // Transform mode shortcuts (only when not typing in an input)
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIdRef.current) {
+        handleDeleteEntity(selectedIdRef.current)
+        return
+      }
+
       if (e.key === 'w' && !mod) setTransformMode('translate')
       if (e.key === 'e' && !mod) setTransformMode('rotate')
       if (e.key === 'r' && !mod) setTransformMode('scale')
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [log])
-
-  const handleDeleteEntity = useCallback((id: string) => {
-    const deleted = sceneDataRef.current?.entities.find(e => e.id === id)
-    setSceneData(prev => {
-      if (!prev) return prev
-      return { ...prev, entities: prev.entities.filter(e => e.id !== id) }
-    })
-    sceneRef.current?.removeEntity(id)
-    setSelectedId(prev => (prev === id ? null : prev))
-
-    if (deleted) {
-      historyRef.current.push({
-        description: `Delete ${deleted.name}`,
-        undo: () => {
-          setSceneData(prev => {
-            if (!prev) return prev
-            return { ...prev, entities: [...prev.entities, deleted] }
-          })
-          sceneRef.current?.addEntity(deleted)
-        },
-        redo: () => {
-          setSceneData(prev => {
-            if (!prev) return prev
-            return { ...prev, entities: prev.entities.filter(e => e.id !== id) }
-          })
-          sceneRef.current?.removeEntity(id)
-          setSelectedId(prev => (prev === id ? null : prev))
-        },
-      })
-      forceUpdate(n => n + 1)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
-  }, [])
-
-  const handleRenameEntity = useCallback((id: string, name: string) => {
-    const oldName = sceneDataRef.current?.entities.find(e => e.id === id)?.name
-    setSceneData(prev => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        entities: prev.entities.map(e => (e.id === id ? { ...e, name } : e)),
-      }
-    })
-
-    if (oldName && oldName !== name) {
-      historyRef.current.push({
-        description: `Rename ${oldName} to ${name}`,
-        undo: () => {
-          setSceneData(prev => {
-            if (!prev) return prev
-            return { ...prev, entities: prev.entities.map(e => (e.id === id ? { ...e, name: oldName } : e)) }
-          })
-        },
-        redo: () => {
-          setSceneData(prev => {
-            if (!prev) return prev
-            return { ...prev, entities: prev.entities.map(e => (e.id === id ? { ...e, name } : e)) }
-          })
-        },
-      })
-      forceUpdate(n => n + 1)
-    }
-  }, [])
-
-  const handleAddEntity = useCallback((entity: SceneEntity) => {
-    setSceneData(prev => {
-      if (!prev) return prev
-      return { ...prev, entities: [...prev.entities, entity] }
-    })
-    sceneRef.current?.addEntity(entity)
-    setSelectedId(entity.id)
-
-    historyRef.current.push({
-      description: `Add ${entity.name}`,
-      undo: () => {
-        setSceneData(prev => {
-          if (!prev) return prev
-          return { ...prev, entities: prev.entities.filter(e => e.id !== entity.id) }
-        })
-        sceneRef.current?.removeEntity(entity.id)
-        setSelectedId(prev => (prev === entity.id ? null : prev))
-      },
-      redo: () => {
-        setSceneData(prev => {
-          if (!prev) return prev
-          return { ...prev, entities: [...prev.entities, entity] }
-        })
-        sceneRef.current?.addEntity(entity)
-        setSelectedId(entity.id)
-      },
-    })
-    forceUpdate(n => n + 1)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
-  }, [])
-
-  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = e.currentTarget
-    const rect = canvas.getBoundingClientRect()
-    const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1
-    const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1
-    const hitId = sceneRef.current?.raycast(ndcX, ndcY) ?? null
-    setSelectedId(hitId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
-  }, [])
-
-  const selectedEntity = sceneData?.entities.find(e => e.id === selectedId) ?? null
-
-  useEffect(() => {
-    sceneRef.current?.setSelectedObjects(selectedId ? [selectedId] : [])
-    sceneRef.current?.setTransformTarget(selectedId)
-  }, [selectedId, sceneRef])
-
-  // Apply hidden entity visibility when scene is created/recreated
-  const hiddenEntitiesRef = useRef(hiddenEntities)
-  hiddenEntitiesRef.current = hiddenEntities
-  useEffect(() => {
-    if (!sceneData) return
-    // Small delay to ensure Three.js scene is ready after async creation
-    const t = setTimeout(() => {
-      for (const id of hiddenEntitiesRef.current) {
-        sceneRef.current?.setEntityVisible(id, false)
-      }
-    }, 100)
-    return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- apply once per scene load
-  }, [sceneData, sceneRef])
-
-  // Debounced undo for inspector property edits — collapses rapid changes into one undo entry
-  const updateUndoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const updateUndoBeforeRef = useRef<SceneEntity | null>(null)
-
-  const handleUpdateEntity = useCallback((updated: SceneEntity) => {
-    // Capture the "before" state only on the first change in a batch
-    if (!updateUndoBeforeRef.current || updateUndoBeforeRef.current.id !== updated.id) {
-      const prev = sceneDataRef.current?.entities.find(e => e.id === updated.id)
-      updateUndoBeforeRef.current = prev ? { ...prev } : null
-    }
-
-    setSceneData(sd => {
-      if (!sd) return sd
-      return {
-        ...sd,
-        entities: sd.entities.map(e => (e.id === updated.id ? updated : e)),
-      }
-    })
-    sceneRef.current?.updateEntity(updated.id, updated)
-
-    // Reset the debounce timer
-    if (updateUndoTimer.current) clearTimeout(updateUndoTimer.current)
-    const capturedBefore = updateUndoBeforeRef.current
-    updateUndoTimer.current = setTimeout(() => {
-      if (capturedBefore) {
-        const oldEntity = { ...capturedBefore }
-        const newEntity = { ...updated }
-        historyRef.current.push({
-          description: `Update ${updated.name}`,
-          undo: () => {
-            setSceneData(sd => {
-              if (!sd) return sd
-              return { ...sd, entities: sd.entities.map(e => (e.id === oldEntity.id ? oldEntity : e)) }
-            })
-            sceneRef.current?.updateEntity(oldEntity.id, oldEntity)
-          },
-          redo: () => {
-            setSceneData(sd => {
-              if (!sd) return sd
-              return { ...sd, entities: sd.entities.map(e => (e.id === newEntity.id ? newEntity : e)) }
-            })
-            sceneRef.current?.updateEntity(newEntity.id, newEntity)
-          },
-        })
-        forceUpdate(n => n + 1)
-      }
-      updateUndoBeforeRef.current = null
-      updateUndoTimer.current = null
-    }, 500)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
-  }, [])
+  }, [log, handleCopyEntity, handlePasteEntity, handleDuplicateEntity, handleDeleteEntity])
 
   return (
     <div
@@ -720,6 +975,11 @@ export default function Editor({
               onAddEntity={handleAddEntity}
               onDeleteEntity={handleDeleteEntity}
               onRenameEntity={handleRenameEntity}
+              onDuplicateEntity={handleDuplicateEntity}
+              onCopyEntity={handleCopyEntity}
+              onPasteEntity={handlePasteEntity}
+              onMoveEntity={handleMoveEntity}
+              clipboard={clipboard}
               hiddenEntities={hiddenEntities}
               onToggleVisibility={handleToggleEntityVisibility}
               onEditPrefab={handleEditPrefab}
@@ -778,7 +1038,7 @@ export default function Editor({
                 <ManaContext.Provider value={manaContextValue}>
                   <Viewport
                     canvasRef={canvasRef}
-                    uiEntities={sceneData?.entities.filter(e => e.type === 'ui') ?? []}
+                    uiEntities={sceneData ? flattenEntities(sceneData.entities).filter(e => e.type === 'ui') : []}
                     uiComponents={uiComponents}
                     showUI={showUI}
                     playing={playing}
@@ -827,7 +1087,10 @@ export default function Editor({
           availableScripts={Object.keys(scripts)}
           availableUiComponents={Object.keys(uiComponents)}
           scriptDefs={scripts}
-          allEntityIds={useMemo(() => new Set(sceneData?.entities.map(e => e.id) ?? []), [sceneData])}
+          allEntityIds={useMemo(
+            () => new Set(sceneData ? flattenEntities(sceneData.entities).map(e => e.id) : []),
+            [sceneData],
+          )}
         />
       </div>
     </div>

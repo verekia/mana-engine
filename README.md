@@ -80,7 +80,7 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 
 ### Editor (`mana editor`)
 
-- **Hierarchy panel** — Entity tree with selection, right-click context menu (rename, delete)
+- **Hierarchy panel** — Collapsible entity tree with parent/child nesting, drag-drop reordering and reparenting, right-click context menu (rename, duplicate, copy, paste, unparent, delete)
 - **Inspector panel** — Editable properties for transform, camera, mesh, light, UI, rigid body, collider, and scripts
 - **Viewport** — Live 3D preview with raycast-based entity selection and orbit controls
 - **Asset browser** — Bottom panel file browser for `assets/` with folder navigation, type icons, previews (images, KTX2, audio), and path copying
@@ -95,6 +95,7 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 - **UI overlay toggle** — Show/hide React UI components in the viewport
 - **Transform gizmos** — Translate (W), rotate (E), scale (R) gizmos for manipulating entities in the viewport
 - **Undo/redo** — Cmd+Z / Ctrl+Shift+Z with full action history for transforms, entity operations, and property changes
+- **Copy/paste/duplicate** — Ctrl+C/V/D for entity clipboard operations, Delete/Backspace to remove entities
 
 ### Build & Runtime
 
@@ -325,13 +326,14 @@ export default function MainMenu() {
 
 The built-in editor (`mana editor`) provides:
 
-- **Hierarchy panel** — Scene entity tree with selection
+- **Hierarchy panel** — Collapsible entity tree with nesting, drag-drop reordering and reparenting
 - **Inspector panel** — Editable properties (transform, material, light, camera, scripts)
 - **Viewport** — Live 3D preview with UI overlay
 - **Asset browser** — Browse `game/assets/` with folder navigation and path copying
 - **Scene selector** — Switch between scene files
 - **Play/Stop** — Toggle play mode to test the game with full interactivity
 - **Cmd+S / Ctrl+S** — Save scene changes to disk
+- **Copy/paste/duplicate** — Ctrl+C/V/D for entity clipboard operations, Delete/Backspace to remove
 
 ## Stack
 
@@ -348,7 +350,6 @@ Features not yet implemented that would enhance the engine:
 - **Terrain** — Heightmap-based terrain generation
 - **Networking** — Multiplayer state synchronization
 - **Multi-select** — Select and manipulate multiple entities at once in the editor
-- **Copy/paste entities** — Duplicate entities within and across scenes
 - **Editor camera bookmarks** — Save and restore camera positions
 - **Script hot reload** — Update scripts without restarting play mode
 - **Custom shaders** — User-defined shader materials
