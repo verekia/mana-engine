@@ -1,0 +1,9 @@
+entity:
+  id: explosion
+  name: Explosion
+  type: mesh
+  mesh:
+    geometry: sphere
+    material: { color: '#ffcc00' }
+  scripts:
+    - { name: explosion-vfx }

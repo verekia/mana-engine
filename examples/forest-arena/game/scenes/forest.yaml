@@ -1,0 +1,161 @@
+background: '#1a2a1a'
+entities:
+  - id: camera
+    name: Camera
+    type: camera
+    transform: { position: [0, 16, 0], rotation: [-1.5708, 0, 0] }
+    camera: { fov: 50, near: 0.1, far: 100 }
+    scripts: [{ name: camera-top-down, params: { height: 16 } }]
+  - id: sun
+    name: Sun
+    type: directional-light
+    transform: { position: [5, -5, 10] }
+    light: { color: '#fff5e6', intensity: 1.5 }
+    castShadow: true
+  - id: ambient
+    name: Ambient Light
+    type: ambient-light
+    light: { color: '#ffffff', intensity: 0.6 }
+  - id: ground
+    name: Ground
+    type: mesh
+    transform: { scale: [30, 30, 1] }
+    mesh: { geometry: plane, material: { color: '#2d5a1e' } }
+    rigidBody: { type: fixed }
+    collider: { shape: box, halfExtents: [15, 15, 0.01] }
+    receiveShadow: true
+  - id: trees
+    name: Trees
+    type: mesh
+    children:
+      [
+        {
+          id: tree-1,
+          name: Tree 1,
+          type: mesh,
+          transform: { position: [-8, 6, 1], scale: [1, 1, 2] },
+          mesh: { geometry: box, material: { color: '#1a4a0f' } },
+          rigidBody: { type: fixed },
+          collider: { shape: box, halfExtents: [0.5, 0.5, 1] },
+          castShadow: true,
+        },
+        {
+          id: tree-2,
+          name: Tree 2,
+          type: mesh,
+          transform: { position: [-5, -3, 1], scale: [1, 1, 2] },
+          mesh: { geometry: box, material: { color: '#165a0a' } },
+          rigidBody: { type: fixed },
+          collider: { shape: box, halfExtents: [0.5, 0.5, 1] },
+          castShadow: true,
+        },
+        {
+          id: tree-3,
+          name: Tree 3,
+          type: mesh,
+          transform: { position: [-3, 8, 1], scale: [1, 1, 2] },
+          mesh: { geometry: box, material: { color: '#1a4a0f' } },
+          rigidBody: { type: fixed },
+          collider: { shape: box, halfExtents: [0.5, 0.5, 1] },
+          castShadow: true,
+        },
+        {
+          id: tree-4,
+          name: Tree 4,
+          type: mesh,
+          transform: { position: [2, 10, 1], scale: [1, 1, 2] },
+          mesh: { geometry: box, material: { color: '#165a0a' } },
+          rigidBody: { type: fixed },
+          collider: { shape: box, halfExtents: [0.5, 0.5, 1] },
+          castShadow: true,
+        },
+        {
+          id: tree-5,
+          name: Tree 5,
+          type: mesh,
+          transform: { position: [7, 5, 1], scale: [1, 1, 2] },
+          mesh: { geometry: box, material: { color: '#1a4a0f' } },
+          rigidBody: { type: fixed },
+          collider: { shape: box, halfExtents: [0.5, 0.5, 1] },
+          castShadow: true,
+        },
+        {
+          id: tree-6,
+          name: Tree 6,
+          type: mesh,
+          transform: { position: [9, -2, 1], scale: [1, 1, 2] },
+          mesh: { geometry: box, material: { color: '#165a0a' } },
+          rigidBody: { type: fixed },
+          collider: { shape: box, halfExtents: [0.5, 0.5, 1] },
+          castShadow: true,
+        },
+        {
+          id: tree-7,
+          name: Tree 7,
+          type: mesh,
+          transform: { position: [4, -7, 1], scale: [1, 1, 2] },
+          mesh: { geometry: box, material: { color: '#1a4a0f' } },
+          rigidBody: { type: fixed },
+          collider: { shape: box, halfExtents: [0.5, 0.5, 1] },
+          castShadow: true,
+        },
+        {
+          id: tree-8,
+          name: Tree 8,
+          type: mesh,
+          transform: { position: [-6, -8, 1], scale: [1, 1, 2] },
+          mesh: { geometry: box, material: { color: '#165a0a' } },
+          rigidBody: { type: fixed },
+          collider: { shape: box, halfExtents: [0.5, 0.5, 1] },
+          castShadow: true,
+        },
+        {
+          id: tree-9,
+          name: Tree 9,
+          type: mesh,
+          transform: { position: [-10, 0, 1], scale: [1, 1, 2] },
+          mesh: { geometry: box, material: { color: '#1a4a0f' } },
+          rigidBody: { type: fixed },
+          collider: { shape: box, halfExtents: [0.5, 0.5, 1] },
+          castShadow: true,
+        },
+        {
+          id: tree-10,
+          name: Tree 10,
+          type: mesh,
+          transform: { position: [8, -9, 1], scale: [1, 1, 2] },
+          mesh: { geometry: box, material: { color: '#165a0a' } },
+          rigidBody: { type: fixed },
+          collider: { shape: box, halfExtents: [0.5, 0.5, 1] },
+          castShadow: true,
+        },
+      ]
+  - id: player
+    name: Player
+    type: mesh
+    transform: { position: [0, 0, 1] }
+    mesh: { geometry: capsule, material: { color: '#4488ff' } }
+    rigidBody: { type: dynamic, lockRotation: [true, true, true] }
+    collider: { shape: sphere, radius: 0.5 }
+    castShadow: true
+    scripts: [{ name: player-move, params: { moveSpeed: 6 } }]
+  - id: enemies
+    name: Enemies
+    type: mesh
+    children:
+      [
+        { id: enemy-1, name: Enemy 1, type: mesh, prefab: enemy, transform: { position: [6, 6, 0.5] } },
+        { id: enemy-2, name: Enemy 2, type: mesh, prefab: enemy, transform: { position: [-6, 5, 0.5] } },
+        { id: enemy-3, name: Enemy 3, type: mesh, prefab: enemy, transform: { position: [8, -3, 0.5] } },
+        { id: enemy-4, name: Enemy 4, type: mesh, prefab: enemy, transform: { position: [-3, -7, 0.5] } },
+        { id: enemy-5, name: Enemy 5, type: mesh, prefab: enemy, transform: { position: [10, 8, 0.5] } },
+        { id: enemy-6, name: Enemy 6, type: mesh, prefab: enemy, transform: { position: [-8, -4, 0.5] } },
+      ]
+  - id: spawner
+    name: Spawner
+    type: mesh
+    scripts: [{ name: enemy-spawner }]
+  - id: hud
+    name: HUD
+    type: ui
+    ui: { component: HUD }

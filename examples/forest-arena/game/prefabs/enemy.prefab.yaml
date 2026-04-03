@@ -1,0 +1,17 @@
+entity:
+  id: enemy
+  name: Enemy
+  type: mesh
+  mesh:
+    geometry: sphere
+    material: { color: '#cc2222' }
+  rigidBody:
+    type: dynamic
+    lockRotation: [true, true, true]
+  collider:
+    shape: sphere
+    radius: 0.5
+  tags: ['enemy']
+  castShadow: true
+  scripts:
+    - { name: enemy }

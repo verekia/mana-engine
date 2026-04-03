@@ -1,0 +1,7 @@
+{
+  "gameDir": "game",
+  "startScene": "forest",
+  "renderer": "three",
+  "physics": "rapier",
+  "coordinateSystem": "z-up"
+}

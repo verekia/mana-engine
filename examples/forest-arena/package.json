@@ -1,0 +1,13 @@
+{
+  "name": "forest-arena",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "editor": "mana editor",
+    "dev:game": "mana dev"
+  },
+  "dependencies": {
+    "mana-engine": "workspace:*"
+  }
+}
