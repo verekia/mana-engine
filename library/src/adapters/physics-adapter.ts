@@ -6,6 +6,21 @@ export interface PhysicsTransform {
 }
 
 /**
+ * A collision event between two entities.
+ * Fired when two colliders start or stop touching (including sensor/trigger overlaps).
+ */
+export interface CollisionEvent {
+  /** Entity ID of the first body in the collision pair. */
+  entityIdA: string
+  /** Entity ID of the second body in the collision pair. */
+  entityIdB: string
+  /** True if the collision just started, false if it just ended. */
+  started: boolean
+  /** True if at least one of the colliders is a sensor (trigger volume). */
+  sensor: boolean
+}
+
+/**
  * Adapter-agnostic rigid body handle exposed to scripts via `ctx.rigidBody`.
  * Covers the operations used in the engine's example scripts.
  * Both Rapier and Crashcat adapters return wrappers implementing this interface.
@@ -82,4 +97,10 @@ export interface PhysicsAdapter {
    * Remove a single entity's physics body at runtime.
    */
   removeEntity(entityId: string): void
+
+  /**
+   * Return collision events that occurred during the last step().
+   * The engine calls this after each step() to dispatch onCollisionEnter/onCollisionExit to scripts.
+   */
+  getCollisionEvents(): CollisionEvent[]
 }

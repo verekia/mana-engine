@@ -1,4 +1,4 @@
-import type { ManaRigidBody } from './adapters/physics-adapter.ts'
+import type { CollisionEvent, ManaRigidBody } from './adapters/physics-adapter.ts'
 import type { Input } from './input.ts'
 
 export interface ScriptParamDef {
@@ -64,10 +64,24 @@ export interface ScriptContext {
   destroyEntity(id: string): void
 }
 
+/**
+ * Collision info passed to onCollisionEnter/onCollisionExit callbacks.
+ */
+export interface CollisionInfo {
+  /** Entity ID of the other entity involved in the collision. */
+  entityId: string
+  /** True if at least one of the colliders is a sensor (trigger volume). */
+  sensor: boolean
+}
+
 export interface ManaScript {
   params?: Record<string, ScriptParamDef>
   init?(ctx: ScriptContext): void
   update?(ctx: ScriptContext): void
   fixedUpdate?(ctx: ScriptContext): void
+  /** Called when this entity's collider starts touching another entity's collider. */
+  onCollisionEnter?(ctx: ScriptContext, other: CollisionInfo): void
+  /** Called when this entity's collider stops touching another entity's collider. */
+  onCollisionExit?(ctx: ScriptContext, other: CollisionInfo): void
   dispose?(): void
 }

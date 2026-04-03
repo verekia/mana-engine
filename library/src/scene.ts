@@ -355,6 +355,29 @@ export async function createScene(
     while (fixedAccumulator >= FIXED_DT) {
       physicsAdapter?.step(FIXED_DT)
 
+      // Dispatch collision events to scripts
+      if (physicsAdapter && scriptInput) {
+        for (const event of physicsAdapter.getCollisionEvents()) {
+          for (const { script, entityId, params } of activeScripts) {
+            if (entityId === event.entityIdA) {
+              const info = { entityId: event.entityIdB, sensor: event.sensor }
+              if (event.started) {
+                script.onCollisionEnter?.(makeCtx(entityId, FIXED_DT, elapsed, scriptInput, params), info)
+              } else {
+                script.onCollisionExit?.(makeCtx(entityId, FIXED_DT, elapsed, scriptInput, params), info)
+              }
+            } else if (entityId === event.entityIdB) {
+              const info = { entityId: event.entityIdA, sensor: event.sensor }
+              if (event.started) {
+                script.onCollisionEnter?.(makeCtx(entityId, FIXED_DT, elapsed, scriptInput, params), info)
+              } else {
+                script.onCollisionExit?.(makeCtx(entityId, FIXED_DT, elapsed, scriptInput, params), info)
+              }
+            }
+          }
+        }
+      }
+
       if (scriptInput) {
         for (const { script, entityId, params } of activeScripts) {
           script.fixedUpdate?.(makeCtx(entityId, FIXED_DT, elapsed, scriptInput, params))
