@@ -62,13 +62,19 @@ export function Game({
   return (
     <ManaContext.Provider value={contextValue}>
       <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-        {sceneData?.entities
-          .filter(e => e.type === 'ui')
-          .map(e => {
-            const Component = components[e.ui?.component ?? '']
-            return Component ? <Component key={e.id} /> : null
-          })}
         <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          {sceneData?.entities
+            .filter(e => e.type === 'ui')
+            .map(e => {
+              const Component = components[e.ui?.component ?? '']
+              return Component ? (
+                <div key={e.id} style={{ pointerEvents: 'auto' }}>
+                  <Component />
+                </div>
+              ) : null
+            })}
+        </div>
       </div>
     </ManaContext.Provider>
   )
