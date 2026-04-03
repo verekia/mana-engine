@@ -1,9 +1,11 @@
 import {
   AmbientLight,
+  BasicMaterial,
   BoxGeometry,
   CapsuleGeometry,
   DirectionalLight,
   Engine,
+  Geometry,
   Group,
   LambertMaterial,
   Mesh,
@@ -109,6 +111,64 @@ function setClearColor(engine: Engine, r: number, g: number, b: number): void {
  * Scene data is authored in Y-up; this adapter converts via a sceneRoot rotation.
  * Geometries that have an inherent axis (capsule) are pre-rotated to match.
  */
+
+/** Create a grid of thin quads in the XY plane (z-up). sceneRoot rotation handles y-up. */
+function createGridGroup(size: number, divisions: number): Group {
+  const group = new Group()
+  const half = size / 2
+  const step = size / divisions
+  const thickness = 0.005
+  const color: [number, number, number] = [0.25, 0.25, 0.25]
+
+  // Build all grid lines as a single geometry for performance
+  const positions: number[] = []
+  const normals: number[] = []
+  const indices: number[] = []
+  let vi = 0
+
+  for (let i = 0; i <= divisions; i++) {
+    const offset = -half + i * step
+
+    // Line along X (from -half to +half at y=offset)
+    addQuad(positions, normals, indices, vi, -half, offset - thickness, half, offset + thickness)
+    vi += 8
+    // Line along Y (from -half to +half at x=offset)
+    addQuad(positions, normals, indices, vi, offset - thickness, -half, offset + thickness, half)
+    vi += 8
+  }
+
+  const geometry = new Geometry({
+    positions: new Float32Array(positions),
+    normals: new Float32Array(normals),
+    indices: new Uint16Array(indices),
+  })
+  const material = new BasicMaterial({ color })
+  const mesh = new Mesh(geometry, material)
+  group.add(mesh)
+  return group
+}
+
+function addQuad(
+  positions: number[],
+  normals: number[],
+  indices: number[],
+  vi: number,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): void {
+  // Double-sided quad in XY plane at z=0
+  // Front face (normal +Z)
+  positions.push(x0, y0, 0, x1, y0, 0, x1, y1, 0, x0, y1, 0)
+  normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1)
+  indices.push(vi, vi + 1, vi + 2, vi, vi + 2, vi + 3)
+  // Back face (normal -Z)
+  positions.push(x0, y0, 0, x0, y1, 0, x1, y1, 0, x1, y0, 0)
+  normals.push(0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1)
+  indices.push(vi + 4, vi + 5, vi + 6, vi + 4, vi + 6, vi + 7)
+}
+
 export class VoidcoreRendererAdapter implements RendererAdapter {
   private engine!: Engine
   private scene!: Scene
@@ -125,6 +185,8 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   private raycastHits = [createRaycastHit()]
   private selectedIds = new Set<string>()
   private options!: RendererAdapterOptions
+  private showGizmos = false
+  private gridGroup: Group | null = null
   private transformGizmo: TransformGizmo | null = null
   private currentTransformMode: TransformMode = 'translate'
   /** Outline thickness for selected entities. */
@@ -134,6 +196,7 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   async init(canvas: HTMLCanvasElement, options: RendererAdapterOptions): Promise<void> {
     this.options = options
     this.enableOrbitControls = options.orbitControls ?? false
+    this.showGizmos = options.showGizmos ?? false
 
     this.engine = await Engine.create(canvas, { shadows: true, bloom: false })
     this.scene = new Scene()
@@ -224,6 +287,18 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     }
 
     this.gameCam = null
+
+    // Grid helper (editor only) — added to scene (not sceneRoot) so it stays
+    // horizontal in world space regardless of the y-up/z-up sceneRoot rotation.
+    if (this.gridGroup) {
+      this.scene.remove(this.gridGroup)
+      this.gridGroup = null
+    }
+    if (this.enableOrbitControls) {
+      this.gridGroup = createGridGroup(100, 100)
+      this.gridGroup.visible = this.showGizmos
+      this.scene.add(this.gridGroup)
+    }
 
     const addEntities = (entities: SceneEntity[], parent: Node) => {
       for (const entity of entities) {
@@ -498,7 +573,10 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
 
   // ── Editor helpers ──────────────────────────────────────────────────────────
 
-  setGizmos(_enabled: boolean): void {}
+  setGizmos(enabled: boolean): void {
+    this.showGizmos = enabled
+    if (this.gridGroup) this.gridGroup.visible = enabled
+  }
 
   setSelectedEntities(ids: string[]): void {
     // Remove outline from previously selected entities

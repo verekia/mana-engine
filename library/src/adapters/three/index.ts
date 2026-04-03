@@ -8,6 +8,7 @@ import {
   Color,
   DirectionalLight,
   DirectionalLightHelper,
+  GridHelper,
   Group,
   LineBasicMaterial,
   LoopOnce,
@@ -105,6 +106,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
   private showGizmos = false
   private _setTransformSpace: ((space: 'local' | 'world') => void) | null = null
   private isYUp = true
+  private gridHelper: GridHelper | null = null
   /** Animation clips stored per entity from GLTF loading. */
   private entityClips = new Map<string, AnimationClip[]>()
   /** Active AnimationMixers per entity. */
@@ -303,6 +305,17 @@ export class ThreeRendererAdapter implements RendererAdapter {
     if (isZUp) this._setTransformSpace?.('local')
     this.gameCam = null
 
+    // Grid helper (editor only) — added to sceneRoot so it respects coordinate system rotation
+    if (this.gridHelper) {
+      this.gridHelper.removeFromParent()
+      this.gridHelper.dispose()
+    }
+    if (this.enableOrbitControls) {
+      this.gridHelper = new GridHelper(100, 100, 0x444444, 0x222222)
+      this.gridHelper.visible = this.showGizmos
+      this.sceneRoot.add(this.gridHelper)
+    }
+
     const addEntities = (entities: SceneEntity[], parent: Object3D) => {
       for (const entity of entities) {
         const obj = createThreeEntityObject(entity, parent, this.maps, {
@@ -481,6 +494,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
     for (const helper of this.maps.gizmoHelpers.values()) {
       helper.visible = enabled
     }
+    if (this.gridHelper) this.gridHelper.visible = enabled
   }
 
   setSelectedEntities(ids: string[]): void {
