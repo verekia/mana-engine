@@ -98,6 +98,18 @@ export interface PrefabData {
   entity: SceneEntity
 }
 
+/** Flatten a tree of entities (with children) into a flat array. */
+export function flattenEntities(entities: SceneEntity[]): SceneEntity[] {
+  const result: SceneEntity[] = []
+  for (const entity of entities) {
+    result.push(entity)
+    if (entity.children?.length) {
+      result.push(...flattenEntities(entity.children))
+    }
+  }
+  return result
+}
+
 export interface SceneData {
   background?: string
   /**

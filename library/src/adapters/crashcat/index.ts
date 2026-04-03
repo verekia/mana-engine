@@ -14,22 +14,12 @@ import {
   updateWorld,
 } from 'crashcat'
 
+import { flattenEntities } from '../../scene-data.ts'
+
 import type { RigidBody, World } from 'crashcat'
 
 import type { SceneData, SceneEntity } from '../../scene-data.ts'
 import type { ManaRigidBody, PhysicsAdapter, PhysicsTransform } from '../physics-adapter.ts'
-
-/** Flatten a tree of entities (with children) into a flat array. */
-function flattenEntities(entities: SceneEntity[]): SceneEntity[] {
-  const result: SceneEntity[] = []
-  for (const entity of entities) {
-    result.push(entity)
-    if (entity.children?.length) {
-      result.push(...flattenEntities(entity.children))
-    }
-  }
-  return result
-}
 
 // registerAll() is idempotent — safe to call multiple times
 let registered = false

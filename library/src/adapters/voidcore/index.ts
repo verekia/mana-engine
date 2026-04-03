@@ -20,23 +20,12 @@ import {
   vec3Set,
 } from 'voidcore'
 
+import { flattenEntities } from '../../scene-data.ts'
 import { TransformGizmo } from './transform-gizmo.ts'
 
 import type { SceneData, SceneEntity } from '../../scene-data.ts'
 import type { PhysicsTransform } from '../physics-adapter.ts'
 import type { RendererAdapter, RendererAdapterOptions, EditorCameraState, TransformMode } from '../renderer-adapter.ts'
-
-/** Flatten a tree of entities (with children) into a flat array. */
-function flattenEntities(entities: SceneEntity[]): SceneEntity[] {
-  const result: SceneEntity[] = []
-  for (const entity of entities) {
-    result.push(entity)
-    if (entity.children?.length) {
-      result.push(...flattenEntities(entity.children))
-    }
-  }
-  return result
-}
 
 /** Parse a CSS hex color string into [r, g, b] in 0–1 range. */
 function hexToRgb(hex: string): [number, number, number] {

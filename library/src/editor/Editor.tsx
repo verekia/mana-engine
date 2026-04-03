@@ -97,6 +97,7 @@ export default function Editor({
   const prePrefabSavedJsonRef = useRef('')
   const editingPrefabRef = useRef<string | null>(null)
   editingPrefabRef.current = editingPrefab
+  const prefabEntityIdRef = useRef<string | null>(null)
   const [prefabRefreshKey, setPrefabRefreshKey] = useState(0)
   const [assetRefreshKey, setAssetRefreshKey] = useState(0)
 
@@ -390,6 +391,7 @@ export default function Editor({
         const prefab = await loadPrefabData(name)
         const sceneFromPrefab = prefabToSceneData(prefab)
         setEditingPrefab(name)
+        prefabEntityIdRef.current = prefab.entity.id
         setSceneData(sceneFromPrefab)
         setSavedSceneJson(JSON.stringify(sceneFromPrefab))
         setSelectedId(prefab.entity.id)
@@ -455,12 +457,10 @@ export default function Editor({
         const data = sceneDataRef.current
         if (!data) return
 
-        // If editing a prefab, save the prefab entity (skip helper camera/lights)
+        // If editing a prefab, save the prefab entity by its tracked ID
         const prefabName = editingPrefabRef.current
         if (prefabName) {
-          const prefabEntity = data.entities.find(
-            ent => ent.id !== '__prefab_camera' && ent.id !== '__prefab_ambient' && ent.id !== '__prefab_dir_light',
-          )
+          const prefabEntity = data.entities.find(ent => ent.id === prefabEntityIdRef.current)
           if (prefabEntity) {
             const prefabData: PrefabData = { entity: prefabEntity }
             savePrefabData(prefabName, prefabData)

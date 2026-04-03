@@ -397,6 +397,16 @@ function prefabApiPlugin(prefabsDir: string): Plugin {
             try {
               mkdirSync(prefabsDir, { recursive: true })
               const data = JSON.parse(body)
+              if (
+                !data.entity ||
+                typeof data.entity.id !== 'string' ||
+                typeof data.entity.name !== 'string' ||
+                typeof data.entity.type !== 'string'
+              ) {
+                res.writeHead(400, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ error: 'Invalid prefab data: entity must have id, name, and type' }))
+                return
+              }
               writeFileSync(filePath, dump(data, { lineWidth: -1, quotingType: '"', flowLevel: 3 }))
               res.writeHead(200, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify({ ok: true }))

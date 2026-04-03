@@ -99,4 +99,8 @@ export async function renamePrefab(oldName: string, newName: string): Promise<vo
   const data = await loadPrefabData(oldName)
   await savePrefabData(newName, data)
   await deletePrefab(oldName)
+  console.warn(
+    `[mana] Prefab renamed from "${oldName}" to "${newName}". ` +
+      `Scene entities referencing prefab "${oldName}" must be updated manually.`,
+  )
 }

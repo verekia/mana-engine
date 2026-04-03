@@ -1,17 +1,7 @@
+import { flattenEntities } from '../../scene-data.ts'
+
 import type { SceneData, SceneEntity } from '../../scene-data.ts'
 import type { ManaRigidBody, PhysicsAdapter, PhysicsTransform } from '../physics-adapter.ts'
-
-/** Flatten a tree of entities (with children) into a flat array. */
-function flattenEntities(entities: SceneEntity[]): SceneEntity[] {
-  const result: SceneEntity[] = []
-  for (const entity of entities) {
-    result.push(entity)
-    if (entity.children?.length) {
-      result.push(...flattenEntities(entity.children))
-    }
-  }
-  return result
-}
 
 export type RapierModule = typeof import('@dimforge/rapier3d-compat')
 export type RapierRigidBody = InstanceType<RapierModule['RigidBody']>
