@@ -18,6 +18,7 @@ import {
   RenderPipeline,
   Scene,
   Vector2,
+  Vector3,
   WebGPURenderer,
 } from 'three/webgpu'
 
@@ -35,7 +36,13 @@ import {
 } from './three-entity.ts'
 
 import type { SceneData, SceneEntity } from '../../scene-data.ts'
-import type { RendererAdapter, RendererAdapterOptions, EditorCameraState, TransformMode } from '../renderer-adapter.ts'
+import type {
+  RaycastHit,
+  RendererAdapter,
+  RendererAdapterOptions,
+  EditorCameraState,
+  TransformMode,
+} from '../renderer-adapter.ts'
 
 const rendererCache = new WeakMap<HTMLCanvasElement, WebGPURenderer>()
 
@@ -505,6 +512,56 @@ export class ThreeRendererAdapter implements RendererAdapter {
         if (isGizmo) continue
       }
       return this.raycastObjectToEntity.get(hit.object) ?? null
+    }
+    return null
+  }
+
+  raycastWorld(
+    origin: { x: number; y: number; z: number },
+    direction: { x: number; y: number; z: number },
+    maxDistance = 1000,
+  ): RaycastHit | null {
+    const originVec = new Vector3(origin.x, origin.y, origin.z)
+    const dirVec = new Vector3(direction.x, direction.y, direction.z).normalize()
+
+    // Transform from scene coordinate space into Three.js world space via the sceneRoot
+    if (this.sceneRoot) {
+      originVec.applyMatrix4(this.sceneRoot.matrixWorld)
+      dirVec.transformDirection(this.sceneRoot.matrixWorld)
+    }
+
+    this.raycaster.set(originVec, dirVec)
+    this.raycaster.far = maxDistance
+
+    // Build targets from entity objects only (no gizmos/helpers)
+    const targets: Object3D[] = []
+    const objToEntity = new Map<Object3D, string>()
+    for (const [id, obj] of this.maps.entityObjects) {
+      if (obj instanceof Mesh) {
+        targets.push(obj)
+        objToEntity.set(obj, id)
+      } else if (obj instanceof Group) {
+        targets.push(obj)
+        obj.traverse(child => objToEntity.set(child, id))
+      }
+    }
+
+    const hits = this.raycaster.intersectObjects(targets, true)
+    for (const hit of hits) {
+      const entityId = objToEntity.get(hit.object)
+      if (entityId) {
+        // Transform hit point back to scene coordinate space
+        const worldPoint = hit.point.clone()
+        if (this.sceneRoot) {
+          const inv = this.sceneRoot.matrixWorld.clone().invert()
+          worldPoint.applyMatrix4(inv)
+        }
+        return {
+          entityId,
+          distance: hit.distance,
+          point: { x: worldPoint.x, y: worldPoint.y, z: worldPoint.z },
+        }
+      }
     }
     return null
   }

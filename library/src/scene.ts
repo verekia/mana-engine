@@ -277,6 +277,9 @@ export async function createScene(
         const p = renderer.getEntityPosition(id)
         return p ? { x: p[0], y: p[1], z: p[2] } : null
       },
+      raycast(origin, direction, maxDistance) {
+        return renderer.raycastWorld(origin, direction, maxDistance)
+      },
       instantiatePrefab(name, position, rotation) {
         const prefab = prefabs[name]
         if (!prefab) {

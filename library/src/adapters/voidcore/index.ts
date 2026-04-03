@@ -527,6 +527,37 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     return null
   }
 
+  raycastWorld(
+    origin: { x: number; y: number; z: number },
+    direction: { x: number; y: number; z: number },
+    maxDistance = 1000,
+  ): import('../renderer-adapter.ts').RaycastHit | null {
+    if (!this.sceneRoot) return null
+
+    this.raycaster.set([origin.x, origin.y, origin.z], [direction.x, direction.y, direction.z])
+    const hitCount = this.raycaster.intersectObject(this.sceneRoot, true, this.raycastHits)
+    if (hitCount === 0) return null
+
+    const hit = this.raycastHits[0]
+    if (hit.distance > maxDistance) return null
+
+    // Walk up from hit mesh to find the entity node
+    let hitNode: import('voidcore').Node | null = hit.object
+    while (hitNode) {
+      for (const [id, node] of this.entityNodes) {
+        if (node === hitNode) {
+          return {
+            entityId: id,
+            distance: hit.distance,
+            point: { x: hit.point[0], y: hit.point[1], z: hit.point[2] },
+          }
+        }
+      }
+      hitNode = hitNode.parent
+    }
+    return null
+  }
+
   setTransformTarget(id: string | null): void {
     if (!this.transformGizmo) return
     if (id) {

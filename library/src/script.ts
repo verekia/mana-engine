@@ -1,4 +1,5 @@
-import type { CollisionEvent, ManaRigidBody } from './adapters/physics-adapter.ts'
+import type { ManaRigidBody } from './adapters/physics-adapter.ts'
+import type { RaycastHit } from './adapters/renderer-adapter.ts'
 import type { Input } from './input.ts'
 
 export interface ScriptParamDef {
@@ -66,6 +67,19 @@ export interface ScriptContext {
   setScale(x: number, y: number, z: number): void
   /** Find another entity by name and return its position, or null if not found. */
   findEntityPosition(name: string): { x: number; y: number; z: number } | null
+  /**
+   * Cast a ray from a world-space origin in a direction.
+   * Returns the first entity hit with distance and hit point, or null.
+   * Useful for shooting, line-of-sight checks, ground detection, etc.
+   * @param origin World-space ray origin
+   * @param direction Ray direction (will be normalized)
+   * @param maxDistance Maximum ray length (default 1000)
+   */
+  raycast(
+    origin: { x: number; y: number; z: number },
+    direction: { x: number; y: number; z: number },
+    maxDistance?: number,
+  ): RaycastHit | null
   /**
    * Instantiate a prefab at runtime.
    * The prefab must exist in the `prefabs/` directory as `<name>.prefab.yaml`.
