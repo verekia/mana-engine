@@ -19,6 +19,7 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 ### RendererAdapter (`library/src/adapters/renderer-adapter.ts`)
 
 - Defines all rendering operations: `init`, `loadScene`, `addEntity`, `removeEntity`, `updateEntity`, `setEntityVisible`, `setEntityPhysicsTransform`, `getEntityInitialPhysicsTransform`, `getEntityNativeObject`, `getNativeScene`, `setEntityScale`
+- Animation: `playAnimation`, `stopAnimation`, `getAnimationNames`, `updateAnimations` — GLTF animation clip playback with crossfade
 - Editor-specific: `setGizmos`, `setSelectedEntities`, `raycast`, `setTransformTarget`, `setTransformMode`, `getEditorCamera`, `setEditorCamera`
 - Implementations live in `library/src/adapters/<name>/index.ts`
 
@@ -84,6 +85,41 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - `ManaScript.onCollisionEnter(ctx, other)` / `onCollisionExit(ctx, other)` — dispatched after each physics step, before `fixedUpdate`
 - `CollisionInfo` contains `entityId` (of the other entity) and `sensor` boolean
 - Both sides of a collision pair receive callbacks — if entity A hits entity B, both A's and B's scripts are notified
+
+### Physics Material Properties
+
+- `ColliderData.friction` (number, default 0.5) — friction coefficient (0 = frictionless, 1 = high friction)
+- `ColliderData.restitution` (number, default 0) — bounciness (0 = no bounce, 1 = perfectly elastic)
+- Rapier: applied via `colliderDesc.setFriction()` / `colliderDesc.setRestitution()` on collider creation
+- Crashcat: applied directly as `body.friction` / `body.restitution` properties after body creation
+- Editor inspector shows Friction and Restitution number inputs in the Collider section
+
+### Entity Tags
+
+- `SceneEntity.tags` is an optional `string[]` field for grouping entities (e.g. `['enemy', 'damageable']`)
+- Tags are indexed in `scene.ts` via a `tagIndex: Map<string, Set<string>>` for fast lookup
+- `ctx.findEntitiesByTag(tag)` returns all entity IDs with that tag
+- Tag index is updated when entities are instantiated from prefabs and cleaned up on entity destruction
+- Editor inspector has a Tags section with chip-style display and an input field to add new tags
+
+### Script Event Bus
+
+- `ctx.emit(event, data?)` broadcasts a named event to all listeners across all scripts
+- `ctx.on(event, callback)` subscribes to a named event; returns an unsubscribe function
+- `ctx.off(event, callback)` removes a specific listener
+- Event listeners are tracked per-entity and automatically cleaned up when the entity is destroyed
+- Implemented via `eventListeners: Map<string, Set<callback>>` and `entityListeners: Map<entityId, Array<{event, callback}>>` in `scene.ts`
+
+### Animation System
+
+- `ctx.playAnimation(name, { loop?, crossFadeDuration? })` plays a named GLTF animation clip on the entity's model
+- `ctx.stopAnimation()` stops all animations on the entity
+- `ctx.getAnimationNames()` returns the names of all available animation clips
+- Three.js adapter: uses `AnimationMixer` per entity, `AnimationClip` storage from GLTF loading, crossfade between animations via `fadeIn`/`fadeOut`
+- VoidCore adapter: stub implementations (no GLTF animation support yet)
+- `RendererAdapter.updateAnimations(dt)` is called once per frame to advance all active mixers
+- Animation clips are captured during GLTF model loading via `onAnimationClips` callback
+- Mixers and clips are cleaned up on entity removal
 
 ### Audio System
 
@@ -206,7 +242,7 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 
 - Scripts are TypeScript files in `game/scripts/` implementing `ManaScript`
 - Lifecycle methods: `init(ctx)`, `update(ctx)`, `fixedUpdate(ctx)`, `onCollisionEnter(ctx, other)`, `onCollisionExit(ctx, other)`, `dispose()`
-- `ScriptContext` provides: `entityId` (string), `entity` (unknown), `scene` (unknown), `dt` (delta seconds), `time` (elapsed seconds), `rigidBody?` (unknown), `input` (Input), `params` (configured values), audio methods (`playSound`, `playMusic`, `stopSound`, `stopMusic`, `setMasterVolume`), and `raycast(origin, direction, maxDistance?)`
+- `ScriptContext` provides: `entityId` (string), `entity` (unknown), `scene` (unknown), `dt` (delta seconds), `time` (elapsed seconds), `rigidBody?` (unknown), `input` (Input), `params` (configured values), audio methods (`playSound`, `playMusic`, `stopSound`, `stopMusic`, `setMasterVolume`), `raycast(origin, direction, maxDistance?)`, `findEntitiesByTag(tag)`, event bus (`emit`, `on`, `off`), and animation (`playAnimation`, `stopAnimation`, `getAnimationNames`)
 - `entity`, `scene`, and `rigidBody` are typed `unknown` — scripts cast them to the adapter-specific types they need (e.g. `ctx.entity as Object3D` when using `ThreeRendererAdapter`, `ctx.rigidBody as RapierRigidBody` when using `RapierPhysicsAdapter`)
 - Scripts can declare `params: Record<string, ScriptParamDef>` to expose editable parameters in the editor
 - `ScriptParamDef` has `type` (`'number' | 'string' | 'boolean'`) and `default` value
@@ -216,6 +252,9 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - `ctx.instantiatePrefab(name, position?)` creates a new entity from a prefab at runtime, returns the entity ID; physics bodies and scripts on the prefab are auto-initialized
 - `ctx.destroyEntity(id)` removes an entity from the renderer, physics, and scripts at runtime
 - `ctx.setScale(x, y, z)` sets the entity's scale
+- `ctx.findEntitiesByTag(tag)` returns all entity IDs with a given tag (e.g. `'enemy'`, `'collectible'`)
+- `ctx.emit(event, data?)` / `ctx.on(event, cb)` / `ctx.off(event, cb)` — script-to-script event bus with auto-cleanup on entity destruction
+- `ctx.playAnimation(name, { loop?, crossFadeDuration? })` / `ctx.stopAnimation()` / `ctx.getAnimationNames()` — GLTF animation playback with crossfade support
 - Scripts are auto-discovered from `scripts/` directory by the CLI — no manual registration needed
 - Scripts only run during gameplay (dev/prod/editor play mode), NOT in editor edit mode
 
