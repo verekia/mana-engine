@@ -57,6 +57,25 @@ export interface ScriptContext {
   /** Set master volume (0–1) for all sounds and music. */
   setMasterVolume(volume: number): void
 
+  // ── Event bus ────────────────────────────────────────────────────────────────
+
+  /**
+   * Emit a named event to all listeners across all scripts.
+   * @param event Event name (e.g. 'player-died', 'coin-collected')
+   * @param data Optional payload data
+   */
+  emit(event: string, data?: unknown): void
+  /**
+   * Subscribe to a named event. The callback fires whenever any script emits that event.
+   * Listeners are automatically cleaned up when the script is disposed.
+   * @returns An unsubscribe function
+   */
+  on(event: string, callback: (data: unknown) => void): () => void
+  /**
+   * Remove a specific listener for a named event.
+   */
+  off(event: string, callback: (data: unknown) => void): void
+
   // ── Adapter-agnostic helpers ─────────────────────────────────────────────────
 
   /** Get this entity's current position. */

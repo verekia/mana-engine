@@ -213,6 +213,11 @@ export async function createScene(
     }
   }
 
+  // Event bus for script-to-script communication
+  const eventListeners = new Map<string, Set<(data: unknown) => void>>()
+  // Track listeners per entityId for auto-cleanup on destroy
+  const entityListeners = new Map<string, Array<{ event: string; callback: (data: unknown) => void }>>()
+
   // Mutable list of active scripts — grows when prefabs are instantiated, shrinks on destroy
   const activeScripts: ActiveScript[] = []
 
@@ -239,6 +244,14 @@ export async function createScene(
     for (const set of tagIndex.values()) {
       set.delete(id)
     }
+    // Clean up event listeners registered by this entity's scripts
+    const listeners = entityListeners.get(id)
+    if (listeners) {
+      for (const { event, callback } of listeners) {
+        eventListeners.get(event)?.delete(callback)
+      }
+      entityListeners.delete(id)
+    }
   }
 
   /** Build a ScriptContext with adapter-agnostic helpers. */
@@ -258,6 +271,34 @@ export async function createScene(
       rigidBody: physicsAdapter?.getBody(entityId),
       input: inputVal,
       params,
+      // Event bus
+      emit(event, data) {
+        const listeners = eventListeners.get(event)
+        if (listeners) {
+          for (const cb of listeners) cb(data)
+        }
+      },
+      on(event, callback) {
+        let set = eventListeners.get(event)
+        if (!set) {
+          set = new Set()
+          eventListeners.set(event, set)
+        }
+        set.add(callback)
+        // Track for auto-cleanup
+        let tracked = entityListeners.get(entityId)
+        if (!tracked) {
+          tracked = []
+          entityListeners.set(entityId, tracked)
+        }
+        tracked.push({ event, callback })
+        return () => {
+          set?.delete(callback)
+        }
+      },
+      off(event, callback) {
+        eventListeners.get(event)?.delete(callback)
+      },
       playSound(path, opts) {
         if (!audio) return Promise.resolve('')
         return audio.playSound(path, opts)
