@@ -93,6 +93,12 @@ export class RapierPhysicsAdapter implements PhysicsAdapter {
           colliderDesc = RAPIER.ColliderDesc.cuboid(he[0], he[1], he[2])
         }
       }
+      if (entity.collider.friction !== undefined) {
+        colliderDesc.setFriction(entity.collider.friction)
+      }
+      if (entity.collider.restitution !== undefined) {
+        colliderDesc.setRestitution(entity.collider.restitution)
+      }
       const isSensor = entity.collider.sensor === true
       if (isSensor) {
         colliderDesc.setSensor(true)

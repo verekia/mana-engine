@@ -355,7 +355,8 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
         break
       }
 
-      case 'ui': {
+      case 'ui':
+      case 'audio': {
         return
       }
     }
@@ -438,6 +439,14 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
       quaternion: [q[0], q[1], q[2], q[3]],
     }
   }
+
+  // Animation stubs — VoidCore does not support GLTF animation playback yet
+  playAnimation(_entityId: string, _name: string, _options?: { loop?: boolean; crossFadeDuration?: number }): void {}
+  stopAnimation(_entityId: string): void {}
+  getAnimationNames(_entityId: string): string[] {
+    return []
+  }
+  updateAnimations(_dt: number): void {}
 
   getEntityPosition(id: string): [number, number, number] | null {
     const node = this.entityNodes.get(id)

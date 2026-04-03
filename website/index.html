@@ -269,8 +269,8 @@
             </div>
             <h3>Script System</h3>
             <p>
-              Unity-like lifecycle with init, update, fixedUpdate, dispose, and collision callbacks. Typed parameters,
-              60Hz fixed timestep, world-space raycasting, and full input access.
+              Unity-like lifecycle with init, update, fixedUpdate, dispose, and collision callbacks. Entity tags,
+              cross-script event bus, GLTF animation playback with crossfade, 60Hz fixed timestep, and raycasting.
             </p>
           </div>
 
@@ -294,7 +294,8 @@
             <h3>Pluggable Physics</h3>
             <p>
               Choose Rapier 3D (WASM) or Crashcat (pure JS). Dynamic, fixed, and kinematic rigid bodies with box,
-              sphere, and capsule colliders. Collision callbacks, sensor/trigger volumes, and full ManaRigidBody API.
+              sphere, and capsule colliders. Physics materials (friction, restitution), collision callbacks,
+              sensor/trigger volumes, and full ManaRigidBody API.
             </p>
           </div>
 
@@ -395,8 +396,8 @@
             </div>
             <h3>Audio System</h3>
             <p>
-              Sound effects and music via the Web Audio API. Buffer caching, volume control, looping, and automatic
-              browser autoplay handling — all accessible from scripts.
+              Sound effects and music via the Web Audio API. Audio entities with volume/loop controls in the editor,
+              drag-and-drop from the asset browser, speaker gizmo helpers, and script API for playback.
             </p>
           </div>
         </div>
@@ -411,7 +412,10 @@
         <div class="section-header">
           <span class="section-label">// Visual Editing</span>
           <h2 class="section-title">Built-in Editor</h2>
-          <p class="section-desc">Hierarchy, inspector, viewport, asset browser — launch with a single command.</p>
+          <p class="section-desc">
+            Collapsible hierarchy with drag-drop reparenting, inspector, viewport, asset browser, copy/paste/duplicate —
+            launch with a single command.
+          </p>
         </div>
 
         <div class="editor-showcase animate-in delay-2">

@@ -2,12 +2,16 @@ import { outline } from 'three/examples/jsm/tsl/display/OutlineNode.js'
 import { pass, uniform } from 'three/tsl'
 import {
   AmbientLight,
+  AnimationClip,
+  AnimationMixer,
   CameraHelper,
   Color,
   DirectionalLight,
   DirectionalLightHelper,
   Group,
   LineBasicMaterial,
+  LoopOnce,
+  LoopRepeat,
   Mesh,
   MeshLambertMaterial,
   type Object3D,
@@ -102,6 +106,10 @@ export class ThreeRendererAdapter implements RendererAdapter {
   private showGizmos = false
   private _setTransformSpace: ((space: 'local' | 'world') => void) | null = null
   private isYUp = true
+  /** Animation clips stored per entity from GLTF loading. */
+  private entityClips = new Map<string, AnimationClip[]>()
+  /** Active AnimationMixers per entity. */
+  private entityMixers = new Map<string, AnimationMixer>()
 
   async init(canvas: HTMLCanvasElement, options: RendererAdapterOptions): Promise<void> {
     this.options = options
@@ -303,6 +311,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
         showGizmos: this.showGizmos,
         renderer: this.renderer,
         isYUp: this.isYUp,
+        onAnimationClips: (id, clips) => this.entityClips.set(id, clips),
       })
       if (entity.type === 'camera' && obj instanceof PerspectiveCamera) {
         this.gameCam = obj
@@ -333,6 +342,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
       showGizmos: this.showGizmos,
       renderer: this.renderer,
       isYUp: this.isYUp,
+      onAnimationClips: (id, clips) => this.entityClips.set(id, clips),
     })
   }
 
@@ -358,6 +368,13 @@ export class ThreeRendererAdapter implements RendererAdapter {
       helper.parent?.remove(helper)
       this.maps.gizmoHelpers.delete(id)
     }
+    // Clean up animation state
+    const mixer = this.entityMixers.get(id)
+    if (mixer) {
+      mixer.stopAllAction()
+      this.entityMixers.delete(id)
+    }
+    this.entityClips.delete(id)
   }
 
   updateEntity(id: string, entity: SceneEntity): void {
@@ -403,19 +420,24 @@ export class ThreeRendererAdapter implements RendererAdapter {
       }
       applyShadowProps(obj, entity)
     }
+    // Sync audio helper transform
+    if (entity.type === 'audio') {
+      const helper = this.maps.gizmoHelpers.get(id)
+      if (helper) applyTransform(helper, entity.transform)
+    }
   }
 
   setEntityVisible(id: string, visible: boolean): void {
     const obj = this.maps.entityObjects.get(id)
     if (!obj) return
-    const isLight = obj instanceof DirectionalLight || obj instanceof AmbientLight || obj instanceof PointLight
-    if (isLight) {
+    const isHelperOnly = obj instanceof DirectionalLight || obj instanceof AmbientLight || obj instanceof PointLight
+    if (isHelperOnly) {
       const helper = this.maps.gizmoHelpers.get(id)
       if (helper) helper.visible = visible
     } else {
       obj.visible = visible
     }
-    if (!isLight) {
+    if (!isHelperOnly) {
       const wireframe = this.maps.debugWireframes.get(id)
       if (wireframe) wireframe.visible = visible
       const helper = this.maps.gizmoHelpers.get(id)
@@ -476,6 +498,8 @@ export class ThreeRendererAdapter implements RendererAdapter {
           } else if (helper instanceof PointLightHelper) {
             const entity = this.maps.entityObjects.get(id) as PointLight
             mat.color.copy(entity.color)
+          } else {
+            mat.color.set(0xe99444) // Audio / default helper color
           }
         }
       })
@@ -617,6 +641,58 @@ export class ThreeRendererAdapter implements RendererAdapter {
     return {
       position: [obj.position.x, obj.position.y, obj.position.z],
       quaternion: [obj.quaternion.x, obj.quaternion.y, obj.quaternion.z, obj.quaternion.w],
+    }
+  }
+
+  playAnimation(entityId: string, name: string, options?: { loop?: boolean; crossFadeDuration?: number }): void {
+    const clips = this.entityClips.get(entityId)
+    const obj = this.maps.entityObjects.get(entityId)
+    if (!clips || !obj) return
+    const clip = AnimationClip.findByName(clips, name)
+    if (!clip) {
+      console.warn(`[mana] Animation "${name}" not found on entity "${entityId}"`)
+      return
+    }
+    let mixer = this.entityMixers.get(entityId)
+    if (!mixer) {
+      mixer = new AnimationMixer(obj)
+      this.entityMixers.set(entityId, mixer)
+    }
+    const fadeDuration = options?.crossFadeDuration ?? 0.3
+    const prevActions = [...(mixer as any)._actions] as any[]
+
+    const action = mixer.clipAction(clip)
+    action.setLoop(options?.loop === false ? LoopOnce : LoopRepeat, Infinity)
+    if (options?.loop === false) action.clampWhenFinished = true
+
+    // Crossfade from any currently playing action
+    if (fadeDuration > 0 && prevActions.length > 0) {
+      for (const prev of prevActions) {
+        if (prev !== action && prev.isRunning()) {
+          prev.fadeOut(fadeDuration)
+        }
+      }
+      action.reset().fadeIn(fadeDuration).play()
+    } else {
+      action.reset().play()
+    }
+  }
+
+  stopAnimation(entityId: string): void {
+    const mixer = this.entityMixers.get(entityId)
+    if (mixer) {
+      mixer.stopAllAction()
+    }
+  }
+
+  getAnimationNames(entityId: string): string[] {
+    const clips = this.entityClips.get(entityId)
+    return clips ? clips.map(c => c.name) : []
+  }
+
+  updateAnimations(dt: number): void {
+    for (const mixer of this.entityMixers.values()) {
+      mixer.update(dt)
     }
   }
 
