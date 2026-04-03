@@ -206,7 +206,7 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 
 - Scripts are TypeScript files in `game/scripts/` implementing `ManaScript`
 - Lifecycle methods: `init(ctx)`, `update(ctx)`, `fixedUpdate(ctx)`, `onCollisionEnter(ctx, other)`, `onCollisionExit(ctx, other)`, `dispose()`
-- `ScriptContext` provides: `entity` (unknown), `scene` (unknown), `dt` (delta seconds), `time` (elapsed seconds), `rigidBody?` (unknown), `input` (Input), `params` (configured values), audio methods (`playSound`, `playMusic`, `stopSound`, `stopMusic`, `setMasterVolume`), and `raycast(origin, direction, maxDistance?)`
+- `ScriptContext` provides: `entityId` (string), `entity` (unknown), `scene` (unknown), `dt` (delta seconds), `time` (elapsed seconds), `rigidBody?` (unknown), `input` (Input), `params` (configured values), audio methods (`playSound`, `playMusic`, `stopSound`, `stopMusic`, `setMasterVolume`), and `raycast(origin, direction, maxDistance?)`
 - `entity`, `scene`, and `rigidBody` are typed `unknown` — scripts cast them to the adapter-specific types they need (e.g. `ctx.entity as Object3D` when using `ThreeRendererAdapter`, `ctx.rigidBody as RapierRigidBody` when using `RapierPhysicsAdapter`)
 - Scripts can declare `params: Record<string, ScriptParamDef>` to expose editable parameters in the editor
 - `ScriptParamDef` has `type` (`'number' | 'string' | 'boolean'`) and `default` value

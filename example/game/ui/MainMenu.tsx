@@ -24,7 +24,7 @@ export default function MainMenu() {
             Settings
           </button>
         </div>
-        <p className="text-xs text-white/30">Arrow keys or WASD to move, Space to jump</p>
+        <p className="text-xs text-white/30">A/D to move, W to jump, Space to shoot</p>
       </div>
     </div>
   )

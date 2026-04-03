@@ -8,6 +8,8 @@ export interface ScriptParamDef {
 }
 
 export interface ScriptContext {
+  /** The ID of the entity this script is attached to. */
+  entityId: string
   /**
    * The native object this script is attached to.
    * The concrete type depends on the renderer adapter in use —

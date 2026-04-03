@@ -1,0 +1,10 @@
+entity:
+  id: projectile
+  name: Projectile
+  type: mesh
+  transform: { scale: [0.2, 0.2, 0.2] }
+  mesh: { geometry: sphere, material: { color: '#ffaa00' } }
+  rigidBody: { type: dynamic, lockRotation: [true, true, true] }
+  collider: { shape: sphere, radius: 0.2 }
+  castShadow: true
+  scripts: [{ name: projectile }]

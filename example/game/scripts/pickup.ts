@@ -66,6 +66,7 @@ export default {
       // Move far away via physics so the transform sync hides it
       rigidBody.setTranslation({ x: 0, y: -100, z: 0 }, false)
       rigidBody.setEnabled(false)
+      ctx.playSound('audio/swoosh.mp3', { volume: 0.3 })
       document.dispatchEvent(new CustomEvent('mana:pickup-collected'))
     }
   },

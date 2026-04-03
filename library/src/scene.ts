@@ -234,6 +234,7 @@ export async function createScene(
     params: Record<string, number | string | boolean>,
   ): import('./script.ts').ScriptContext {
     return {
+      entityId,
       entity: renderer.getEntityNativeObject(entityId),
       scene: renderer.getNativeScene(),
       dt: dtVal,

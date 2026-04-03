@@ -31,7 +31,7 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 - **Script parameters** — Declare typed params (`number`, `string`, `boolean`) with defaults, editable in the editor
 - **Fixed timestep** — `fixedUpdate` runs at 60Hz with accumulator for deterministic physics
 - **World-space raycasting** — `ctx.raycast(origin, direction)` for shooting, line-of-sight, ground detection
-- **ScriptContext** — Provides `entity`, `scene`, `dt`, `time`, `rigidBody`, `input`, `params`
+- **ScriptContext** — Provides `entityId`, `entity`, `scene`, `dt`, `time`, `rigidBody`, `input`, `params`
 
 ### Input System
 
@@ -296,7 +296,7 @@ export default {
 - `fixedUpdate(ctx)` — Called at fixed 60Hz (for physics)
 - `dispose()` — Called on scene cleanup
 
-`ScriptContext` provides: `entity` (native renderer object), `scene`, `dt` (seconds), `time` (elapsed seconds), `input` (keyboard/mouse state), `rigidBody` (adapter-agnostic physics body), plus helpers like `getPosition()`, `setPosition()`, `setRotation()`, `setScale()`, `findEntityPosition()`, `instantiatePrefab()`, and `destroyEntity()`.
+`ScriptContext` provides: `entityId` (the entity's ID string), `entity` (native renderer object), `scene`, `dt` (seconds), `time` (elapsed seconds), `input` (keyboard/mouse state), `rigidBody` (adapter-agnostic physics body), plus helpers like `getPosition()`, `setPosition()`, `setRotation()`, `setScale()`, `findEntityPosition()`, `instantiatePrefab()`, and `destroyEntity()`.
 
 ## Scene Switching
 
