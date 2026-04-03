@@ -433,14 +433,26 @@ export async function createScene(
   // Input system (play mode with scripts only) — only create if we actually have scripts
   const scriptInput = activeScripts.length > 0 && !enableOrbitControls ? new Input(canvas) : null
 
-  // Audio system (play mode with scripts only)
-  const audio = scriptInput ? new Audio() : null
+  // Audio system (play mode — supports both script-driven and entity-driven audio)
+  const audio = !enableOrbitControls && typeof AudioContext !== 'undefined' ? new Audio() : null
 
   // Run init() on all scripts
   let elapsed = 0
   for (const { script, entityId, params } of activeScripts) {
     if (!scriptInput) break
     script.init?.(makeCtx(entityId, 0, 0, scriptInput, params))
+  }
+
+  // Auto-play audio entities defined in the scene
+  if (audio && allEntities.length > 0) {
+    for (const entity of allEntities) {
+      if (entity.type === 'audio' && entity.audio?.src) {
+        audio.playSound(entity.audio.src, {
+          volume: entity.audio.volume ?? 1,
+          loop: entity.audio.loop ?? false,
+        })
+      }
+    }
   }
 
   let lastTime = performance.now() / 1000
