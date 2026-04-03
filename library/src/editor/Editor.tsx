@@ -97,6 +97,8 @@ export default function Editor({
   const prePrefabSavedJsonRef = useRef('')
   const editingPrefabRef = useRef<string | null>(null)
   editingPrefabRef.current = editingPrefab
+  const [prefabRefreshKey, setPrefabRefreshKey] = useState(0)
+  const [assetRefreshKey, setAssetRefreshKey] = useState(0)
 
   const prePlaySceneRef = useRef('')
   const prePlaySceneDataRef = useRef<SceneData | null>(null)
@@ -721,6 +723,9 @@ export default function Editor({
               hiddenEntities={hiddenEntities}
               onToggleVisibility={handleToggleEntityVisibility}
               onEditPrefab={handleEditPrefab}
+              editingPrefab={editingPrefab}
+              prefabRefreshKey={prefabRefreshKey}
+              onPrefabListChanged={() => setAssetRefreshKey(k => k + 1)}
             />
             <ResizeHandle
               direction="horizontal"
@@ -795,7 +800,12 @@ export default function Editor({
               })
             }
           />
-          <BottomPanel height={bottomHeight} onEditPrefab={handleEditPrefab} />
+          <BottomPanel
+            height={bottomHeight}
+            onEditPrefab={handleEditPrefab}
+            onPrefabCreated={() => setPrefabRefreshKey(k => k + 1)}
+            refreshKey={assetRefreshKey}
+          />
         </div>
         {/* Right: inspector (full height) */}
         <ResizeHandle

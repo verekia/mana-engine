@@ -448,6 +448,9 @@ export function LeftPanel({
   hiddenEntities,
   onToggleVisibility,
   onEditPrefab,
+  editingPrefab,
+  prefabRefreshKey,
+  onPrefabListChanged,
 }: {
   width: number
   sceneList: string[]
@@ -465,6 +468,9 @@ export function LeftPanel({
   hiddenEntities: Set<string>
   onToggleVisibility: (id: string) => void
   onEditPrefab?: (name: string) => void
+  editingPrefab?: string | null
+  prefabRefreshKey?: number
+  onPrefabListChanged?: () => void
 }) {
   const [activeTab, setActiveTab] = useState<LeftPanelTab>('scenes')
   const [addMenuOpen, setAddMenuOpen] = useState(false)
@@ -491,6 +497,20 @@ export function LeftPanel({
     loadPrefabs()
   }, [loadPrefabs])
 
+  // Re-fetch prefab list when prefabRefreshKey changes (cross-panel sync)
+  useEffect(() => {
+    if (prefabRefreshKey != null && prefabRefreshKey > 0) loadPrefabs()
+  }, [prefabRefreshKey, loadPrefabs])
+
+  // Auto-switch tab when entering/exiting prefab editing
+  useEffect(() => {
+    if (editingPrefab) {
+      setActiveTab('prefabs')
+    } else {
+      setActiveTab('scenes')
+    }
+  }, [editingPrefab])
+
   return (
     <div
       style={{
@@ -511,36 +531,43 @@ export function LeftPanel({
           flexShrink: 0,
         }}
       >
-        {(['scenes', 'prefabs'] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              flex: 1,
-              padding: '6px 0',
-              background: activeTab === tab ? COLORS.panel : COLORS.panelHeader,
-              border: 'none',
-              borderBottom:
-                activeTab === tab
-                  ? `2px solid ${tab === 'prefabs' ? '#22c55e' : COLORS.accent}`
-                  : '2px solid transparent',
-              color: activeTab === tab ? COLORS.text : COLORS.textMuted,
-              fontSize: 10,
-              fontWeight: 600,
-              fontFamily: 'inherit',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-            }}
-            onMouseEnter={e => {
-              if (activeTab !== tab) e.currentTarget.style.color = COLORS.text
-            }}
-            onMouseLeave={e => {
-              if (activeTab !== tab) e.currentTarget.style.color = COLORS.textMuted
-            }}
-          >
-            {tab === 'scenes' ? 'Scenes' : 'Prefabs'}
-          </button>
-        ))}
+        {(['scenes', 'prefabs'] as const).map(tab => {
+          const disabled = tab === 'scenes' && !!editingPrefab
+          return (
+            <button
+              key={tab}
+              onClick={() => {
+                if (!disabled) setActiveTab(tab)
+              }}
+              style={{
+                flex: 1,
+                padding: '6px 0',
+                background: activeTab === tab ? COLORS.panel : COLORS.panelHeader,
+                border: 'none',
+                borderBottom:
+                  activeTab === tab
+                    ? `2px solid ${tab === 'prefabs' ? '#22c55e' : COLORS.accent}`
+                    : '2px solid transparent',
+                color: disabled ? COLORS.textDim : activeTab === tab ? COLORS.text : COLORS.textMuted,
+                fontSize: 10,
+                fontWeight: 600,
+                fontFamily: 'inherit',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                opacity: disabled ? 0.4 : 1,
+                cursor: disabled ? 'not-allowed' : 'pointer',
+              }}
+              onMouseEnter={e => {
+                if (!disabled && activeTab !== tab) e.currentTarget.style.color = COLORS.text
+              }}
+              onMouseLeave={e => {
+                if (!disabled && activeTab !== tab) e.currentTarget.style.color = COLORS.textMuted
+              }}
+            >
+              {tab === 'scenes' ? 'Scenes' : 'Prefabs'}
+            </button>
+          )
+        })}
       </div>
 
       {activeTab === 'scenes' && (
@@ -913,80 +940,91 @@ export function LeftPanel({
                 No prefabs yet. Click + to create one.
               </div>
             ) : (
-              prefabList.map(name => (
-                <div
-                  key={name}
-                  onDoubleClick={() => {
-                    if (onEditPrefab) onEditPrefab(name)
-                  }}
-                  onContextMenu={e => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    setPrefabContextMenu({ x: e.clientX, y: e.clientY, name })
-                  }}
-                  style={{
-                    padding: '3px 8px 3px 10px',
-                    borderRadius: 4,
-                    margin: '0 4px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    color: COLORS.textMuted,
-                    userSelect: 'none',
-                    fontSize: 12,
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = COLORS.hover
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'transparent'
-                  }}
-                >
-                  {renamingPrefab === name ? (
-                    <input
-                      autoFocus
-                      value={prefabRenameValue}
-                      onFocus={e => e.target.select()}
-                      onChange={e => setPrefabRenameValue(e.target.value)}
-                      onBlur={() => {
-                        const v = prefabRenameValue.trim()
-                        if (v && v !== name && /^[a-zA-Z0-9_-]+$/.test(v)) {
-                          apiRenamePrefab(name, v).then(loadPrefabs)
-                        }
-                        setRenamingPrefab(null)
-                      }}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
+              prefabList.map(name => {
+                const isEditing = editingPrefab === name
+                return (
+                  <div
+                    key={name}
+                    onDoubleClick={() => {
+                      if (onEditPrefab) onEditPrefab(name)
+                    }}
+                    onContextMenu={e => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setPrefabContextMenu({ x: e.clientX, y: e.clientY, name })
+                    }}
+                    style={{
+                      padding: '3px 8px 3px 10px',
+                      borderRadius: 4,
+                      margin: '0 4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      color: isEditing ? COLORS.text : COLORS.textMuted,
+                      userSelect: 'none',
+                      fontSize: 12,
+                      background: isEditing ? '#1a3f1a' : 'transparent',
+                      border: isEditing ? '1px solid #22c55e55' : '1px solid transparent',
+                    }}
+                    onMouseEnter={e => {
+                      if (!isEditing) e.currentTarget.style.background = COLORS.hover
+                    }}
+                    onMouseLeave={e => {
+                      if (!isEditing) e.currentTarget.style.background = 'transparent'
+                    }}
+                  >
+                    {renamingPrefab === name ? (
+                      <input
+                        autoFocus
+                        value={prefabRenameValue}
+                        onFocus={e => e.target.select()}
+                        onChange={e => setPrefabRenameValue(e.target.value)}
+                        onBlur={() => {
                           const v = prefabRenameValue.trim()
                           if (v && v !== name && /^[a-zA-Z0-9_-]+$/.test(v)) {
-                            apiRenamePrefab(name, v).then(loadPrefabs)
+                            apiRenamePrefab(name, v).then(() => {
+                              loadPrefabs()
+                              onPrefabListChanged?.()
+                            })
                           }
                           setRenamingPrefab(null)
-                        }
-                        if (e.key === 'Escape') setRenamingPrefab(null)
-                      }}
-                      onClick={e => e.stopPropagation()}
-                      style={{
-                        ...INPUT_STYLE,
-                        width: '100%',
-                        fontSize: 12,
-                        padding: '1px 4px',
-                        borderColor: '#22c55e',
-                        boxShadow: '0 0 0 1.5px #22c55e',
-                      }}
-                    />
-                  ) : (
-                    <>
-                      <span style={{ color: '#22c55e', display: 'flex', flexShrink: 0 }}>
-                        <IconPrefab />
-                      </span>
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                        {name}
-                      </span>
-                    </>
-                  )}
-                </div>
-              ))
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            const v = prefabRenameValue.trim()
+                            if (v && v !== name && /^[a-zA-Z0-9_-]+$/.test(v)) {
+                              apiRenamePrefab(name, v).then(() => {
+                                loadPrefabs()
+                                onPrefabListChanged?.()
+                              })
+                            }
+                            setRenamingPrefab(null)
+                          }
+                          if (e.key === 'Escape') setRenamingPrefab(null)
+                        }}
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                          ...INPUT_STYLE,
+                          width: '100%',
+                          fontSize: 12,
+                          padding: '1px 4px',
+                          borderColor: '#22c55e',
+                          boxShadow: '0 0 0 1.5px #22c55e',
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <span style={{ color: '#22c55e', display: 'flex', flexShrink: 0 }}>
+                          <IconPrefab />
+                        </span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                          {name}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )
+              })
             )}
           </div>
 
@@ -996,7 +1034,10 @@ export function LeftPanel({
               onClick={() => {
                 const name = prompt('New prefab name (letters, numbers, - and _ only):')
                 if (name && /^[a-zA-Z0-9_-]+$/.test(name)) {
-                  apiCreatePrefab(name).then(loadPrefabs)
+                  apiCreatePrefab(name).then(() => {
+                    loadPrefabs()
+                    onPrefabListChanged?.()
+                  })
                 }
               }}
               onMouseEnter={e => {
@@ -1105,7 +1146,10 @@ export function LeftPanel({
                 <button
                   onClick={() => {
                     if (confirm(`Delete prefab "${prefabContextMenu.name}"?`)) {
-                      apiDeletePrefab(prefabContextMenu.name).then(loadPrefabs)
+                      apiDeletePrefab(prefabContextMenu.name).then(() => {
+                        loadPrefabs()
+                        onPrefabListChanged?.()
+                      })
                     }
                     setPrefabContextMenu(null)
                   }}

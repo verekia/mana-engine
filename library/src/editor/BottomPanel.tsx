@@ -217,7 +217,17 @@ function AssetPreview({ filePath, ext, size }: { filePath: string; ext: string |
   )
 }
 
-export function BottomPanel({ height, onEditPrefab }: { height: number; onEditPrefab?: (name: string) => void }) {
+export function BottomPanel({
+  height,
+  onEditPrefab,
+  onPrefabCreated,
+  refreshKey,
+}: {
+  height: number
+  onEditPrefab?: (name: string) => void
+  onPrefabCreated?: () => void
+  refreshKey?: number
+}) {
   const [currentPath, setCurrentPath] = useState('')
   const [entries, setEntries] = useState<AssetEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -233,6 +243,15 @@ export function BottomPanel({ height, onEditPrefab }: { height: number; onEditPr
       setLoading(false)
     })
   }, [])
+
+  // Re-fetch current directory when refreshKey changes (cross-panel sync)
+  const currentPathRef = useRef(currentPath)
+  currentPathRef.current = currentPath
+  useEffect(() => {
+    if (refreshKey != null && refreshKey > 0) {
+      loadDir(currentPathRef.current)
+    }
+  }, [refreshKey, loadDir])
 
   useEffect(() => {
     loadDir('')
@@ -359,7 +378,10 @@ export function BottomPanel({ height, onEditPrefab }: { height: number; onEditPr
                         mesh: { geometry: 'box', material: { color: '#888888' } },
                       },
                     }),
-                  }).then(() => loadDir('prefabs'))
+                  }).then(() => {
+                    loadDir('prefabs')
+                    onPrefabCreated?.()
+                  })
                 }
               }}
               style={{
