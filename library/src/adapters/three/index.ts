@@ -531,6 +531,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
     }
 
     this.raycaster.set(originVec, dirVec)
+    const prevFar = this.raycaster.far
     this.raycaster.far = maxDistance
 
     // Build targets from entity objects only (no gizmos/helpers)
@@ -547,6 +548,8 @@ export class ThreeRendererAdapter implements RendererAdapter {
     }
 
     const hits = this.raycaster.intersectObjects(targets, true)
+    this.raycaster.far = prevFar
+
     for (const hit of hits) {
       const entityId = objToEntity.get(hit.object)
       if (entityId) {

@@ -79,7 +79,8 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - Rapier adapter: uses `EventQueue` + `ActiveEvents.COLLISION_EVENTS` on every collider; drains events after `world.step(eventQueue)`
 - Crashcat adapter: uses `Listener` callbacks (`onContactAdded`, `onContactPersisted`, `onContactRemoved`); tracks active contact pairs to emit enter/exit events
 - `ColliderData.sensor` marks a collider as a trigger volume (no physical response, only overlap detection)
-- Rapier: `colliderDesc.setSensor(true)`; Crashcat: sensor flag is tracked in `sensorMap` (Crashcat has no native sensor — events still fire)
+- Rapier: `colliderDesc.setSensor(true)` — true trigger volumes with no physical response
+- **Crashcat limitation**: Crashcat has no native sensor support; `sensor: true` colliders still produce physical forces (the `sensor` flag in `CollisionInfo` is correctly reported, but the body will still collide physically)
 - `ManaScript.onCollisionEnter(ctx, other)` / `onCollisionExit(ctx, other)` — dispatched after each physics step, before `fixedUpdate`
 - `CollisionInfo` contains `entityId` (of the other entity) and `sensor` boolean
 - Both sides of a collision pair receive callbacks — if entity A hits entity B, both A's and B's scripts are notified

@@ -350,8 +350,8 @@ export async function createScene(
   // Input system (play mode with scripts only) — only create if we actually have scripts
   const scriptInput = activeScripts.length > 0 && !enableOrbitControls ? new Input(canvas) : null
 
-  // Audio system (play mode only)
-  const audio = !enableOrbitControls ? new Audio() : null
+  // Audio system (play mode with scripts only)
+  const audio = scriptInput ? new Audio() : null
 
   // Run init() on all scripts
   let elapsed = 0

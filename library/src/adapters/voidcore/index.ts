@@ -16,8 +16,12 @@ import {
   SphereGeometry,
   createRaycastHit,
   mat4Invert,
+  quatConjugate,
+  quatCreate,
   quatFromAxisAngle,
+  vec3Create,
   vec3Set,
+  vec3TransformQuat,
 } from 'voidcore'
 
 import { flattenEntities } from '../../scene-data.ts'
@@ -534,10 +538,18 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   ): import('../renderer-adapter.ts').RaycastHit | null {
     if (!this.sceneRoot) return null
 
-    this.raycaster.set(
-      new Float32Array([origin.x, origin.y, origin.z]),
-      new Float32Array([direction.x, direction.y, direction.z]),
-    )
+    const originVec = new Float32Array([origin.x, origin.y, origin.z])
+    const dirVec = new Float32Array([direction.x, direction.y, direction.z])
+
+    // VoidCore is Z-up natively. When scene is Y-up, sceneRoot has a rotation.
+    // Transform the ray from scene coordinate space into VoidCore world space.
+    if (this.isYUp) {
+      const q = this.sceneRoot.rotation
+      vec3TransformQuat(originVec, originVec, q)
+      vec3TransformQuat(dirVec, dirVec, q)
+    }
+
+    this.raycaster.set(originVec, dirVec)
     const hitCount = this.raycaster.intersectObject(this.sceneRoot, true, this.raycastHits)
     if (hitCount === 0) return null
 
@@ -549,10 +561,17 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     while (hitNode) {
       for (const [id, node] of this.entityNodes) {
         if (node === hitNode) {
+          // Transform hit point back from VoidCore world space to scene coordinate space
+          const pt = vec3Create()
+          vec3Set(pt, hit.point[0], hit.point[1], hit.point[2])
+          if (this.isYUp) {
+            const invQ = quatConjugate(quatCreate(), this.sceneRoot.rotation)
+            vec3TransformQuat(pt, pt, invQ)
+          }
           return {
             entityId: id,
             distance: hit.distance,
-            point: { x: hit.point[0], y: hit.point[1], z: hit.point[2] },
+            point: { x: pt[0], y: pt[1], z: pt[2] },
           }
         }
       }
