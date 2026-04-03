@@ -57,6 +57,8 @@ function entityTypeIcon(type: SceneEntity['type']): React.ReactNode {
       return <IconPointLight />
     case 'ui':
       return <IconUI />
+    case 'ui-group':
+      return <IconUI />
     case 'audio':
       return <IconAudio />
   }
@@ -207,6 +209,16 @@ const ADD_OBJECT_OPTIONS: { label: string; category: string; icon: React.ReactNo
       type: 'audio',
       transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
       audio: { src: '', volume: 1, loop: false },
+    }),
+  },
+  {
+    label: 'UI Group',
+    category: 'General',
+    icon: <IconUI />,
+    create: () => ({
+      id: generateId(),
+      name: 'UI Group',
+      type: 'ui-group',
     }),
   },
 ]

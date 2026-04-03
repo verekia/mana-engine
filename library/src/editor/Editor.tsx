@@ -506,7 +506,7 @@ export default function Editor({
           }
           return { ...prev, entities }
         })
-        for (const e of flattenEntities([deleted])) sceneRef.current?.addEntity(e)
+        sceneRef.current?.addEntity(deleted)
       },
       redo: () => {
         const ids = flattenEntities([deleted]).map(e => e.id)
@@ -557,7 +557,7 @@ export default function Editor({
       if (!prev) return prev
       return { ...prev, entities: [...prev.entities, entity] }
     })
-    for (const e of flattenEntities([entity])) sceneRef.current?.addEntity(e)
+    sceneRef.current?.addEntity(entity)
     setSelectedId(entity.id)
 
     historyRef.current.push({
@@ -578,7 +578,7 @@ export default function Editor({
           if (!prev) return prev
           return { ...prev, entities: [...prev.entities, entity] }
         })
-        for (const e of flattenEntities([entity])) sceneRef.current?.addEntity(e)
+        sceneRef.current?.addEntity(entity)
         setSelectedId(entity.id)
       },
     })
@@ -685,7 +685,7 @@ export default function Editor({
         if (f) f.parent.splice(f.index + 1, 0, duped)
         return { ...prev, entities }
       })
-      for (const e of flattenEntities([duped])) sceneRef.current?.addEntity(e)
+      sceneRef.current?.addEntity(duped)
       setSelectedId(duped.id)
 
       historyRef.current.push({
@@ -709,7 +709,7 @@ export default function Editor({
             if (f) f.parent.splice(f.index + 1, 0, duped)
             return { ...prev, entities }
           })
-          for (const e of flattenEntities([duped])) sceneRef.current?.addEntity(e)
+          sceneRef.current?.addEntity(duped)
           setSelectedId(duped.id)
         },
       })
@@ -747,7 +747,7 @@ export default function Editor({
         }
         return { ...prev, entities }
       })
-      for (const e of flattenEntities([pasted])) sceneRef.current?.addEntity(e)
+      sceneRef.current?.addEntity(pasted)
       setSelectedId(pasted.id)
 
       historyRef.current.push({
@@ -780,7 +780,7 @@ export default function Editor({
             }
             return { ...prev, entities }
           })
-          for (const e of flattenEntities([pasted])) sceneRef.current?.addEntity(e)
+          sceneRef.current?.addEntity(pasted)
           setSelectedId(pasted.id)
         },
       })
@@ -1140,7 +1140,7 @@ export default function Editor({
                 <ManaContext.Provider value={manaContextValue}>
                   <Viewport
                     canvasRef={canvasRef}
-                    uiEntities={sceneData ? flattenEntities(sceneData.entities).filter(e => e.type === 'ui') : []}
+                    uiEntities={sceneData?.entities ?? []}
                     uiComponents={uiComponents}
                     showUI={showUI}
                     playing={playing}

@@ -53,8 +53,8 @@ export interface RendererAdapter {
    */
   loadScene(sceneData: SceneData): Promise<void>
 
-  /** Add a single entity to the scene. */
-  addEntity(entity: SceneEntity): Promise<void>
+  /** Add a single entity to the scene. If parentId is given, the entity becomes a child of that parent. */
+  addEntity(entity: SceneEntity, parentId?: string): Promise<void>
 
   /** Remove an entity from the scene by ID. */
   removeEntity(id: string): void

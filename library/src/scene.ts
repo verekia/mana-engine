@@ -370,10 +370,12 @@ export async function createScene(
           if (rotation) entity.transform.rotation = [rotation.x, rotation.y, rotation.z]
         }
 
-        // Flatten all entities (root + children) and add them all
+        // Add root entity to the renderer (handles children hierarchy internally)
+        renderer.addEntity(entity)
+
+        // Flatten for physics, scripts, tags setup (renderer already has the 3D hierarchy)
         const allEntities = flattenEntities([entity])
         for (const ent of allEntities) {
-          renderer.addEntity(ent)
           nameToId.set(ent.name, ent.id)
           // Index tags for newly instantiated entities
           if (ent.tags) {

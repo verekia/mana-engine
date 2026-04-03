@@ -26,7 +26,6 @@ import {
   WebGPURenderer,
 } from 'three/webgpu'
 
-import { flattenEntities } from '../../scene-data.ts'
 import {
   applyMaterialData,
   applyModelMaterialOverride,
@@ -304,19 +303,24 @@ export class ThreeRendererAdapter implements RendererAdapter {
     if (isZUp) this._setTransformSpace?.('local')
     this.gameCam = null
 
-    const allEntities = flattenEntities(sceneData.entities)
-    for (const entity of allEntities) {
-      const obj = createThreeEntityObject(entity, this.sceneRoot, this.maps, {
-        enableOrbitControls: this.enableOrbitControls,
-        showGizmos: this.showGizmos,
-        renderer: this.renderer,
-        isYUp: this.isYUp,
-        onAnimationClips: (id, clips) => this.entityClips.set(id, clips),
-      })
-      if (entity.type === 'camera' && obj instanceof PerspectiveCamera) {
-        this.gameCam = obj
+    const addEntities = (entities: SceneEntity[], parent: Object3D) => {
+      for (const entity of entities) {
+        const obj = createThreeEntityObject(entity, parent, this.maps, {
+          enableOrbitControls: this.enableOrbitControls,
+          showGizmos: this.showGizmos,
+          renderer: this.renderer,
+          isYUp: this.isYUp,
+          onAnimationClips: (id, clips) => this.entityClips.set(id, clips),
+        })
+        if (entity.type === 'camera' && obj instanceof PerspectiveCamera) {
+          this.gameCam = obj
+        }
+        if (entity.children?.length && obj) {
+          addEntities(entity.children, obj)
+        }
       }
     }
+    addEntities(sceneData.entities, this.sceneRoot)
 
     // In play mode the game camera drives rendering
     if (!this.enableOrbitControls) {
@@ -336,14 +340,20 @@ export class ThreeRendererAdapter implements RendererAdapter {
     }
   }
 
-  async addEntity(entity: SceneEntity): Promise<void> {
-    createThreeEntityObject(entity, this.sceneRoot, this.maps, {
+  async addEntity(entity: SceneEntity, parentId?: string): Promise<void> {
+    const parent = parentId ? (this.maps.entityObjects.get(parentId) ?? this.sceneRoot) : this.sceneRoot
+    const obj = createThreeEntityObject(entity, parent, this.maps, {
       enableOrbitControls: this.enableOrbitControls,
       showGizmos: this.showGizmos,
       renderer: this.renderer,
       isYUp: this.isYUp,
       onAnimationClips: (id, clips) => this.entityClips.set(id, clips),
     })
+    if (entity.children?.length && obj) {
+      for (const child of entity.children) {
+        await this.addEntity(child, entity.id)
+      }
+    }
   }
 
   removeEntity(id: string): void {

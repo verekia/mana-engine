@@ -4,6 +4,50 @@ import { COLORS } from './colors.ts'
 
 import type { SceneEntity } from '../scene-data.ts'
 
+function renderUIEntities(
+  entities: SceneEntity[],
+  uiComponents: Record<string, ComponentType>,
+  playing: boolean,
+  onSelectEntity?: (id: string) => void,
+  hiddenEntities?: Set<string>,
+): React.ReactNode {
+  return entities
+    .filter(e => e.type === 'ui' || e.type === 'ui-group')
+    .map(entity => {
+      const hidden = hiddenEntities?.has(entity.id)
+
+      if (entity.type === 'ui-group') {
+        return (
+          <div key={entity.id} style={hidden ? { display: 'none' } : undefined}>
+            {entity.children
+              ? renderUIEntities(entity.children, uiComponents, playing, onSelectEntity, hiddenEntities)
+              : null}
+          </div>
+        )
+      }
+
+      const Component = uiComponents[entity.ui?.component ?? '']
+      if (!Component) return null
+      return playing ? (
+        <Component key={entity.id} />
+      ) : (
+        <div
+          key={entity.id}
+          onClick={e => {
+            e.stopPropagation()
+            onSelectEntity?.(entity.id)
+          }}
+          style={{
+            pointerEvents: hidden ? 'none' : 'auto',
+            opacity: hidden ? 0 : 1,
+          }}
+        >
+          <Component />
+        </div>
+      )
+    })
+}
+
 export function Viewport({
   canvasRef,
   uiEntities,
@@ -95,28 +139,7 @@ export function Viewport({
           }}
         >
           <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-            {uiEntities.map(entity => {
-              const Component = uiComponents[entity.ui?.component ?? '']
-              if (!Component) return null
-              const hidden = hiddenEntities?.has(entity.id)
-              return playing ? (
-                <Component key={entity.id} />
-              ) : (
-                <div
-                  key={entity.id}
-                  onClick={e => {
-                    e.stopPropagation()
-                    onSelectEntity?.(entity.id)
-                  }}
-                  style={{
-                    pointerEvents: hidden ? 'none' : 'auto',
-                    opacity: hidden ? 0 : 1,
-                  }}
-                >
-                  <Component />
-                </div>
-              )
-            })}
+            {renderUIEntities(uiEntities, uiComponents, playing, onSelectEntity, hiddenEntities)}
           </div>
         </div>
       )}

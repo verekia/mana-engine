@@ -215,10 +215,18 @@ export function createThreeEntityObject(
       break
     }
     case 'mesh': {
-      const geometry = createGeometry(entity.mesh?.geometry)
+      if (!entity.mesh?.geometry) {
+        // No mesh data — empty container (Group) that can hold children
+        const group = new Group()
+        applyTransform(group, entity.transform)
+        scene.add(group)
+        obj = group
+        break
+      }
+      const geometry = createGeometry(entity.mesh.geometry)
       // PlaneGeometry is created in XY (facing +Z). In Y-up scenes, rotate it
       // to lie in XZ (facing +Y) so it acts as a ground plane by default.
-      if (entity.mesh?.geometry === 'plane' && options.isYUp !== false) {
+      if (entity.mesh.geometry === 'plane' && options.isYUp !== false) {
         geometry.rotateX(-Math.PI / 2)
       }
       const material = new MeshLambertMaterial()

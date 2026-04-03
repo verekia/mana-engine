@@ -24,7 +24,6 @@ import {
   vec3TransformQuat,
 } from 'voidcore'
 
-import { flattenEntities } from '../../scene-data.ts'
 import { TransformGizmo } from './transform-gizmo.ts'
 
 import type { SceneData, SceneEntity } from '../../scene-data.ts'
@@ -226,10 +225,16 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
 
     this.gameCam = null
 
-    const allEntities = flattenEntities(sceneData.entities)
-    for (const entity of allEntities) {
-      this._addEntity(entity)
+    const addEntities = (entities: SceneEntity[], parent: Node) => {
+      for (const entity of entities) {
+        this._addEntity(entity, parent)
+        if (entity.children?.length) {
+          const parentNode = this.entityNodes.get(entity.id)
+          if (parentNode) addEntities(entity.children, parentNode)
+        }
+      }
     }
+    addEntities(sceneData.entities, this.sceneRoot)
 
     // In play mode, use the game camera
     if (!this.enableOrbitControls) {
@@ -276,7 +281,7 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     }
   }
 
-  private _addEntity(entity: SceneEntity): void {
+  private _addEntity(entity: SceneEntity, parent?: Node): void {
     let node: Node | null = null
 
     switch (entity.type) {
@@ -290,7 +295,7 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
         // Only apply default lookAt when no rotation was authored in the scene data
         if (!entity.transform?.rotation) cam.lookAt([0, 0, 0])
         cam.name = entity.name
-        this.sceneRoot.add(cam)
+        ;(parent ?? this.sceneRoot).add(cam)
         this.entityNodes.set(entity.id, cam)
         if (!this.gameCam) this.gameCam = cam
         return
@@ -298,6 +303,11 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
 
       case 'mesh': {
         const geomType = entity.mesh?.geometry
+        if (!geomType) {
+          // No mesh data — empty container (Group) that can hold children
+          node = new Group()
+          break
+        }
         const geometry = this._createGeometry(geomType)
         const color = entity.mesh?.material?.color
           ? hexToRgb(entity.mesh.material.color)
@@ -356,6 +366,7 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
       }
 
       case 'ui':
+      case 'ui-group':
       case 'audio': {
         return
       }
@@ -365,7 +376,7 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
 
     node.name = entity.name
     applyTransform(node, entity.transform)
-    this.sceneRoot.add(node)
+    ;(parent ?? this.sceneRoot).add(node)
     this.entityNodes.set(entity.id, node)
   }
 
@@ -383,8 +394,14 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     }
   }
 
-  async addEntity(entity: SceneEntity): Promise<void> {
-    this._addEntity(entity)
+  async addEntity(entity: SceneEntity, parentId?: string): Promise<void> {
+    const parent = parentId ? (this.entityNodes.get(parentId) ?? this.sceneRoot) : this.sceneRoot
+    this._addEntity(entity, parent)
+    if (entity.children?.length) {
+      for (const child of entity.children) {
+        await this.addEntity(child, entity.id)
+      }
+    }
   }
 
   removeEntity(id: string): void {

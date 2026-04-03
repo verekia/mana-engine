@@ -1,11 +1,20 @@
 background: '#222222'
 entities:
-  - id: 9ch9t4f8
-    name: Box
-    type: mesh
-    transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }
-    mesh: { geometry: box, material: { color: '#888888' } }
   - id: t4t9zziz
     name: Ambient Light
     type: ambient-light
     light: { color: '#ffffff', intensity: 3.1 }
+  - id: wzmgnfvw
+    name: Empty
+    type: mesh
+    transform: { position: [-2.612, 0, -0.441], rotation: [0, 0, 0], scale: [1, 1, 1] }
+    children:
+      [
+        {
+          id: 9ch9t4f8,
+          name: Box,
+          type: mesh,
+          transform: { position: [3.183, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+          mesh: { geometry: box, material: { color: '#888888' } },
+        },
+      ]

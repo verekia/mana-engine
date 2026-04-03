@@ -88,7 +88,16 @@ export interface ScriptEntry {
 export interface SceneEntity {
   id: string
   name: string
-  type: 'camera' | 'mesh' | 'directional-light' | 'ambient-light' | 'point-light' | 'ui' | 'model' | 'audio'
+  type:
+    | 'camera'
+    | 'mesh'
+    | 'directional-light'
+    | 'ambient-light'
+    | 'point-light'
+    | 'ui'
+    | 'ui-group'
+    | 'model'
+    | 'audio'
   transform?: Transform
   camera?: CameraData
   mesh?: MeshData

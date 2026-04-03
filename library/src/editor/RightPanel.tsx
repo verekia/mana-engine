@@ -119,6 +119,8 @@ function entityTypeLabel(type: SceneEntity['type']): string {
       return 'Point Light'
     case 'ui':
       return 'UI Component'
+    case 'ui-group':
+      return 'UI Group'
     case 'audio':
       return 'Audio'
   }

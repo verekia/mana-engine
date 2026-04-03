@@ -16,6 +16,27 @@ entities:
     name: Ambient Light
     type: ambient-light
     light: {color: "#b0d4f1", intensity: 0.6}
+  - id: 11ercwjr
+    name: Platforms
+    type: mesh
+    transform: {position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1]}
+    children: [{id: platform-start, name: Start Platform, type: mesh, transform: {position: [0, -0.5, 0], scale: [8, 1, 3]}, mesh: {geometry: box, material: {color: "#4a6741"}}, rigidBody: {type: fixed}, collider: {shape: box, halfExtents: [4, 0.5, 1.5]}, receiveShadow: true}, {id: platform-2, name: Platform 2, type: mesh, transform: {position: [7, 0.5, 0], scale: [5, 1, 3]}, mesh: {geometry: box, material: {color: "#5a7751"}}, rigidBody: {type: fixed}, collider: {shape: box, halfExtents: [2.5, 0.5, 1.5]}, receiveShadow: true}, {id: platform-3, name: Platform 3, type: mesh, transform: {position: [13, 2, 0], scale: [6, 1, 3]}, mesh: {geometry: box, material: {color: "#4a6741"}}, rigidBody: {type: fixed}, collider: {shape: box, halfExtents: [3, 0.5, 1.5]}, receiveShadow: true}, {id: platform-4, name: Platform 4, type: mesh, transform: {position: [19, 1.5, 0], scale: [3, 1, 3]}, mesh: {geometry: box, material: {color: "#5a7751"}}, rigidBody: {type: fixed}, collider: {shape: box, halfExtents: [1.5, 0.5, 1.5]}, receiveShadow: true}, {id: platform-5, name: Platform 5, type: mesh, transform: {position: [24, 3, 0], scale: [7, 1, 3]}, mesh: {geometry: box, material: {color: "#4a6741"}}, rigidBody: {type: fixed}, collider: {shape: box, halfExtents: [3.5, 0.5, 1.5]}, receiveShadow: true}, {id: platform-6, name: Platform 6, type: mesh, transform: {position: [31, 2, 0], scale: [4, 1, 3]}, mesh: {geometry: box, material: {color: "#5a7751"}}, rigidBody: {type: fixed}, collider: {shape: box, halfExtents: [2, 0.5, 1.5]}, receiveShadow: true}, {id: platform-7, name: Platform 7, type: mesh, transform: {position: [37, 3.5, 0], scale: [4, 1, 3]}, mesh: {geometry: box, material: {color: "#4a6741"}}, rigidBody: {type: fixed}, collider: {shape: box, halfExtents: [2, 0.5, 1.5]}, receiveShadow: true}, {id: platform-end, name: End Platform, type: mesh, transform: {position: [43, 2, 0], scale: [6, 1, 3]}, mesh: {geometry: box, material: {color: "#d4af37"}}, rigidBody: {type: fixed}, collider: {shape: box, halfExtents: [3, 0.5, 1.5]}, receiveShadow: true}]
+  - id: mk2qe7vk
+    name: Enemies
+    type: mesh
+    transform: {position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1]}
+    children: [{id: enemy-1, name: Enemy 1, type: mesh, transform: {position: [13, 3, 0], scale: [0.5, 0.5, 0.5]}, mesh: {geometry: sphere, material: {color: "#9b30ff"}}, rigidBody: {type: kinematic}, collider: {shape: sphere, radius: 0.5}, castShadow: true, scripts: [{name: enemy-patrol, params: {minX: 10.5, maxX: 15.5, speed: 2}}]}, {id: enemy-2, name: Enemy 2, type: mesh, transform: {position: [22, 4, 0], scale: [0.5, 0.5, 0.5]}, mesh: {geometry: sphere, material: {color: "#9b30ff"}}, rigidBody: {type: kinematic}, collider: {shape: sphere, radius: 0.5}, castShadow: true, scripts: [{name: enemy-patrol, params: {minX: 21, maxX: 24, speed: 2.5}}]}, {id: enemy-3, name: Enemy 3, type: mesh, transform: {position: [26, 4, 0], scale: [0.5, 0.5, 0.5]}, mesh: {geometry: sphere, material: {color: "#9b30ff"}}, rigidBody: {type: kinematic}, collider: {shape: sphere, radius: 0.5}, castShadow: true, scripts: [{name: enemy-patrol, params: {minX: 24.5, maxX: 27, speed: 2.5}}]}, {id: enemy-4, name: Enemy 4, type: mesh, transform: {position: [37, 4.5, 0], scale: [0.5, 0.5, 0.5]}, mesh: {geometry: sphere, material: {color: "#9b30ff"}}, rigidBody: {type: kinematic}, collider: {shape: sphere, radius: 0.5}, castShadow: true, scripts: [{name: enemy-patrol, params: {minX: 35.5, maxX: 38.5, speed: 3}}]}]
+  - id: yffdcwm4
+    name: Pickups
+    type: mesh
+    transform: {position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1]}
+    children: [{id: pickup-1, name: Pickup 1, type: mesh, transform: {position: [7, 3, 0], scale: [0.5, 0.5, 0.5]}, mesh: {geometry: box, material: {color: "#00e5ff"}}, rigidBody: {type: kinematic}, castShadow: true, scripts: [{name: pickup}]}, {id: pickup-2, name: Pickup 2, type: mesh, transform: {position: [13, 4.5, 0], scale: [0.5, 0.5, 0.5]}, mesh: {geometry: box, material: {color: "#00e5ff"}}, rigidBody: {type: kinematic}, castShadow: true, scripts: [{name: pickup}]}, {id: pickup-3, name: Pickup 3, type: mesh, transform: {position: [19, 4, 0], scale: [0.5, 0.5, 0.5]}, mesh: {geometry: box, material: {color: "#00e5ff"}}, rigidBody: {type: kinematic}, castShadow: true, scripts: [{name: pickup}]}, {id: pickup-4, name: Pickup 4, type: mesh, transform: {position: [31, 4.5, 0], scale: [0.5, 0.5, 0.5]}, mesh: {geometry: box, material: {color: "#00e5ff"}}, rigidBody: {type: kinematic}, castShadow: true, scripts: [{name: pickup}]}, {id: pickup-5, name: Pickup 5, type: mesh, transform: {position: [37, 6, 0], scale: [0.5, 0.5, 0.5]}, mesh: {geometry: box, material: {color: "#00e5ff"}}, rigidBody: {type: kinematic}, castShadow: true, scripts: [{name: pickup}]}]
+  - id: win-zone
+    name: Win Zone
+    type: mesh
+    transform: {position: [43, 4, 0], scale: [0.6, 0.6, 0.6]}
+    mesh: {geometry: sphere, material: {color: "#ffd700"}}
+    scripts: [{name: win-zone}]
   - id: player
     name: Player
     type: mesh
@@ -25,172 +46,14 @@ entities:
     collider: {shape: capsule, radius: 0.5, halfHeight: 0.5}
     castShadow: true
     scripts: [{name: player-controller, params: {moveSpeed: 6, jumpForce: 8}}, {name: fall-reset, params: {minY: -10, resetX: 0, resetY: 3}}]
-  - id: platform-start
-    name: Start Platform
-    type: mesh
-    transform: {position: [0, -0.5, 0], scale: [8, 1, 3]}
-    mesh: {geometry: box, material: {color: "#4a6741"}}
-    rigidBody: {type: fixed}
-    collider: {shape: box, halfExtents: [4, 0.5, 1.5]}
-    receiveShadow: true
-  - id: platform-2
-    name: Platform 2
-    type: mesh
-    transform: {position: [7, 0.5, 0], scale: [5, 1, 3]}
-    mesh: {geometry: box, material: {color: "#5a7751"}}
-    rigidBody: {type: fixed}
-    collider: {shape: box, halfExtents: [2.5, 0.5, 1.5]}
-    receiveShadow: true
-  - id: platform-3
-    name: Platform 3
-    type: mesh
-    transform: {position: [13, 2, 0], scale: [6, 1, 3]}
-    mesh: {geometry: box, material: {color: "#4a6741"}}
-    rigidBody: {type: fixed}
-    collider: {shape: box, halfExtents: [3, 0.5, 1.5]}
-    receiveShadow: true
-  - id: platform-4
-    name: Platform 4
-    type: mesh
-    transform: {position: [19, 1.5, 0], scale: [3, 1, 3]}
-    mesh: {geometry: box, material: {color: "#5a7751"}}
-    rigidBody: {type: fixed}
-    collider: {shape: box, halfExtents: [1.5, 0.5, 1.5]}
-    receiveShadow: true
-  - id: platform-5
-    name: Platform 5
-    type: mesh
-    transform: {position: [24, 3, 0], scale: [7, 1, 3]}
-    mesh: {geometry: box, material: {color: "#4a6741"}}
-    rigidBody: {type: fixed}
-    collider: {shape: box, halfExtents: [3.5, 0.5, 1.5]}
-    receiveShadow: true
-  - id: platform-6
-    name: Platform 6
-    type: mesh
-    transform: {position: [31, 2, 0], scale: [4, 1, 3]}
-    mesh: {geometry: box, material: {color: "#5a7751"}}
-    rigidBody: {type: fixed}
-    collider: {shape: box, halfExtents: [2, 0.5, 1.5]}
-    receiveShadow: true
-  - id: platform-7
-    name: Platform 7
-    type: mesh
-    transform: {position: [37, 3.5, 0], scale: [4, 1, 3]}
-    mesh: {geometry: box, material: {color: "#4a6741"}}
-    rigidBody: {type: fixed}
-    collider: {shape: box, halfExtents: [2, 0.5, 1.5]}
-    receiveShadow: true
-  - id: platform-end
-    name: End Platform
-    type: mesh
-    transform: {position: [43, 2, 0], scale: [6, 1, 3]}
-    mesh: {geometry: box, material: {color: "#d4af37"}}
-    rigidBody: {type: fixed}
-    collider: {shape: box, halfExtents: [3, 0.5, 1.5]}
-    receiveShadow: true
-  - id: enemy-1
-    name: Enemy 1
-    type: mesh
-    transform: {position: [13, 3, 0], scale: [0.5, 0.5, 0.5]}
-    mesh: {geometry: sphere, material: {color: "#9b30ff"}}
-    rigidBody: {type: kinematic}
-    collider: {shape: sphere, radius: 0.5}
-    castShadow: true
-    scripts: [{name: enemy-patrol, params: {minX: 10.5, maxX: 15.5, speed: 2}}]
-  - id: enemy-2
-    name: Enemy 2
-    type: mesh
-    transform: {position: [22, 4, 0], scale: [0.5, 0.5, 0.5]}
-    mesh: {geometry: sphere, material: {color: "#9b30ff"}}
-    rigidBody: {type: kinematic}
-    collider: {shape: sphere, radius: 0.5}
-    castShadow: true
-    scripts: [{name: enemy-patrol, params: {minX: 21, maxX: 24, speed: 2.5}}]
-  - id: enemy-3
-    name: Enemy 3
-    type: mesh
-    transform: {position: [26, 4, 0], scale: [0.5, 0.5, 0.5]}
-    mesh: {geometry: sphere, material: {color: "#9b30ff"}}
-    rigidBody: {type: kinematic}
-    collider: {shape: sphere, radius: 0.5}
-    castShadow: true
-    scripts: [{name: enemy-patrol, params: {minX: 24.5, maxX: 27, speed: 2.5}}]
-  - id: enemy-4
-    name: Enemy 4
-    type: mesh
-    transform: {position: [37, 4.5, 0], scale: [0.5, 0.5, 0.5]}
-    mesh: {geometry: sphere, material: {color: "#9b30ff"}}
-    rigidBody: {type: kinematic}
-    collider: {shape: sphere, radius: 0.5}
-    castShadow: true
-    scripts: [{name: enemy-patrol, params: {minX: 35.5, maxX: 38.5, speed: 3}}]
-  - id: win-zone
-    name: Win Zone
-    type: mesh
-    transform: {position: [43, 4, 0], scale: [0.6, 0.6, 0.6]}
-    mesh: {geometry: sphere, material: {color: "#ffd700"}}
-    scripts: [{name: win-zone}]
-  - id: pickup-1
-    name: Pickup 1
-    type: mesh
-    transform: {position: [7, 3, 0], scale: [0.5, 0.5, 0.5]}
-    mesh: {geometry: box, material: {color: "#00e5ff"}}
-    rigidBody: {type: kinematic}
-    castShadow: true
-    scripts: [{name: pickup}]
-  - id: pickup-2
-    name: Pickup 2
-    type: mesh
-    transform: {position: [13, 4.5, 0], scale: [0.5, 0.5, 0.5]}
-    mesh: {geometry: box, material: {color: "#00e5ff"}}
-    rigidBody: {type: kinematic}
-    castShadow: true
-    scripts: [{name: pickup}]
-  - id: pickup-3
-    name: Pickup 3
-    type: mesh
-    transform: {position: [19, 4, 0], scale: [0.5, 0.5, 0.5]}
-    mesh: {geometry: box, material: {color: "#00e5ff"}}
-    rigidBody: {type: kinematic}
-    castShadow: true
-    scripts: [{name: pickup}]
-  - id: pickup-4
-    name: Pickup 4
-    type: mesh
-    transform: {position: [31, 4.5, 0], scale: [0.5, 0.5, 0.5]}
-    mesh: {geometry: box, material: {color: "#00e5ff"}}
-    rigidBody: {type: kinematic}
-    castShadow: true
-    scripts: [{name: pickup}]
-  - id: pickup-5
-    name: Pickup 5
-    type: mesh
-    transform: {position: [37, 6, 0], scale: [0.5, 0.5, 0.5]}
-    mesh: {geometry: box, material: {color: "#00e5ff"}}
-    rigidBody: {type: kinematic}
-    castShadow: true
-    scripts: [{name: pickup}]
-  - id: hud
+  - id: q63qmywg
     name: HUD
-    type: ui
-    ui: {component: LevelHud}
-  - id: pickup-counter
-    name: Pickup Counter
-    type: ui
-    ui: {component: PickupCounter}
-  - id: health-bar
-    name: Health Bar
-    type: ui
-    ui: {component: HealthBar}
-  - id: game-over
-    name: Game Over
-    type: ui
-    ui: {component: GameOver}
-  - id: level-complete
-    name: Level Complete
-    type: ui
-    ui: {component: LevelComplete}
+    type: ui-group
+    children: [{id: health-bar, name: Health Bar, type: ui, ui: {component: HealthBar}}, {id: pickup-counter, name: Pickup Counter, type: ui, ui: {component: PickupCounter}}, {id: hud, name: Menu Button, type: ui, ui: {component: LevelHud}}]
+  - id: 2h8flepz
+    name: UI Events
+    type: ui-group
+    children: [{id: level-complete, name: Level Complete, type: ui, ui: {component: LevelComplete}}, {id: game-over, name: Game Over, type: ui, ui: {component: GameOver}}]
   - id: sfa706cx
     name: tribal
     type: audio

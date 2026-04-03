@@ -5,7 +5,7 @@ import { createScene } from './scene.ts'
 
 import type { PhysicsAdapter } from './adapters/physics-adapter.ts'
 import type { RendererAdapter } from './adapters/renderer-adapter.ts'
-import type { PrefabData, SceneData } from './scene-data.ts'
+import type { PrefabData, SceneData, SceneEntity } from './scene-data.ts'
 import type { ManaScript } from './script.ts'
 
 export function Game({
@@ -59,21 +59,28 @@ export function Game({
 
   const components = uiComponents ?? {}
 
+  function renderUIEntities(entities: SceneEntity[]): React.ReactNode {
+    return entities
+      .filter(e => e.type === 'ui' || e.type === 'ui-group')
+      .map(e => {
+        if (e.type === 'ui-group') {
+          return <div key={e.id}>{e.children ? renderUIEntities(e.children) : null}</div>
+        }
+        const Component = components[e.ui?.component ?? '']
+        return Component ? (
+          <div key={e.id} style={{ pointerEvents: 'auto' }}>
+            <Component />
+          </div>
+        ) : null
+      })
+  }
+
   return (
     <ManaContext.Provider value={contextValue}>
       <div style={{ position: 'relative', width: '100%', height: '100%' }}>
         <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-          {sceneData?.entities
-            .filter(e => e.type === 'ui')
-            .map(e => {
-              const Component = components[e.ui?.component ?? '']
-              return Component ? (
-                <div key={e.id} style={{ pointerEvents: 'auto' }}>
-                  <Component />
-                </div>
-              ) : null
-            })}
+          {sceneData ? renderUIEntities(sceneData.entities) : null}
         </div>
       </div>
     </ManaContext.Provider>
