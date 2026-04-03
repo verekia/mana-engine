@@ -1,4 +1,7 @@
 import { COLORS } from './colors.ts'
+
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
+const MOD_KEY = isMac ? '\u2318' : 'Ctrl'
 import {
   IconEye,
   IconGrid,
@@ -221,10 +224,10 @@ export function Toolbar({
         <IconScale />
       </ToolbarButton>
       <ToolbarSeparator />
-      <ToolbarButton title="Undo (Ctrl+Z)" onClick={onUndo} disabled={!canUndo || playing}>
+      <ToolbarButton title={`Undo (${MOD_KEY}+Z)`} onClick={onUndo} disabled={!canUndo || playing}>
         <IconUndo />
       </ToolbarButton>
-      <ToolbarButton title="Redo (Ctrl+Shift+Z)" onClick={onRedo} disabled={!canRedo || playing}>
+      <ToolbarButton title={`Redo (${MOD_KEY}+Shift+Z)`} onClick={onRedo} disabled={!canRedo || playing}>
         <IconRedo />
       </ToolbarButton>
 

@@ -23,6 +23,9 @@ import {
 
 import type { PrefabData, SceneData, SceneEntity } from '../scene-data.ts'
 
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
+const MOD_KEY = isMac ? '\u2318' : 'Ctrl'
+
 const LS_COLLAPSED_KEY = 'mana:hierarchyCollapsed'
 
 function loadCollapsedEntities(): Set<string> {
@@ -1057,19 +1060,19 @@ export function LeftPanel({
                   },
                   {
                     label: 'Duplicate',
-                    shortcut: 'Ctrl+D',
+                    shortcut: `${MOD_KEY}+D`,
                     action: () => onDuplicateEntity(contextMenu.entityId),
                   },
                   {
                     label: 'Copy',
-                    shortcut: 'Ctrl+C',
+                    shortcut: `${MOD_KEY}+C`,
                     action: () => onCopyEntity(contextMenu.entityId),
                   },
                   ...(clipboard
                     ? [
                         {
                           label: 'Paste as Child',
-                          shortcut: 'Ctrl+V',
+                          shortcut: `${MOD_KEY}+V`,
                           action: () => onPasteEntity(contextMenu.entityId),
                         },
                       ]
