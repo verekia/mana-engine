@@ -72,6 +72,38 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - `RapierModule` and `RapierRigidBody` type aliases are exported from `adapters/rapier/index.ts` and re-exported from `game.ts`
 - Physics init uses `renderer.getEntityInitialPhysicsTransform(id)` — no duck-typing of renderer-specific objects
 
+### Collision & Trigger System
+
+- `CollisionEvent` in `physics-adapter.ts` carries `entityIdA`, `entityIdB`, `started`, `sensor`
+- `PhysicsAdapter.getCollisionEvents()` returns events accumulated during the last `step()`
+- Rapier adapter: uses `EventQueue` + `ActiveEvents.COLLISION_EVENTS` on every collider; drains events after `world.step(eventQueue)`
+- Crashcat adapter: uses `Listener` callbacks (`onContactAdded`, `onContactPersisted`, `onContactRemoved`); tracks active contact pairs to emit enter/exit events
+- `ColliderData.sensor` marks a collider as a trigger volume (no physical response, only overlap detection)
+- Rapier: `colliderDesc.setSensor(true)`; Crashcat: sensor flag is tracked in `sensorMap` (Crashcat has no native sensor — events still fire)
+- `ManaScript.onCollisionEnter(ctx, other)` / `onCollisionExit(ctx, other)` — dispatched after each physics step, before `fixedUpdate`
+- `CollisionInfo` contains `entityId` (of the other entity) and `sensor` boolean
+- Both sides of a collision pair receive callbacks — if entity A hits entity B, both A's and B's scripts are notified
+
+### Audio System
+
+- `Audio` class in `audio.ts` wraps the Web Audio API with buffer caching
+- Created automatically in play mode (`scene.ts`), not in editor edit mode
+- `ctx.playSound(path, { volume?, loop? })` — plays a one-shot sound effect, returns a sound ID
+- `ctx.stopSound(id)` — stops a sound by ID
+- `ctx.playMusic(path, { volume?, loop? })` — plays a music track (loops by default), stops previous music
+- `ctx.stopMusic()` — stops current music
+- `ctx.setMasterVolume(volume)` — sets master volume (0–1) for all sounds and music
+- Handles browser autoplay policy by resuming `AudioContext` on first interaction
+- Asset paths are resolved via `resolveAsset()` — works in both dev and production
+
+### Script Raycasting
+
+- `ctx.raycast(origin, direction, maxDistance?)` — world-space ray for gameplay logic (shooting, LOS, ground detection)
+- Returns `RaycastHit | null` with `entityId`, `distance`, and world-space `point`
+- `RendererAdapter.raycastWorld()` — adapter method that casts from world-space origin/direction against entity meshes (no gizmos/helpers)
+- Three.js: transforms ray through `sceneRoot.matrixWorld` for z-up support, transforms hit point back
+- VoidCore: uses `Raycaster.set(origin, direction)` directly, walks hit node parents to find entity ID
+
 ### Coordinate System
 
 - `coordinateSystem` is set in `mana.json` (project-level) — not per-scene in YAML
@@ -172,8 +204,8 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 ## Script System
 
 - Scripts are TypeScript files in `game/scripts/` implementing `ManaScript`
-- Lifecycle methods: `init(ctx)`, `update(ctx)`, `fixedUpdate(ctx)`, `dispose()`
-- `ScriptContext` provides: `entity` (unknown), `scene` (unknown), `dt` (delta seconds), `time` (elapsed seconds), `rigidBody?` (unknown), `input` (Input), `params` (configured values)
+- Lifecycle methods: `init(ctx)`, `update(ctx)`, `fixedUpdate(ctx)`, `onCollisionEnter(ctx, other)`, `onCollisionExit(ctx, other)`, `dispose()`
+- `ScriptContext` provides: `entity` (unknown), `scene` (unknown), `dt` (delta seconds), `time` (elapsed seconds), `rigidBody?` (unknown), `input` (Input), `params` (configured values), audio methods (`playSound`, `playMusic`, `stopSound`, `stopMusic`, `setMasterVolume`), and `raycast(origin, direction, maxDistance?)`
 - `entity`, `scene`, and `rigidBody` are typed `unknown` — scripts cast them to the adapter-specific types they need (e.g. `ctx.entity as Object3D` when using `ThreeRendererAdapter`, `ctx.rigidBody as RapierRigidBody` when using `RapierPhysicsAdapter`)
 - Scripts can declare `params: Record<string, ScriptParamDef>` to expose editable parameters in the editor
 - `ScriptParamDef` has `type` (`'number' | 'string' | 'boolean'`) and `default` value

@@ -534,7 +534,10 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   ): import('../renderer-adapter.ts').RaycastHit | null {
     if (!this.sceneRoot) return null
 
-    this.raycaster.set([origin.x, origin.y, origin.z], [direction.x, direction.y, direction.z])
+    this.raycaster.set(
+      new Float32Array([origin.x, origin.y, origin.z]),
+      new Float32Array([direction.x, direction.y, direction.z]),
+    )
     const hitCount = this.raycaster.intersectObject(this.sceneRoot, true, this.raycastHits)
     if (hitCount === 0) return null
 

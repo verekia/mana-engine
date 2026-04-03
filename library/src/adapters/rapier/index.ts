@@ -192,7 +192,7 @@ export class RapierPhysicsAdapter implements PhysicsAdapter {
     if (rb && this.world) {
       // Clean up collider-to-entity mapping before removing the body
       for (let i = 0; i < rb.numColliders(); i++) {
-        this.colliderToEntity.delete(rb.collider(i))
+        this.colliderToEntity.delete(rb.collider(i).handle)
       }
       this.world.removeRigidBody(rb)
     }

@@ -241,16 +241,16 @@ export async function createScene(
       rigidBody: physicsAdapter?.getBody(entityId),
       input: inputVal,
       params,
-      playSound(path, options) {
+      playSound(path, opts) {
         if (!audio) return Promise.resolve('')
-        return audio.playSound(path, options)
+        return audio.playSound(path, opts)
       },
       stopSound(id) {
         audio?.stopSound(id)
       },
-      playMusic(path, options) {
+      playMusic(path, opts) {
         if (!audio) return Promise.resolve()
-        return audio.playMusic(path, options)
+        return audio.playMusic(path, opts)
       },
       stopMusic() {
         audio?.stopMusic()
