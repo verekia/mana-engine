@@ -836,9 +836,9 @@ export function RightPanel({
                         })
                       }
                     />
-                    <div className="flex items-center gap-2 pt-1 pl-1">
-                      <span className="w-24 shrink-0 text-xs text-neutral-400">Lock Rotation</span>
-                      <div className="flex gap-2">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4, paddingLeft: 4 }}>
+                      <span style={{ width: 96, flexShrink: 0, fontSize: 12, color: '#a3a3a3' }}>Lock Rotation</span>
+                      <div style={{ display: 'flex', gap: 8 }}>
                         {(['X', 'Y', 'Z'] as const).map((axis, i) => (
                           <CheckboxInput
                             key={axis}
