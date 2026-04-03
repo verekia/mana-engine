@@ -76,6 +76,20 @@ export interface ScriptContext {
    */
   off(event: string, callback: (data: unknown) => void): void
 
+  // ── Animation ───────────────────────────────────────────────────────────────
+
+  /**
+   * Play a named animation clip on this entity's model.
+   * @param name Animation clip name (from the GLTF file)
+   * @param options.loop Whether to loop (default true)
+   * @param options.crossFadeDuration Crossfade from current animation in seconds (default 0.3)
+   */
+  playAnimation(name: string, options?: { loop?: boolean; crossFadeDuration?: number }): void
+  /** Stop the currently playing animation on this entity. */
+  stopAnimation(): void
+  /** Get the names of all animation clips available on this entity's model. */
+  getAnimationNames(): string[]
+
   // ── Adapter-agnostic helpers ─────────────────────────────────────────────────
 
   /** Get this entity's current position. */

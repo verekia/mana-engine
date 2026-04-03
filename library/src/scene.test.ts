@@ -393,6 +393,10 @@ function createMockRenderer(): RendererAdapter {
     setEditorCamera: mock(() => {}),
     updateControls: mock(() => {}),
     render: mock(() => {}),
+    playAnimation: mock(() => {}),
+    stopAnimation: mock(() => {}),
+    getAnimationNames: mock(() => []),
+    updateAnimations: mock(() => {}),
   }
 }
 

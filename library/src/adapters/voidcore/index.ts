@@ -438,6 +438,14 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     }
   }
 
+  // Animation stubs — VoidCore does not support GLTF animation playback yet
+  playAnimation(_entityId: string, _name: string, _options?: { loop?: boolean; crossFadeDuration?: number }): void {}
+  stopAnimation(_entityId: string): void {}
+  getAnimationNames(_entityId: string): string[] {
+    return []
+  }
+  updateAnimations(_dt: number): void {}
+
   getEntityPosition(id: string): [number, number, number] | null {
     const node = this.entityNodes.get(id)
     if (!node) return null

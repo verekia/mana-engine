@@ -185,7 +185,12 @@ export function createThreeEntityObject(
   entity: SceneEntity,
   scene: Object3D,
   maps: ThreeEntityMaps,
-  options: { enableOrbitControls: boolean; showGizmos: boolean; renderer?: WebGPURenderer },
+  options: {
+    enableOrbitControls: boolean
+    showGizmos: boolean
+    renderer?: WebGPURenderer
+    onAnimationClips?: (entityId: string, clips: import('three/webgpu').AnimationClip[]) => void
+  },
 ): Object3D | null {
   let obj: Object3D | null = null
 
@@ -239,6 +244,9 @@ export function createThreeEntityObject(
                   applyModelMaterialOverride(group, entity.model.material, options.renderer)
                 }
                 applyShadowProps(group, entity)
+                if (gltf.animations.length > 0) {
+                  options.onAnimationClips?.(entity.id, gltf.animations)
+                }
               },
               undefined,
               err => console.warn(`[mana] Failed to load model "${modelSrc}":`, err),

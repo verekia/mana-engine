@@ -271,6 +271,16 @@ export async function createScene(
       rigidBody: physicsAdapter?.getBody(entityId),
       input: inputVal,
       params,
+      // Animation
+      playAnimation(name, opts) {
+        renderer.playAnimation(entityId, name, opts)
+      },
+      stopAnimation() {
+        renderer.stopAnimation(entityId)
+      },
+      getAnimationNames() {
+        return renderer.getAnimationNames(entityId)
+      },
       // Event bus
       emit(event, data) {
         const listeners = eventListeners.get(event)
@@ -499,6 +509,7 @@ export async function createScene(
 
     scriptInput?.endFrame()
 
+    renderer.updateAnimations(dt)
     renderer.updateControls()
     renderer.render()
   }
