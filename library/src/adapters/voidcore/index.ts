@@ -20,6 +20,8 @@ import {
   vec3Set,
 } from 'voidcore'
 
+import { TransformGizmo } from './transform-gizmo.ts'
+
 import type { SceneData, SceneEntity } from '../../scene-data.ts'
 import type { PhysicsTransform } from '../physics-adapter.ts'
 import type { RendererAdapter, RendererAdapterOptions, EditorCameraState, TransformMode } from '../renderer-adapter.ts'
@@ -118,11 +120,15 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   private raycaster = new Raycaster()
   private raycastHits = [createRaycastHit()]
   private selectedIds = new Set<string>()
+  private options!: RendererAdapterOptions
+  private transformGizmo: TransformGizmo | null = null
+  private currentTransformMode: TransformMode = 'translate'
   /** Outline thickness for selected entities. */
   private static readonly SELECTION_OUTLINE_THICKNESS = 0.1
   private static readonly SELECTION_OUTLINE_COLOR: [number, number, number] = [0.27, 0.53, 1]
 
   async init(canvas: HTMLCanvasElement, options: RendererAdapterOptions): Promise<void> {
+    this.options = options
     this.enableOrbitControls = options.orbitControls ?? false
 
     this.engine = await Engine.create(canvas, { shadows: true, bloom: false })
@@ -170,6 +176,8 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   }
 
   dispose(): void {
+    this.transformGizmo?.dispose()
+    this.transformGizmo = null
     this.observer?.disconnect()
     this.controls?.dispose()
     this.entityNodes.clear()
@@ -232,6 +240,33 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
       if (w > 0 && h > 0) {
         this.camera.aspect = w / h
       }
+    }
+
+    // Set up transform gizmo for editor mode
+    if (this.enableOrbitControls && !this.transformGizmo) {
+      const controls = this.controls
+      // Compute sceneRoot world matrix for coordinate conversion
+      this.scene.updateGraph()
+      this.transformGizmo = new TransformGizmo(
+        this.camera,
+        this.engine.canvas,
+        {
+          onTransformStart: this.options.onTransformStart,
+          onTransformChange: this.options.onTransformChange,
+          onTransformEnd: this.options.onTransformEnd,
+          disableOrbitControls: () => {
+            if (controls) controls.enabled = false
+          },
+          enableOrbitControls: () => {
+            if (controls) controls.enabled = true
+          },
+        },
+        this.isYUp,
+        this.sceneRoot._worldMatrix,
+      )
+      this.transformGizmo.setMode(this.currentTransformMode)
+      // Add gizmo to sceneRoot so it shares the same coordinate frame as entities
+      this.sceneRoot.add(this.transformGizmo.root)
     }
   }
 
@@ -484,9 +519,20 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     return null
   }
 
-  setTransformTarget(_id: string | null): void {}
+  setTransformTarget(id: string | null): void {
+    if (!this.transformGizmo) return
+    if (id) {
+      const node = this.entityNodes.get(id)
+      if (node) this.transformGizmo.attach(node, id)
+    } else {
+      this.transformGizmo.detach()
+    }
+  }
 
-  setTransformMode(_mode: TransformMode): void {}
+  setTransformMode(mode: TransformMode): void {
+    this.currentTransformMode = mode
+    this.transformGizmo?.setMode(mode)
+  }
 
   getEditorCamera(): EditorCameraState | null {
     if (!this.controls) return null
@@ -531,6 +577,7 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     const dt = now - this.lastFrameTime
     this.lastFrameTime = now
     this.controls.update(dt)
+    this.transformGizmo?.update()
   }
 
   render(): void {
