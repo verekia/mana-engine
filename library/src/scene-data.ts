@@ -85,6 +85,8 @@ export interface SceneEntity {
   scripts?: ScriptEntry[]
   rigidBody?: RigidBodyData
   collider?: ColliderData
+  /** Tags for grouping and querying entities (e.g. 'enemy', 'collectible'). */
+  tags?: string[]
   castShadow?: boolean
   receiveShadow?: boolean
   /** Child entities forming a hierarchy. */

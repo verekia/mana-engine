@@ -70,6 +70,12 @@ export interface ScriptContext {
   /** Find another entity by name and return its position, or null if not found. */
   findEntityPosition(name: string): { x: number; y: number; z: number } | null
   /**
+   * Find all entity IDs that have a given tag.
+   * @param tag The tag to search for (e.g. 'enemy', 'collectible')
+   * @returns Array of entity IDs matching the tag
+   */
+  findEntitiesByTag(tag: string): string[]
+  /**
    * Cast a ray from a world-space origin in a direction.
    * Returns the first entity hit with distance and hit point, or null.
    * Useful for shooting, line-of-sight checks, ground detection, etc.

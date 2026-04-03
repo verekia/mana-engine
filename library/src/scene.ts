@@ -195,9 +195,21 @@ export async function createScene(
 
   // Build name → id lookup for findEntityPosition
   const nameToId = new Map<string, string>()
+  // Build tag → entity IDs index for findEntitiesByTag
+  const tagIndex = new Map<string, Set<string>>()
   if (processedData) {
     for (const entity of flattenEntities(processedData.entities)) {
       nameToId.set(entity.name, entity.id)
+      if (entity.tags) {
+        for (const tag of entity.tags) {
+          let set = tagIndex.get(tag)
+          if (!set) {
+            set = new Set()
+            tagIndex.set(tag, set)
+          }
+          set.add(entity.id)
+        }
+      }
     }
   }
 
@@ -222,6 +234,10 @@ export async function createScene(
         nameToId.delete(name)
         break
       }
+    }
+    // Remove from tag index
+    for (const set of tagIndex.values()) {
+      set.delete(id)
     }
   }
 
@@ -278,6 +294,10 @@ export async function createScene(
         const p = renderer.getEntityPosition(id)
         return p ? { x: p[0], y: p[1], z: p[2] } : null
       },
+      findEntitiesByTag(tag) {
+        const set = tagIndex.get(tag)
+        return set ? [...set] : []
+      },
       raycast(origin, direction, maxDistance) {
         return renderer.raycastWorld(origin, direction, maxDistance)
       },
@@ -304,6 +324,17 @@ export async function createScene(
         for (const ent of allEntities) {
           renderer.addEntity(ent)
           nameToId.set(ent.name, ent.id)
+          // Index tags for newly instantiated entities
+          if (ent.tags) {
+            for (const tag of ent.tags) {
+              let set = tagIndex.get(tag)
+              if (!set) {
+                set = new Set()
+                tagIndex.set(tag, set)
+              }
+              set.add(ent.id)
+            }
+          }
 
           if (ent.rigidBody && physicsAdapter) {
             physicsAdapter.addEntity(ent, id => renderer.getEntityInitialPhysicsTransform(id))
