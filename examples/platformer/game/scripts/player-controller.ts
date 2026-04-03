@@ -59,7 +59,8 @@ export default {
     if (input.isKeyPressed('Space') && state.shootCooldown <= 0) {
       const pos = rigidBody.translation()
       const dir = state.playerFacingRight ? 1 : -1
-      ctx.instantiatePrefab('projectile', { x: pos.x + dir * 1, y: pos.y, z: 0 })
+      const rotY = state.playerFacingRight ? 0 : Math.PI
+      ctx.instantiatePrefab('projectile', { x: pos.x + dir * 1, y: pos.y, z: 0 }, { x: 0, y: rotY, z: 0 })
       state.shootCooldown = 0.4
     }
   },

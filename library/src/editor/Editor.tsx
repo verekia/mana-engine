@@ -553,11 +553,28 @@ export default function Editor({
   }, [])
 
   const handleAddEntity = useCallback((entity: SceneEntity) => {
+    const prefabRootId = editingPrefabRef.current ? prefabEntityIdRef.current : null
+
+    const addToTree = (entities: SceneEntity[]) => {
+      if (prefabRootId) {
+        const parent = findEntityInTree(entities, prefabRootId)
+        if (parent) {
+          if (!parent.entity.children) parent.entity.children = []
+          parent.entity.children.push(entity)
+          return entities
+        }
+      }
+      entities.push(entity)
+      return entities
+    }
+
     setSceneData(prev => {
       if (!prev) return prev
-      return { ...prev, entities: [...prev.entities, entity] }
+      const entities = structuredClone(prev.entities)
+      addToTree(entities)
+      return { ...prev, entities }
     })
-    sceneRef.current?.addEntity(entity)
+    sceneRef.current?.addEntity(entity, prefabRootId ?? undefined)
     setSelectedId(entity.id)
 
     historyRef.current.push({
@@ -576,9 +593,11 @@ export default function Editor({
       redo: () => {
         setSceneData(prev => {
           if (!prev) return prev
-          return { ...prev, entities: [...prev.entities, entity] }
+          const entities = structuredClone(prev.entities)
+          addToTree(entities)
+          return { ...prev, entities }
         })
-        sceneRef.current?.addEntity(entity)
+        sceneRef.current?.addEntity(entity, prefabRootId ?? undefined)
         setSelectedId(entity.id)
       },
     })
@@ -1086,6 +1105,7 @@ export default function Editor({
               onToggleVisibility={handleToggleEntityVisibility}
               onEditPrefab={handleEditPrefab}
               editingPrefab={editingPrefab}
+              prefabEntityId={prefabEntityIdRef.current}
               prefabRefreshKey={prefabRefreshKey}
               onPrefabListChanged={() => setAssetRefreshKey(k => k + 1)}
               prefabs={prefabs}

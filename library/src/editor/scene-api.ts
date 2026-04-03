@@ -84,7 +84,6 @@ export async function createPrefab(name: string): Promise<void> {
       name: name,
       type: 'mesh',
       transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
-      mesh: { geometry: 'box', material: { color: '#888888' } },
     },
   }
   await savePrefabData(name, data)

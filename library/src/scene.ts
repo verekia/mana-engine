@@ -13,7 +13,7 @@ export type { EditorCameraState, TransformMode } from './adapters/renderer-adapt
 export interface ManaScene {
   dispose(): void
   updateEntity(id: string, entity: SceneEntity): void
-  addEntity(entity: SceneEntity): void
+  addEntity(entity: SceneEntity, parentId?: string): void
   removeEntity(id: string): void
   setGizmos(enabled: boolean): void
   setSelectedObjects(ids: string[]): void
@@ -541,8 +541,8 @@ export async function createScene(
       physicsAdapter?.dispose()
       renderer.dispose()
     },
-    addEntity(entity: SceneEntity) {
-      renderer.addEntity(entity)
+    addEntity(entity: SceneEntity, parentId?: string) {
+      renderer.addEntity(entity, parentId)
     },
     removeEntity(id: string) {
       renderer.removeEntity(id)

@@ -557,6 +557,7 @@ export function LeftPanel({
   onToggleVisibility,
   onEditPrefab,
   editingPrefab,
+  prefabEntityId,
   prefabRefreshKey,
   onPrefabListChanged,
   prefabs,
@@ -583,6 +584,7 @@ export function LeftPanel({
   onToggleVisibility: (id: string) => void
   onEditPrefab?: (name: string) => void
   editingPrefab?: string | null
+  prefabEntityId?: string | null
   prefabRefreshKey?: number
   onPrefabListChanged?: () => void
   prefabs?: Record<string, PrefabData>
@@ -591,6 +593,8 @@ export function LeftPanel({
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [addMenuPos, setAddMenuPos] = useState<{ x: number; y: number } | null>(null)
   const addButtonRef = useRef<HTMLButtonElement>(null)
+  const prefabAddButtonRef = useRef<HTMLButtonElement>(null)
+  const [prefabAddMenuOpen, setPrefabAddMenuOpen] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entityId: string } | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -1048,199 +1052,153 @@ export function LeftPanel({
           {addMenuPos && (
             <AddEntityPopover position={addMenuPos} onAdd={onAddEntity} onClose={() => setAddMenuPos(null)} />
           )}
-
-          {/* Context menu */}
-          {contextMenu && (
-            <>
-              <div
-                onClick={() => setContextMenu(null)}
-                onContextMenu={e => {
-                  e.preventDefault()
-                  setContextMenu(null)
-                }}
-                style={{ position: 'fixed', inset: 0, zIndex: 1000 }}
-              />
-              <div
-                style={{
-                  position: 'fixed',
-                  left: contextMenu.x,
-                  top: contextMenu.y,
-                  background: COLORS.panel,
-                  border: `1px solid ${COLORS.border}`,
-                  borderRadius: 6,
-                  padding: '4px 0',
-                  zIndex: 1001,
-                  minWidth: 140,
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                }}
-              >
-                {[
-                  {
-                    label: 'Rename',
-                    action: () => {
-                      const found = sceneData ? findEntityInTree(sceneData.entities, contextMenu.entityId) : null
-                      if (found) {
-                        setRenamingId(found.entity.id)
-                        setRenameValue(found.entity.name)
-                      }
-                    },
-                  },
-                  {
-                    label: 'Duplicate',
-                    shortcut: `${MOD_KEY}+D`,
-                    action: () => onDuplicateEntity(contextMenu.entityId),
-                  },
-                  {
-                    label: 'Copy',
-                    shortcut: `${MOD_KEY}+C`,
-                    action: () => onCopyEntity(contextMenu.entityId),
-                  },
-                  ...(clipboard
-                    ? [
-                        {
-                          label: 'Paste as Child',
-                          shortcut: `${MOD_KEY}+V`,
-                          action: () => onPasteEntity(contextMenu.entityId),
-                        },
-                      ]
-                    : []),
-                  ...(() => {
-                    // Show "Unparent" if entity is nested (not at root)
-                    if (!sceneData) return []
-                    const isRoot = sceneData.entities.some(e => e.id === contextMenu.entityId)
-                    if (isRoot) return []
-                    return [
-                      {
-                        label: 'Unparent (Move to Root)',
-                        action: () => onMoveEntity(contextMenu.entityId, null, 'inside'),
-                      },
-                    ]
-                  })(),
-                ].map(item => (
-                  <button
-                    key={item.label}
-                    onClick={() => {
-                      item.action()
-                      setContextMenu(null)
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.background = COLORS.hover
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.background = 'transparent'
-                    }}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      width: '100%',
-                      padding: '5px 12px',
-                      background: 'transparent',
-                      border: 'none',
-                      color: COLORS.text,
-                      fontSize: 11,
-                      textAlign: 'left',
-                    }}
-                  >
-                    <span>{item.label}</span>
-                    {'shortcut' in item && (
-                      <span style={{ color: COLORS.textDim, fontSize: 10 }}>
-                        {(item as { shortcut: string }).shortcut}
-                      </span>
-                    )}
-                  </button>
-                ))}
-                <div style={{ height: 1, background: COLORS.border, margin: '4px 0' }} />
-                <button
-                  onClick={() => {
-                    onDeleteEntity(contextMenu.entityId)
-                    setContextMenu(null)
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(239,68,68,0.15)'
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'transparent'
-                  }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '5px 12px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: COLORS.danger,
-                    fontSize: 11,
-                    textAlign: 'left',
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
-            </>
-          )}
         </>
       )}
 
       {/* ── Prefabs tab ────────────────────────────────────────────────── */}
       {activeTab === 'prefabs' && (
         <>
-          {/* Prefab list */}
-          <div style={{ flex: 1, overflow: 'auto', padding: '4px 0' }}>
-            {prefabList.length === 0 ? (
-              <div style={{ padding: 10, color: COLORS.textMuted, fontSize: 11 }}>
-                No prefabs yet. Click + to create one.
+          {editingPrefab ? (
+            <>
+              {/* Prefab selector dropdown */}
+              <div
+                style={{
+                  padding: '6px 6px 2px',
+                  borderBottom: `1px solid ${COLORS.border}`,
+                  display: 'flex',
+                  gap: 4,
+                  flexShrink: 0,
+                }}
+              >
+                <select
+                  value={editingPrefab}
+                  onChange={e => {
+                    if (onEditPrefab) onEditPrefab(e.target.value)
+                  }}
+                  style={{
+                    ...INPUT_STYLE,
+                    flex: 1,
+                    fontSize: 12,
+                    padding: '3px 4px',
+                    borderColor: '#22c55e55',
+                  }}
+                >
+                  {prefabList.map(name => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
               </div>
-            ) : (
-              prefabList.map(name => {
-                const isEditing = editingPrefab === name
-                return (
-                  <div
-                    key={name}
-                    onDoubleClick={() => {
-                      if (onEditPrefab) onEditPrefab(name)
-                    }}
-                    onContextMenu={e => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setPrefabContextMenu({ x: e.clientX, y: e.clientY, name })
-                    }}
-                    style={{
-                      padding: '3px 8px 3px 10px',
-                      borderRadius: 4,
-                      margin: '0 4px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      color: isEditing ? COLORS.text : COLORS.textMuted,
-                      userSelect: 'none',
-                      fontSize: 12,
-                      background: isEditing ? '#1a3f1a' : 'transparent',
-                      border: isEditing ? '1px solid #22c55e55' : '1px solid transparent',
-                    }}
-                    onMouseEnter={e => {
-                      if (!isEditing) e.currentTarget.style.background = COLORS.hover
-                    }}
-                    onMouseLeave={e => {
-                      if (!isEditing) e.currentTarget.style.background = 'transparent'
-                    }}
-                  >
-                    {renamingPrefab === name ? (
-                      <input
-                        autoFocus
-                        value={prefabRenameValue}
-                        onFocus={e => e.target.select()}
-                        onChange={e => setPrefabRenameValue(e.target.value)}
-                        onBlur={() => {
-                          const v = prefabRenameValue.trim()
-                          if (v && v !== name && /^[a-zA-Z0-9_-]+$/.test(v)) {
-                            apiRenamePrefab(name, v).then(() => {
-                              loadPrefabs()
-                              onPrefabListChanged?.()
-                            })
-                          }
-                          setRenamingPrefab(null)
-                        }}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
+
+              {/* Prefab entity hierarchy */}
+              <div
+                style={{ flex: 1, overflow: 'auto', padding: '4px 0' }}
+                onContextMenu={e => {
+                  e.preventDefault()
+                  setAddMenuPos({ x: e.clientX, y: e.clientY })
+                }}
+              >
+                {(() => {
+                  if (!sceneData || !prefabEntityId) return null
+                  const prefabEntity = sceneData.entities.find(e => e.id === prefabEntityId)
+                  if (!prefabEntity) return null
+                  return renderEntityTree([prefabEntity], 0)
+                })()}
+              </div>
+
+              {/* Add object button */}
+              <div style={{ padding: '4px 6px', borderTop: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
+                <button
+                  ref={prefabAddButtonRef}
+                  onClick={() => {
+                    setAddMenuPos(null)
+                    setPrefabAddMenuOpen(s => !s)
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = COLORS.active
+                    e.currentTarget.style.color = COLORS.text
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = COLORS.hover
+                    e.currentTarget.style.color = COLORS.textMuted
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '4px 0',
+                    background: COLORS.hover,
+                    border: 'none',
+                    borderRadius: 4,
+                    color: COLORS.textMuted,
+                    fontSize: 11,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <IconPlus />
+                  Add Object
+                </button>
+              </div>
+
+              {prefabAddMenuOpen && (
+                <AddEntityPopover
+                  anchorRef={prefabAddButtonRef}
+                  onAdd={onAddEntity}
+                  onClose={() => setPrefabAddMenuOpen(false)}
+                />
+              )}
+
+              {addMenuPos && (
+                <AddEntityPopover position={addMenuPos} onAdd={onAddEntity} onClose={() => setAddMenuPos(null)} />
+              )}
+            </>
+          ) : (
+            <>
+              {/* Prefab list */}
+              <div style={{ flex: 1, overflow: 'auto', padding: '4px 0' }}>
+                {prefabList.length === 0 ? (
+                  <div style={{ padding: 10, color: COLORS.textMuted, fontSize: 11 }}>
+                    No prefabs yet. Click + to create one.
+                  </div>
+                ) : (
+                  prefabList.map(name => (
+                    <div
+                      key={name}
+                      onDoubleClick={() => {
+                        if (onEditPrefab) onEditPrefab(name)
+                      }}
+                      onContextMenu={e => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setPrefabContextMenu({ x: e.clientX, y: e.clientY, name })
+                      }}
+                      style={{
+                        padding: '3px 8px 3px 10px',
+                        borderRadius: 4,
+                        margin: '0 4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        color: COLORS.textMuted,
+                        userSelect: 'none',
+                        fontSize: 12,
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = COLORS.hover
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = 'transparent'
+                      }}
+                    >
+                      {renamingPrefab === name ? (
+                        <input
+                          autoFocus
+                          value={prefabRenameValue}
+                          onFocus={e => e.target.select()}
+                          onChange={e => setPrefabRenameValue(e.target.value)}
+                          onBlur={() => {
                             const v = prefabRenameValue.trim()
                             if (v && v !== name && /^[a-zA-Z0-9_-]+$/.test(v)) {
                               apiRenamePrefab(name, v).then(() => {
@@ -1249,73 +1207,85 @@ export function LeftPanel({
                               })
                             }
                             setRenamingPrefab(null)
-                          }
-                          if (e.key === 'Escape') setRenamingPrefab(null)
-                        }}
-                        onClick={e => e.stopPropagation()}
-                        style={{
-                          ...INPUT_STYLE,
-                          width: '100%',
-                          fontSize: 12,
-                          padding: '1px 4px',
-                          borderColor: '#22c55e',
-                          boxShadow: '0 0 0 1.5px #22c55e',
-                        }}
-                      />
-                    ) : (
-                      <>
-                        <span style={{ color: '#22c55e', display: 'flex', flexShrink: 0 }}>
-                          <IconPrefab />
-                        </span>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                          {name}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                )
-              })
-            )}
-          </div>
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              const v = prefabRenameValue.trim()
+                              if (v && v !== name && /^[a-zA-Z0-9_-]+$/.test(v)) {
+                                apiRenamePrefab(name, v).then(() => {
+                                  loadPrefabs()
+                                  onPrefabListChanged?.()
+                                })
+                              }
+                              setRenamingPrefab(null)
+                            }
+                            if (e.key === 'Escape') setRenamingPrefab(null)
+                          }}
+                          onClick={e => e.stopPropagation()}
+                          style={{
+                            ...INPUT_STYLE,
+                            width: '100%',
+                            fontSize: 12,
+                            padding: '1px 4px',
+                            borderColor: '#22c55e',
+                            boxShadow: '0 0 0 1.5px #22c55e',
+                          }}
+                        />
+                      ) : (
+                        <>
+                          <span style={{ color: '#22c55e', display: 'flex', flexShrink: 0 }}>
+                            <IconPrefab />
+                          </span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                            {name}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
 
-          {/* New prefab button */}
-          <div style={{ padding: '4px 6px', borderTop: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
-            <button
-              onClick={() => {
-                const name = prompt('New prefab name (letters, numbers, - and _ only):')
-                if (name && /^[a-zA-Z0-9_-]+$/.test(name)) {
-                  apiCreatePrefab(name).then(() => {
-                    loadPrefabs()
-                    onPrefabListChanged?.()
-                  })
-                }
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = COLORS.active
-                e.currentTarget.style.color = '#22c55e'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = COLORS.hover
-                e.currentTarget.style.color = COLORS.textMuted
-              }}
-              style={{
-                width: '100%',
-                padding: '4px 0',
-                background: COLORS.hover,
-                border: 'none',
-                borderRadius: 4,
-                color: COLORS.textMuted,
-                fontSize: 11,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 4,
-              }}
-            >
-              <IconPlus />
-              New Prefab
-            </button>
-          </div>
+              {/* New prefab button */}
+              <div style={{ padding: '4px 6px', borderTop: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
+                <button
+                  onClick={() => {
+                    const name = prompt('New prefab name (letters, numbers, - and _ only):')
+                    if (name && /^[a-zA-Z0-9_-]+$/.test(name)) {
+                      apiCreatePrefab(name).then(() => {
+                        loadPrefabs()
+                        onPrefabListChanged?.()
+                      })
+                    }
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = COLORS.active
+                    e.currentTarget.style.color = '#22c55e'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = COLORS.hover
+                    e.currentTarget.style.color = COLORS.textMuted
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '4px 0',
+                    background: COLORS.hover,
+                    border: 'none',
+                    borderRadius: 4,
+                    color: COLORS.textMuted,
+                    fontSize: 11,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <IconPlus />
+                  New Prefab
+                </button>
+              </div>
+            </>
+          )}
 
           {/* Prefab context menu */}
           {prefabContextMenu && (
@@ -1466,6 +1436,132 @@ export function LeftPanel({
               </div>
             </>
           )}
+        </>
+      )}
+
+      {/* ── Entity context menu (shared between scenes and prefab editing) ── */}
+      {contextMenu && (
+        <>
+          <div
+            onClick={() => setContextMenu(null)}
+            onContextMenu={e => {
+              e.preventDefault()
+              setContextMenu(null)
+            }}
+            style={{ position: 'fixed', inset: 0, zIndex: 1000 }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              left: contextMenu.x,
+              top: contextMenu.y,
+              background: COLORS.panel,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: 6,
+              padding: '4px 0',
+              zIndex: 1001,
+              minWidth: 140,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            }}
+          >
+            {[
+              {
+                label: 'Rename',
+                action: () => {
+                  const found = sceneData ? findEntityInTree(sceneData.entities, contextMenu.entityId) : null
+                  if (found) {
+                    setRenamingId(found.entity.id)
+                    setRenameValue(found.entity.name)
+                  }
+                },
+              },
+              {
+                label: 'Duplicate',
+                shortcut: `${MOD_KEY}+D`,
+                action: () => onDuplicateEntity(contextMenu.entityId),
+              },
+              {
+                label: 'Copy',
+                shortcut: `${MOD_KEY}+C`,
+                action: () => onCopyEntity(contextMenu.entityId),
+              },
+              ...(clipboard
+                ? [
+                    {
+                      label: 'Paste as Child',
+                      shortcut: `${MOD_KEY}+V`,
+                      action: () => onPasteEntity(contextMenu.entityId),
+                    },
+                  ]
+                : []),
+              ...(() => {
+                if (!sceneData) return []
+                const isRoot = sceneData.entities.some(e => e.id === contextMenu.entityId)
+                if (isRoot) return []
+                return [
+                  {
+                    label: 'Unparent (Move to Root)',
+                    action: () => onMoveEntity(contextMenu.entityId, null, 'inside'),
+                  },
+                ]
+              })(),
+            ].map(item => (
+              <button
+                key={item.label}
+                onClick={() => {
+                  item.action()
+                  setContextMenu(null)
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = COLORS.hover
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'transparent'
+                }}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                  padding: '5px 12px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: COLORS.text,
+                  fontSize: 11,
+                  textAlign: 'left',
+                }}
+              >
+                <span>{item.label}</span>
+                {'shortcut' in item && (
+                  <span style={{ color: COLORS.textDim, fontSize: 10 }}>{(item as { shortcut: string }).shortcut}</span>
+                )}
+              </button>
+            ))}
+            <div style={{ height: 1, background: COLORS.border, margin: '4px 0' }} />
+            <button
+              onClick={() => {
+                onDeleteEntity(contextMenu.entityId)
+                setContextMenu(null)
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(239,68,68,0.15)'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent'
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '5px 12px',
+                background: 'transparent',
+                border: 'none',
+                color: COLORS.danger,
+                fontSize: 11,
+                textAlign: 'left',
+              }}
+            >
+              Delete
+            </button>
+          </div>
         </>
       )}
     </div>

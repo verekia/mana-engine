@@ -2,9 +2,25 @@ entity:
   id: projectile
   name: Projectile
   type: mesh
-  transform: { scale: [0.2, 0.2, 0.2] }
-  mesh: { geometry: sphere, material: { color: '#ffaa00' } }
-  rigidBody: { type: dynamic, lockRotation: [true, true, true] }
-  collider: { shape: sphere, radius: 0.2 }
+  transform:
+    scale: [0.2, 0.2, 0.2]
+  mesh:
+    geometry: sphere
+    material: { color: '#ffaa00' }
+  rigidBody:
+    type: dynamic
+    lockRotation: [true, true, true]
+  collider:
+    shape: sphere
+    radius: 0.2
   castShadow: true
-  scripts: [{ name: projectile }]
+  scripts:
+    - { name: projectile }
+  children:
+    - {
+        id: ewlymowq,
+        name: Box,
+        type: mesh,
+        transform: { position: [4.075, 0, -1.102], rotation: [0, 0, 0], scale: [1.837, 1.837, 1.837] },
+        mesh: { geometry: box, material: { color: '#888888' } },
+      }

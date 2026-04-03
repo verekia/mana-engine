@@ -530,7 +530,7 @@ describe('createScene', () => {
 
     const entity: SceneEntity = { id: 'new', name: 'New', type: 'mesh' }
     scene.addEntity(entity)
-    expect(renderer.addEntity).toHaveBeenCalledWith(entity)
+    expect(renderer.addEntity).toHaveBeenCalledWith(entity, undefined)
 
     scene.removeEntity('new')
     expect(renderer.removeEntity).toHaveBeenCalledWith('new')
