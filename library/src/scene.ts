@@ -61,7 +61,7 @@ const FIXED_DT = 1 / 60
  * Resolve prefab references on entities. If an entity has a `prefab` field,
  * its properties are merged on top of the prefab's defaults (entity wins).
  */
-function resolvePrefabs(entities: SceneEntity[], prefabs: Record<string, PrefabData>): SceneEntity[] {
+export function resolvePrefabs(entities: SceneEntity[], prefabs: Record<string, PrefabData>): SceneEntity[] {
   return entities.map(entity => {
     let resolved = entity
     if (entity.prefab) {
@@ -91,7 +91,7 @@ function resolvePrefabs(entities: SceneEntity[], prefabs: Record<string, PrefabD
 }
 
 /** Assign unique IDs to all entities in a cloned prefab tree (root + children). */
-function assignUniqueIds(entity: SceneEntity, prefix: string): void {
+export function assignUniqueIds(entity: SceneEntity, prefix: string): void {
   entity.id = `${prefix}_${Math.random().toString(36).slice(2, 10)}`
   if (entity.children) {
     for (const child of entity.children) {
@@ -100,13 +100,13 @@ function assignUniqueIds(entity: SceneEntity, prefix: string): void {
   }
 }
 
-interface ActiveScript {
+export interface ActiveScript {
   script: ManaScript
   entityId: string
   params: Record<string, number | string | boolean>
 }
 
-function setupScripts(entities: SceneEntity[], scriptDefs: Record<string, ManaScript>): ActiveScript[] {
+export function setupScripts(entities: SceneEntity[], scriptDefs: Record<string, ManaScript>): ActiveScript[] {
   const activeScripts: ActiveScript[] = []
 
   for (const entity of entities) {
