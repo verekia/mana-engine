@@ -100,6 +100,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
   private options: RendererAdapterOptions = {}
   private enableOrbitControls = false
   private showGizmos = false
+  private _setTransformSpace: ((space: 'local' | 'world') => void) | null = null
 
   async init(canvas: HTMLCanvasElement, options: RendererAdapterOptions): Promise<void> {
     this.options = options
@@ -166,6 +167,9 @@ export class ThreeRendererAdapter implements RendererAdapter {
     const tc = new TransformControls(this.camera, canvas)
     this.threeScene.add(tc.getHelper())
     this.transformControlsRoot = tc.getHelper()
+    this._setTransformSpace = (space: 'local' | 'world') => {
+      tc.space = space
+    }
 
     tc.addEventListener('dragging-changed', event => {
       orbitControls.enabled = !event.value
@@ -283,7 +287,11 @@ export class ThreeRendererAdapter implements RendererAdapter {
     // Rotate sceneRoot so entities authored in the project's coordinate system render correctly.
     // Three.js is Y-up natively; a Z-up project rotates the root -90° around X so the visual
     // "up" axis matches without any per-entity coordinate conversion.
-    this.sceneRoot.rotation.x = sceneData.coordinateSystem === 'z-up' ? -Math.PI / 2 : 0
+    const isZUp = sceneData.coordinateSystem === 'z-up'
+    this.sceneRoot.rotation.x = isZUp ? -Math.PI / 2 : 0
+    // In z-up mode, use local space for TransformControls so gizmo axes align with
+    // scene axes (green=Y forward, blue=Z up) instead of Three.js world axes.
+    if (isZUp) this._setTransformSpace?.('local')
     this.gameCam = null
 
     const allEntities = flattenEntities(sceneData.entities)

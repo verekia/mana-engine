@@ -169,7 +169,7 @@ function closestPointOnAxis(
   const e = vec3Dot(rayDir, w)
   const denom = a * c - b * b
   if (Math.abs(denom) < 1e-10) return 0
-  return (b * e - c * d) / denom
+  return (c * d - b * e) / denom
 }
 
 /** Find the intersection of a ray with a plane defined by a point and normal. */
@@ -403,13 +403,13 @@ export class TransformGizmo {
     const q = quatCreate()
     const axisVec = vec3Create()
     if (axis === 0) {
-      // Rotate around Y by -90°
+      // Rotate around Y by +90° (takes +Z to +X)
       vec3Set(axisVec, 0, 1, 0)
-      quatFromAxisAngle(q, axisVec, -Math.PI / 2)
-    } else if (axis === 1) {
-      // Rotate around X by +90°
-      vec3Set(axisVec, 1, 0, 0)
       quatFromAxisAngle(q, axisVec, Math.PI / 2)
+    } else if (axis === 1) {
+      // Rotate around X by -90° (takes +Z to +Y)
+      vec3Set(axisVec, 1, 0, 0)
+      quatFromAxisAngle(q, axisVec, -Math.PI / 2)
     } else {
       // Identity - already along Z
       q[3] = 1
