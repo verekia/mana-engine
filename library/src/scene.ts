@@ -195,11 +195,28 @@ export async function createScene(
 
   // Build name → id lookup for findEntityPosition
   const nameToId = new Map<string, string>()
+  // Build tag → entity IDs index for findEntitiesByTag
+  const tagIndex = new Map<string, Set<string>>()
   if (processedData) {
     for (const entity of flattenEntities(processedData.entities)) {
       nameToId.set(entity.name, entity.id)
+      if (entity.tags) {
+        for (const tag of entity.tags) {
+          let set = tagIndex.get(tag)
+          if (!set) {
+            set = new Set()
+            tagIndex.set(tag, set)
+          }
+          set.add(entity.id)
+        }
+      }
     }
   }
+
+  // Event bus for script-to-script communication
+  const eventListeners = new Map<string, Set<(data: unknown) => void>>()
+  // Track listeners per entityId for auto-cleanup on destroy
+  const entityListeners = new Map<string, Array<{ event: string; callback: (data: unknown) => void }>>()
 
   // Mutable list of active scripts — grows when prefabs are instantiated, shrinks on destroy
   const activeScripts: ActiveScript[] = []
@@ -223,6 +240,18 @@ export async function createScene(
         break
       }
     }
+    // Remove from tag index
+    for (const set of tagIndex.values()) {
+      set.delete(id)
+    }
+    // Clean up event listeners registered by this entity's scripts
+    const listeners = entityListeners.get(id)
+    if (listeners) {
+      for (const { event, callback } of listeners) {
+        eventListeners.get(event)?.delete(callback)
+      }
+      entityListeners.delete(id)
+    }
   }
 
   /** Build a ScriptContext with adapter-agnostic helpers. */
@@ -242,6 +271,44 @@ export async function createScene(
       rigidBody: physicsAdapter?.getBody(entityId),
       input: inputVal,
       params,
+      // Animation
+      playAnimation(name, opts) {
+        renderer.playAnimation(entityId, name, opts)
+      },
+      stopAnimation() {
+        renderer.stopAnimation(entityId)
+      },
+      getAnimationNames() {
+        return renderer.getAnimationNames(entityId)
+      },
+      // Event bus
+      emit(event, data) {
+        const listeners = eventListeners.get(event)
+        if (listeners) {
+          for (const cb of listeners) cb(data)
+        }
+      },
+      on(event, callback) {
+        let set = eventListeners.get(event)
+        if (!set) {
+          set = new Set()
+          eventListeners.set(event, set)
+        }
+        set.add(callback)
+        // Track for auto-cleanup
+        let tracked = entityListeners.get(entityId)
+        if (!tracked) {
+          tracked = []
+          entityListeners.set(entityId, tracked)
+        }
+        tracked.push({ event, callback })
+        return () => {
+          set?.delete(callback)
+        }
+      },
+      off(event, callback) {
+        eventListeners.get(event)?.delete(callback)
+      },
       playSound(path, opts) {
         if (!audio) return Promise.resolve('')
         return audio.playSound(path, opts)
@@ -278,6 +345,10 @@ export async function createScene(
         const p = renderer.getEntityPosition(id)
         return p ? { x: p[0], y: p[1], z: p[2] } : null
       },
+      findEntitiesByTag(tag) {
+        const set = tagIndex.get(tag)
+        return set ? [...set] : []
+      },
       raycast(origin, direction, maxDistance) {
         return renderer.raycastWorld(origin, direction, maxDistance)
       },
@@ -304,6 +375,17 @@ export async function createScene(
         for (const ent of allEntities) {
           renderer.addEntity(ent)
           nameToId.set(ent.name, ent.id)
+          // Index tags for newly instantiated entities
+          if (ent.tags) {
+            for (const tag of ent.tags) {
+              let set = tagIndex.get(tag)
+              if (!set) {
+                set = new Set()
+                tagIndex.set(tag, set)
+              }
+              set.add(ent.id)
+            }
+          }
 
           if (ent.rigidBody && physicsAdapter) {
             physicsAdapter.addEntity(ent, id => renderer.getEntityInitialPhysicsTransform(id))
@@ -427,6 +509,7 @@ export async function createScene(
 
     scriptInput?.endFrame()
 
+    renderer.updateAnimations(dt)
     renderer.updateControls()
     renderer.render()
   }

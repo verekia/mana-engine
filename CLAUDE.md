@@ -19,6 +19,7 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 ### RendererAdapter (`library/src/adapters/renderer-adapter.ts`)
 
 - Defines all rendering operations: `init`, `loadScene`, `addEntity`, `removeEntity`, `updateEntity`, `setEntityVisible`, `setEntityPhysicsTransform`, `getEntityInitialPhysicsTransform`, `getEntityNativeObject`, `getNativeScene`, `setEntityScale`
+- Animation: `playAnimation`, `stopAnimation`, `getAnimationNames`, `updateAnimations` — GLTF animation clip playback with crossfade
 - Editor-specific: `setGizmos`, `setSelectedEntities`, `raycast`, `setTransformTarget`, `setTransformMode`, `getEditorCamera`, `setEditorCamera`
 - Implementations live in `library/src/adapters/<name>/index.ts`
 
@@ -85,6 +86,41 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - `CollisionInfo` contains `entityId` (of the other entity) and `sensor` boolean
 - Both sides of a collision pair receive callbacks — if entity A hits entity B, both A's and B's scripts are notified
 
+### Physics Material Properties
+
+- `ColliderData.friction` (number, default 0.5) — friction coefficient (0 = frictionless, 1 = high friction)
+- `ColliderData.restitution` (number, default 0) — bounciness (0 = no bounce, 1 = perfectly elastic)
+- Rapier: applied via `colliderDesc.setFriction()` / `colliderDesc.setRestitution()` on collider creation
+- Crashcat: applied directly as `body.friction` / `body.restitution` properties after body creation
+- Editor inspector shows Friction and Restitution number inputs in the Collider section
+
+### Entity Tags
+
+- `SceneEntity.tags` is an optional `string[]` field for grouping entities (e.g. `['enemy', 'damageable']`)
+- Tags are indexed in `scene.ts` via a `tagIndex: Map<string, Set<string>>` for fast lookup
+- `ctx.findEntitiesByTag(tag)` returns all entity IDs with that tag
+- Tag index is updated when entities are instantiated from prefabs and cleaned up on entity destruction
+- Editor inspector has a Tags section with chip-style display and an input field to add new tags
+
+### Script Event Bus
+
+- `ctx.emit(event, data?)` broadcasts a named event to all listeners across all scripts
+- `ctx.on(event, callback)` subscribes to a named event; returns an unsubscribe function
+- `ctx.off(event, callback)` removes a specific listener
+- Event listeners are tracked per-entity and automatically cleaned up when the entity is destroyed
+- Implemented via `eventListeners: Map<string, Set<callback>>` and `entityListeners: Map<entityId, Array<{event, callback}>>` in `scene.ts`
+
+### Animation System
+
+- `ctx.playAnimation(name, { loop?, crossFadeDuration? })` plays a named GLTF animation clip on the entity's model
+- `ctx.stopAnimation()` stops all animations on the entity
+- `ctx.getAnimationNames()` returns the names of all available animation clips
+- Three.js adapter: uses `AnimationMixer` per entity, `AnimationClip` storage from GLTF loading, crossfade between animations via `fadeIn`/`fadeOut`
+- VoidCore adapter: stub implementations (no GLTF animation support yet)
+- `RendererAdapter.updateAnimations(dt)` is called once per frame to advance all active mixers
+- Animation clips are captured during GLTF model loading via `onAnimationClips` callback
+- Mixers and clips are cleaned up on entity removal
+
 ### Audio System
 
 - `Audio` class in `audio.ts` wraps the Web Audio API with buffer caching
@@ -137,7 +173,7 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - Scenes are YAML files in `scenes/` (e.g., `main-menu.yaml`, `first-world.yaml`)
 - YAML is used for authoring; at build time a Vite plugin (`yamlPlugin`) transforms `.yaml` imports into JSON so `js-yaml` stays out of the production bundle
 - Each scene has a `background` color and an `entities` array
-- Entity types: `camera`, `mesh`, `model`, `directional-light`, `ambient-light`, `point-light`, `ui`
+- Entity types: `camera`, `mesh`, `model`, `directional-light`, `ambient-light`, `point-light`, `ui`, `audio`
 - UI entities reference React components by name via `ui: { component: ComponentName }`
 - Entities can have `scripts: [scriptName]` to attach behavior scripts
 - The `Game` component in the library manages scene switching via `ManaContext`
@@ -158,6 +194,16 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - **Entity destruction** — `ctx.destroyEntity(id)` removes an entity from the renderer, physics simulation, and active scripts; works for both scene entities and runtime-instantiated prefab instances
 - **Prefab instances in scenes** — Entities can reference a prefab by name via the `prefab` field on `SceneEntity`; at runtime, `scene.ts` resolves prefab references by merging the prefab's entity definition with per-instance overrides (position, rotation, etc.); the editor shows prefab instances with a green icon and "Prefab: name" label in the inspector
 - **Nested entities** — `SceneEntity` has an optional `children: SceneEntity[]` field for multi-entity hierarchies; children are flattened before being processed by renderers, physics, and scripts; prefabs can contain children for complex multi-part entities
+
+## Materials & Textures
+
+### Audio Entities
+
+- `AudioData` in `scene-data.ts` defines `src` (asset path), `volume` (0–1, default 1), `loop` (boolean, default false)
+- Audio entities have a speaker-icon gizmo helper in the Three.js adapter (concentric sphere wireframes)
+- Editor inspector shows Source, Volume, and Loop controls for audio entities
+- Audio entities can be created via the Add Entity menu or by dragging audio files from the asset browser
+- VoidCore adapter: audio entities are skipped (no visual representation yet)
 
 ## Materials & Textures
 
@@ -206,7 +252,7 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 
 - Scripts are TypeScript files in `game/scripts/` implementing `ManaScript`
 - Lifecycle methods: `init(ctx)`, `update(ctx)`, `fixedUpdate(ctx)`, `onCollisionEnter(ctx, other)`, `onCollisionExit(ctx, other)`, `dispose()`
-- `ScriptContext` provides: `entityId` (string), `entity` (unknown), `scene` (unknown), `dt` (delta seconds), `time` (elapsed seconds), `rigidBody?` (unknown), `input` (Input), `params` (configured values), audio methods (`playSound`, `playMusic`, `stopSound`, `stopMusic`, `setMasterVolume`), and `raycast(origin, direction, maxDistance?)`
+- `ScriptContext` provides: `entityId` (string), `entity` (unknown), `scene` (unknown), `dt` (delta seconds), `time` (elapsed seconds), `rigidBody?` (unknown), `input` (Input), `params` (configured values), audio methods (`playSound`, `playMusic`, `stopSound`, `stopMusic`, `setMasterVolume`), `raycast(origin, direction, maxDistance?)`, `findEntitiesByTag(tag)`, event bus (`emit`, `on`, `off`), and animation (`playAnimation`, `stopAnimation`, `getAnimationNames`)
 - `entity`, `scene`, and `rigidBody` are typed `unknown` — scripts cast them to the adapter-specific types they need (e.g. `ctx.entity as Object3D` when using `ThreeRendererAdapter`, `ctx.rigidBody as RapierRigidBody` when using `RapierPhysicsAdapter`)
 - Scripts can declare `params: Record<string, ScriptParamDef>` to expose editable parameters in the editor
 - `ScriptParamDef` has `type` (`'number' | 'string' | 'boolean'`) and `default` value
@@ -216,6 +262,9 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - `ctx.instantiatePrefab(name, position?)` creates a new entity from a prefab at runtime, returns the entity ID; physics bodies and scripts on the prefab are auto-initialized
 - `ctx.destroyEntity(id)` removes an entity from the renderer, physics, and scripts at runtime
 - `ctx.setScale(x, y, z)` sets the entity's scale
+- `ctx.findEntitiesByTag(tag)` returns all entity IDs with a given tag (e.g. `'enemy'`, `'collectible'`)
+- `ctx.emit(event, data?)` / `ctx.on(event, cb)` / `ctx.off(event, cb)` — script-to-script event bus with auto-cleanup on entity destruction
+- `ctx.playAnimation(name, { loop?, crossFadeDuration? })` / `ctx.stopAnimation()` / `ctx.getAnimationNames()` — GLTF animation playback with crossfade support
 - Scripts are auto-discovered from `scripts/` directory by the CLI — no manual registration needed
 - Scripts only run during gameplay (dev/prod/editor play mode), NOT in editor edit mode
 
@@ -242,8 +291,27 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - `basisTranscoderPlugin` serves Three.js basis transcoder files at `/__mana/basis/` for KTX2 decoding
 - Scene names are validated to only contain `[a-zA-Z0-9_-]` characters (prevents path traversal)
 - Scene selector dropdown to switch between scenes
-- Hierarchy panel shows entities from the active scene; click to select
-- Inspector panel shows editable properties (transform, camera, material, light, UI component, scripts)
+- Hierarchy panel shows entities from the active scene as a collapsible tree; click to select
+- Entity hierarchy supports nesting (parent/child relationships via `children` on `SceneEntity`)
+  - Indented rows with collapse/expand triangles; collapsed state persisted to localStorage
+  - Drag-and-drop reordering: drop above/below to reorder, drop on center to reparent as child
+  - Root-level drop target at bottom of entity list
+- Copy/paste/duplicate:
+  - Ctrl+C / Cmd+C copies the selected entity (with children) to clipboard
+  - Ctrl+V / Cmd+V pastes clipboard as child of selected entity, or at root if nothing selected
+  - Ctrl+D / Cmd+D duplicates the selected entity in-place (inserted after original in same parent)
+  - Delete / Backspace deletes the selected entity and all children
+- Context menu (right-click entity): Rename, Duplicate, Copy, Paste as Child, Unparent (move to root), Delete
+- Entity tree helpers in `scene-data.ts`: `findEntityInTree`, `removeEntityFromTree`, `cloneEntity`, `mapEntityTree`
+- All entity operations (add, delete, rename, update, transform) are tree-aware via these helpers
+- Asset drag-and-drop from bottom panel into viewport:
+  - Prefab files (`.prefab.yaml`) → spawn as prefab instance entity
+  - 3D models (`.gltf`, `.glb`) → create model entity
+  - Audio files (`.mp3`, `.wav`, `.ogg`, `.flac`) → create audio entity
+  - Textures (`.png`, `.jpg`, `.ktx2`, etc.) dropped onto a mesh/model → apply as material map
+  - Asset items in BottomPanel set `application/mana-asset` drag data with `{ path, ext }`
+  - Viewport accepts drops, raycasts to find entity under cursor for texture application
+- Inspector panel shows editable properties (transform, camera, material, light, audio, UI component, scripts)
 - Cmd+S / Ctrl+S saves the current scene to disk
 - Play/Stop toolbar buttons toggle play mode:
   - Edit mode: editor manages its own canvas, scripts don't run, UI overlay has `pointerEvents: none`

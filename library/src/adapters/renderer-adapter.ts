@@ -121,6 +121,26 @@ export interface RendererAdapter {
    */
   getNativeScene(): unknown
 
+  // ── Animation ───────────────────────────────────────────────────────────────
+
+  /**
+   * Play a named animation clip on an entity's model.
+   * Only applies to 'model' entities with embedded GLTF animations.
+   */
+  playAnimation(entityId: string, name: string, options?: { loop?: boolean; crossFadeDuration?: number }): void
+
+  /** Stop the currently playing animation on an entity. */
+  stopAnimation(entityId: string): void
+
+  /** Get the names of all animation clips available on an entity's model. */
+  getAnimationNames(entityId: string): string[]
+
+  /**
+   * Advance all active animation mixers by dt seconds.
+   * Called once per frame by the scene loop.
+   */
+  updateAnimations(dt: number): void
+
   // ── Script helpers ──────────────────────────────────────────────────────────
 
   /**

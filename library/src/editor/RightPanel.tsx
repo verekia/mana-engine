@@ -119,6 +119,8 @@ function entityTypeLabel(type: SceneEntity['type']): string {
       return 'Point Light'
     case 'ui':
       return 'UI Component'
+    case 'audio':
+      return 'Audio'
   }
 }
 
@@ -139,6 +141,66 @@ function MaterialEditor({ material, onChange }: { material: MaterialData; onChan
         />
       ))}
     </>
+  )
+}
+
+function TagsEditor({ tags, onChange }: { tags: string[]; onChange: (tags: string[]) => void }) {
+  const [newTag, setNewTag] = useState('')
+
+  return (
+    <div style={{ padding: '2px 0' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+        {tags.map(tag => (
+          <span
+            key={tag}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 2,
+              background: COLORS.hover,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: 3,
+              padding: '1px 5px',
+              fontSize: 10,
+              color: COLORS.text,
+            }}
+          >
+            {tag}
+            <button
+              onClick={() => onChange(tags.filter(t => t !== tag))}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: COLORS.textDim,
+                padding: '0 1px',
+                fontSize: 10,
+                lineHeight: 1,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <IconClose />
+            </button>
+          </span>
+        ))}
+      </div>
+      <input
+        type="text"
+        placeholder="Add tag..."
+        value={newTag}
+        onChange={e => setNewTag(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && newTag.trim()) {
+            const trimmed = newTag.trim()
+            if (!tags.includes(trimmed)) {
+              onChange([...tags, trimmed])
+            }
+            setNewTag('')
+          }
+        }}
+        style={{ ...INPUT_STYLE, width: '100%', fontSize: 10 }}
+      />
+    </div>
   )
 }
 
@@ -275,6 +337,13 @@ function getAddComponentOptions(
     options.push({
       label: 'Collider',
       action: () => onUpdate({ ...entity, collider: colliderForGeo() }),
+    })
+  }
+
+  if (!entity.audio) {
+    options.push({
+      label: 'Audio',
+      action: () => onUpdate({ ...entity, audio: { src: '', volume: 1, loop: false } }),
     })
   }
 
@@ -421,6 +490,7 @@ export function RightPanel({
   // Collect active section names for this entity
   const activeSections: string[] = []
   if (entity) {
+    activeSections.push('tags')
     if (entity.transform) activeSections.push('transform')
     if (entity.camera) activeSections.push('camera')
     if (entity.mesh) activeSections.push('mesh')
@@ -568,6 +638,15 @@ export function RightPanel({
               </>
             )}
 
+            {/* Tags */}
+            <SectionLabel {...s('tags')}>Tags</SectionLabel>
+            {!collapsed.has('tags') && (
+              <TagsEditor
+                tags={entity.tags ?? []}
+                onChange={tags => onUpdate({ ...entity, tags: tags.length > 0 ? tags : undefined })}
+              />
+            )}
+
             {/* Camera */}
             {entity.camera && (
               <>
@@ -687,6 +766,48 @@ export function RightPanel({
                       if (model) onUpdate({ ...entity, model: { ...model, material: mat } })
                     }}
                   />
+                )}
+              </>
+            )}
+
+            {/* Audio */}
+            {entity.audio && (
+              <>
+                <SectionLabel {...s('audio')}>Audio</SectionLabel>
+                {!collapsed.has('audio') && (
+                  <>
+                    <TextInput
+                      label="Source"
+                      value={entity.audio.src ?? ''}
+                      onChange={v =>
+                        onUpdate({
+                          ...entity,
+                          audio: { src: v, volume: entity.audio?.volume, loop: entity.audio?.loop },
+                        })
+                      }
+                    />
+                    <NumberInput
+                      label="Volume"
+                      value={entity.audio.volume ?? 1}
+                      step={0.05}
+                      onChange={v =>
+                        onUpdate({
+                          ...entity,
+                          audio: { src: entity.audio?.src ?? '', volume: v, loop: entity.audio?.loop },
+                        })
+                      }
+                    />
+                    <CheckboxInput
+                      label="Loop"
+                      value={entity.audio.loop ?? false}
+                      onChange={v =>
+                        onUpdate({
+                          ...entity,
+                          audio: { src: entity.audio?.src ?? '', volume: entity.audio?.volume, loop: v },
+                        })
+                      }
+                    />
+                  </>
                 )}
               </>
             )}
@@ -929,6 +1050,24 @@ export function RightPanel({
                       onChange={v => {
                         const shape = entity.collider?.shape ?? 'box'
                         onUpdate({ ...entity, collider: { shape, ...entity.collider, sensor: v } })
+                      }}
+                    />
+                    <NumberInput
+                      label="Friction"
+                      value={entity.collider.friction ?? 0.5}
+                      step={0.05}
+                      onChange={v => {
+                        const shape = entity.collider?.shape ?? 'box'
+                        onUpdate({ ...entity, collider: { shape, ...entity.collider, friction: v } })
+                      }}
+                    />
+                    <NumberInput
+                      label="Restitution"
+                      value={entity.collider.restitution ?? 0}
+                      step={0.05}
+                      onChange={v => {
+                        const shape = entity.collider?.shape ?? 'box'
+                        onUpdate({ ...entity, collider: { shape, ...entity.collider, restitution: v } })
                       }}
                     />
                   </>

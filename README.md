@@ -31,6 +31,9 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 - **Script parameters** — Declare typed params (`number`, `string`, `boolean`) with defaults, editable in the editor
 - **Fixed timestep** — `fixedUpdate` runs at 60Hz with accumulator for deterministic physics
 - **World-space raycasting** — `ctx.raycast(origin, direction)` for shooting, line-of-sight, ground detection
+- **Entity tags** — Add `tags: ['enemy', 'collectible']` to entities, query with `ctx.findEntitiesByTag('enemy')`
+- **Event bus** — Cross-script communication via `ctx.emit('player-died', data)`, `ctx.on('player-died', cb)`, `ctx.off('player-died', cb)` with auto-cleanup on entity destruction
+- **Animation playback** — `ctx.playAnimation('walk')`, `ctx.stopAnimation()`, `ctx.getAnimationNames()` for GLTF skeletal animations with crossfade support
 - **ScriptContext** — Provides `entityId`, `entity`, `scene`, `dt`, `time`, `rigidBody`, `input`, `params`
 
 ### Input System
@@ -48,6 +51,7 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 - **Sensor/trigger volumes** — Colliders with `sensor: true` detect overlaps without physical response
 - **Collision events** — `onCollisionEnter`/`onCollisionExit` callbacks on scripts, works with both adapters
 - **Rotation locking** — Per-axis `[x, y, z]` rotation lock on rigid bodies
+- **Physics materials** — Per-collider `friction` (0–1) and `restitution` (0–1) for ice floors, bouncy pads, etc.
 - **Independent physics** — Physics steps even without scripts attached to entities
 
 ### Audio
@@ -76,21 +80,23 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 
 ### Editor (`mana editor`)
 
-- **Hierarchy panel** — Entity tree with selection, right-click context menu (rename, delete)
+- **Hierarchy panel** — Collapsible entity tree with parent/child nesting, drag-drop reordering and reparenting, right-click context menu (rename, duplicate, copy, paste, unparent, delete)
 - **Inspector panel** — Editable properties for transform, camera, mesh, light, UI, rigid body, collider, and scripts
 - **Viewport** — Live 3D preview with raycast-based entity selection and orbit controls
 - **Asset browser** — Bottom panel file browser for `assets/` with folder navigation, type icons, previews (images, KTX2, audio), and path copying
+- **Asset drag-and-drop** — Drag prefabs, models, audio files into the viewport to create entities; drag textures onto meshes to apply them
 - **Scene selector** — Dropdown to switch between scene files
 - **Play/Stop mode** — Toggle between editing and running the game with full interactivity
 - **Save hotkey** — Cmd+S / Ctrl+S saves the current scene to disk
-- **Add Entity menu** — Presets for empty, camera, box, sphere, plane, cylinder, capsule, and lights
+- **Add Entity menu** — Presets for empty, camera, box, sphere, plane, cylinder, capsule, lights, and audio
 - **Add Component menu** — Attach rigid body, collider, or scripts to entities
 - **Selection outline** — Blue outline highlighting for selected entities
-- **Gizmo helpers** — Camera, directional light, and point light helpers visible in edit mode
+- **Gizmo helpers** — Camera, directional light, point light, and audio helpers visible in edit mode
 - **Collider wireframe gizmos** — Visible in editor edit mode
 - **UI overlay toggle** — Show/hide React UI components in the viewport
 - **Transform gizmos** — Translate (W), rotate (E), scale (R) gizmos for manipulating entities in the viewport
 - **Undo/redo** — Cmd+Z / Ctrl+Shift+Z with full action history for transforms, entity operations, and property changes
+- **Copy/paste/duplicate** — Ctrl+C/V/D for entity clipboard operations, Delete/Backspace to remove entities
 
 ### Build & Runtime
 
@@ -172,6 +178,13 @@ These APIs work identically regardless of which renderer or physics adapter is a
 | `ctx.playMusic(path)`          | Done   | Play looping music (stops previous)              |
 | `ctx.stopMusic()`              | Done   | Stop current music                               |
 | `ctx.setMasterVolume(vol)`     | Done   | Set master volume (0–1)                          |
+| `ctx.findEntitiesByTag(tag)`   | Done   | Find all entity IDs with a given tag             |
+| `ctx.emit(event, data?)`       | Done   | Emit event to all listeners                      |
+| `ctx.on(event, callback)`      | Done   | Subscribe to events (auto-cleanup on destroy)    |
+| `ctx.off(event, callback)`     | Done   | Unsubscribe from events                          |
+| `ctx.playAnimation(name)`      | Done   | Play GLTF animation clip (with crossfade)        |
+| `ctx.stopAnimation()`          | Done   | Stop current animation                           |
+| `ctx.getAnimationNames()`      | Done   | List available animation clips                   |
 
 ### Adapter-Agnostic Physics API (`ManaRigidBody`)
 
@@ -197,11 +210,9 @@ Exposed via `ctx.rigidBody` — works with both Rapier and Crashcat:
 These features are not yet implemented in the shared abstraction or any adapter:
 
 - **Joint/constraint system** — Hinge, ball, fixed, prismatic joints between bodies
-- **Mass/density/restitution/friction** — Per-collider physics material properties
 - **Cylinder collider** — Supported as a geometry but not as a collider shape
 - **Standard/PBR material** — Roughness, metalness, normal maps (only Lambert exists)
 - **Spot light** — Cone-shaped light source
-- **Animation system** — Keyframe and skeletal animation playback
 - **Positional audio** — 3D spatialized sound sources attached to entities
 
 ## Quick Start
@@ -268,6 +279,7 @@ entities:
     type: mesh
     transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }
     mesh: { geometry: box, material: { color: '#4488ff' } }
+    tags: [interactive]
     scripts: [{ name: rotate }]
   - id: health-bar
     name: Health Bar
@@ -296,7 +308,7 @@ export default {
 - `fixedUpdate(ctx)` — Called at fixed 60Hz (for physics)
 - `dispose()` — Called on scene cleanup
 
-`ScriptContext` provides: `entityId` (the entity's ID string), `entity` (native renderer object), `scene`, `dt` (seconds), `time` (elapsed seconds), `input` (keyboard/mouse state), `rigidBody` (adapter-agnostic physics body), plus helpers like `getPosition()`, `setPosition()`, `setRotation()`, `setScale()`, `findEntityPosition()`, `instantiatePrefab()`, and `destroyEntity()`.
+`ScriptContext` provides: `entityId` (the entity's ID string), `entity` (native renderer object), `scene`, `dt` (seconds), `time` (elapsed seconds), `input` (keyboard/mouse state), `rigidBody` (adapter-agnostic physics body), plus helpers like `getPosition()`, `setPosition()`, `setRotation()`, `setScale()`, `findEntityPosition()`, `findEntitiesByTag()`, `instantiatePrefab()`, `destroyEntity()`, `emit()`/`on()`/`off()` for cross-script events, and `playAnimation()`/`stopAnimation()`/`getAnimationNames()` for GLTF animations.
 
 ## Scene Switching
 
@@ -315,13 +327,14 @@ export default function MainMenu() {
 
 The built-in editor (`mana editor`) provides:
 
-- **Hierarchy panel** — Scene entity tree with selection
+- **Hierarchy panel** — Collapsible entity tree with nesting, drag-drop reordering and reparenting
 - **Inspector panel** — Editable properties (transform, material, light, camera, scripts)
 - **Viewport** — Live 3D preview with UI overlay
 - **Asset browser** — Browse `game/assets/` with folder navigation and path copying
 - **Scene selector** — Switch between scene files
 - **Play/Stop** — Toggle play mode to test the game with full interactivity
 - **Cmd+S / Ctrl+S** — Save scene changes to disk
+- **Copy/paste/duplicate** — Ctrl+C/V/D for entity clipboard operations, Delete/Backspace to remove
 
 ## Stack
 
@@ -338,7 +351,6 @@ Features not yet implemented that would enhance the engine:
 - **Terrain** — Heightmap-based terrain generation
 - **Networking** — Multiplayer state synchronization
 - **Multi-select** — Select and manipulate multiple entities at once in the editor
-- **Copy/paste entities** — Duplicate entities within and across scenes
 - **Editor camera bookmarks** — Save and restore camera positions
 - **Script hot reload** — Update scripts without restarting play mode
 - **Custom shaders** — User-defined shader materials

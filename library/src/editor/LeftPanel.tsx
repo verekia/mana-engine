@@ -1,8 +1,10 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 
+import { findEntityInTree } from '../scene-data.ts'
 import { COLORS, INPUT_STYLE } from './colors.ts'
 import {
   IconAmbientLight,
+  IconAudio,
   IconCamera,
   IconChevronDown,
   IconDirectionalLight,
@@ -22,6 +24,23 @@ import {
 
 import type { PrefabData, SceneData, SceneEntity } from '../scene-data.ts'
 
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
+const MOD_KEY = isMac ? '\u2318' : 'Ctrl'
+
+const LS_COLLAPSED_KEY = 'mana:hierarchyCollapsed'
+
+function loadCollapsedEntities(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(LS_COLLAPSED_KEY) ?? '[]'))
+  } catch {
+    return new Set()
+  }
+}
+
+function saveCollapsedEntities(set: Set<string>) {
+  localStorage.setItem(LS_COLLAPSED_KEY, JSON.stringify([...set]))
+}
+
 function entityTypeIcon(type: SceneEntity['type']): React.ReactNode {
   switch (type) {
     case 'camera':
@@ -38,6 +57,8 @@ function entityTypeIcon(type: SceneEntity['type']): React.ReactNode {
       return <IconPointLight />
     case 'ui':
       return <IconUI />
+    case 'audio':
+      return <IconAudio />
   }
 }
 
@@ -176,6 +197,18 @@ const ADD_OBJECT_OPTIONS: { label: string; category: string; icon: React.ReactNo
       light: { color: '#ffffff', intensity: 0.3 },
     }),
   },
+  {
+    label: 'Audio',
+    category: 'General',
+    icon: <IconAudio />,
+    create: () => ({
+      id: generateId(),
+      name: 'Audio',
+      type: 'audio',
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      audio: { src: '', volume: 1, loop: false },
+    }),
+  },
 ]
 
 function AddEntityPopover({
@@ -291,10 +324,13 @@ function AddEntityPopover({
 
 const EntityRow = memo(function EntityRow({
   entity,
+  depth,
   isSelected,
   isHidden,
   isRenaming,
   renameValue,
+  isCollapsed,
+  hasChildren,
   onSelect,
   onDoubleClick,
   onContextMenu,
@@ -302,12 +338,20 @@ const EntityRow = memo(function EntityRow({
   onRenameChange,
   onRenameCommit,
   onRenameCancel,
+  onToggleCollapse,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  dropIndicator,
 }: {
   entity: SceneEntity
+  depth: number
   isSelected: boolean
   isHidden: boolean
   isRenaming: boolean
   renameValue: string
+  isCollapsed: boolean
+  hasChildren: boolean
   onSelect: () => void
   onDoubleClick: () => void
   onContextMenu: (e: React.MouseEvent) => void
@@ -315,24 +359,38 @@ const EntityRow = memo(function EntityRow({
   onRenameChange: (value: string) => void
   onRenameCommit: () => void
   onRenameCancel: () => void
+  onToggleCollapse: () => void
+  onDragStart: (e: React.DragEvent) => void
+  onDragOver: (e: React.DragEvent) => void
+  onDrop: (e: React.DragEvent) => void
+  dropIndicator: 'above' | 'below' | 'inside' | null
 }) {
+  const indent = 10 + depth * 14
   return (
     <div
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
       onClick={onSelect}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
       style={{
-        padding: '3px 8px 3px 10px',
+        padding: `3px 8px 3px ${indent}px`,
         borderRadius: 4,
         margin: '0 4px',
         display: 'flex',
         alignItems: 'center',
-        gap: 6,
+        gap: 4,
         background: isSelected ? COLORS.selected : 'transparent',
         borderLeft: isSelected ? `2px solid ${COLORS.accent}` : '2px solid transparent',
         color: isSelected ? COLORS.text : COLORS.textMuted,
         userSelect: 'none',
         fontSize: 12,
+        position: 'relative',
+        borderTop: dropIndicator === 'above' ? '2px solid #4488ff' : undefined,
+        borderBottom: dropIndicator === 'below' ? '2px solid #4488ff' : undefined,
+        outline: dropIndicator === 'inside' ? '1px solid #4488ff' : undefined,
       }}
       onMouseEnter={e => {
         if (!isSelected) e.currentTarget.style.background = COLORS.hover
@@ -341,6 +399,34 @@ const EntityRow = memo(function EntityRow({
         if (!isSelected) e.currentTarget.style.background = 'transparent'
       }}
     >
+      {/* Collapse toggle */}
+      <span
+        onClick={e => {
+          e.stopPropagation()
+          if (hasChildren) onToggleCollapse()
+        }}
+        style={{
+          width: 12,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: hasChildren ? 'pointer' : 'default',
+          color: COLORS.textDim,
+        }}
+      >
+        {hasChildren && (
+          <svg
+            width={8}
+            height={8}
+            viewBox="0 0 8 8"
+            fill="currentColor"
+            style={{ transform: isCollapsed ? 'rotate(-90deg)' : undefined, transition: 'transform 0.1s' }}
+          >
+            <path d="M1 2l3 3 3-3z" />
+          </svg>
+        )}
+      </span>
       {isRenaming ? (
         <input
           autoFocus
@@ -450,6 +536,11 @@ export function LeftPanel({
   onAddEntity,
   onDeleteEntity,
   onRenameEntity,
+  onDuplicateEntity,
+  onCopyEntity,
+  onPasteEntity,
+  onMoveEntity,
+  clipboard,
   hiddenEntities,
   onToggleVisibility,
   onEditPrefab,
@@ -471,6 +562,11 @@ export function LeftPanel({
   onAddEntity: (entity: SceneEntity) => void
   onDeleteEntity: (id: string) => void
   onRenameEntity: (id: string, name: string) => void
+  onDuplicateEntity: (id: string) => void
+  onCopyEntity: (id: string) => void
+  onPasteEntity: (parentId: string | null) => void
+  onMoveEntity: (entityId: string, targetId: string | null, position: 'before' | 'after' | 'inside') => void
+  clipboard: SceneEntity | null
   hiddenEntities: Set<string>
   onToggleVisibility: (id: string) => void
   onEditPrefab?: (name: string) => void
@@ -495,6 +591,20 @@ export function LeftPanel({
   const [prefabContextMenu, setPrefabContextMenu] = useState<{ x: number; y: number; name: string } | null>(null)
   const [renamingPrefab, setRenamingPrefab] = useState<string | null>(null)
   const [prefabRenameValue, setPrefabRenameValue] = useState('')
+  const [collapsedEntities, setCollapsedEntities] = useState<Set<string>>(loadCollapsedEntities)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [dropPosition, setDropPosition] = useState<'above' | 'below' | 'inside' | null>(null)
+  const dragSourceId = useRef<string | null>(null)
+
+  const toggleCollapsed = useCallback((id: string) => {
+    setCollapsedEntities(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      saveCollapsedEntities(next)
+      return next
+    })
+  }, [])
 
   const loadPrefabs = useCallback(() => {
     fetchPrefabList().then(setPrefabList)
@@ -517,6 +627,83 @@ export function LeftPanel({
       setActiveTab('scenes')
     }
   }, [editingPrefab])
+
+  function renderEntityTree(entities: SceneEntity[], depth: number): React.ReactNode[] {
+    const rows: React.ReactNode[] = []
+    for (const entity of entities) {
+      const hasChildren = !!(entity.children && entity.children.length > 0)
+      const isCollapsed = collapsedEntities.has(entity.id)
+      rows.push(
+        <EntityRow
+          key={entity.id}
+          entity={entity}
+          depth={depth}
+          isSelected={selectedId === entity.id}
+          isHidden={hiddenEntities.has(entity.id)}
+          isRenaming={renamingId === entity.id}
+          renameValue={renamingId === entity.id ? renameValue : ''}
+          isCollapsed={isCollapsed}
+          hasChildren={hasChildren}
+          onSelect={() => onSelect(entity.id)}
+          onDoubleClick={() => {
+            setRenamingId(entity.id)
+            setRenameValue(entity.name)
+          }}
+          onContextMenu={e => {
+            e.preventDefault()
+            e.stopPropagation()
+            onSelect(entity.id)
+            setContextMenu({ x: e.clientX, y: e.clientY, entityId: entity.id })
+          }}
+          onToggleVisibility={() => onToggleVisibility(entity.id)}
+          onRenameChange={setRenameValue}
+          onRenameCommit={() => {
+            if (renameValue.trim()) onRenameEntity(entity.id, renameValue.trim())
+            setRenamingId(null)
+          }}
+          onRenameCancel={() => setRenamingId(null)}
+          onToggleCollapse={() => toggleCollapsed(entity.id)}
+          onDragStart={e => {
+            dragSourceId.current = entity.id
+            e.dataTransfer.effectAllowed = 'move'
+          }}
+          onDragOver={e => {
+            e.preventDefault()
+            e.stopPropagation()
+            if (dragSourceId.current === entity.id) return
+            const rect = e.currentTarget.getBoundingClientRect()
+            const y = e.clientY - rect.top
+            const h = rect.height
+            if (y < h * 0.25) {
+              setDropPosition('above')
+            } else if (y > h * 0.75) {
+              setDropPosition('below')
+            } else {
+              setDropPosition('inside')
+            }
+            setDragOverId(entity.id)
+          }}
+          onDrop={e => {
+            e.preventDefault()
+            e.stopPropagation()
+            const sourceId = dragSourceId.current
+            if (sourceId && sourceId !== entity.id && dropPosition) {
+              const mapped = dropPosition === 'above' ? 'before' : dropPosition === 'below' ? 'after' : 'inside'
+              onMoveEntity(sourceId, entity.id, mapped)
+            }
+            dragSourceId.current = null
+            setDragOverId(null)
+            setDropPosition(null)
+          }}
+          dropIndicator={dragOverId === entity.id ? dropPosition : null}
+        />,
+      )
+      if (hasChildren && !isCollapsed) {
+        rows.push(...renderEntityTree(entity.children ?? [], depth + 1))
+      }
+    }
+    return rows
+  }
 
   return (
     <div
@@ -771,41 +958,37 @@ export function LeftPanel({
               setAddMenuOpen(false)
               setAddMenuPos({ x: e.clientX, y: e.clientY })
             }}
+            onDragOver={e => {
+              e.preventDefault()
+              // Only show root indicator if not over any entity row
+              if (e.target === e.currentTarget) {
+                setDragOverId('__root')
+                setDropPosition('inside')
+              }
+            }}
+            onDragLeave={() => {
+              setDragOverId(null)
+              setDropPosition(null)
+            }}
+            onDrop={e => {
+              e.preventDefault()
+              const sourceId = dragSourceId.current
+              if (sourceId && dragOverId === '__root') {
+                onMoveEntity(sourceId, null, 'inside')
+              }
+              dragSourceId.current = null
+              setDragOverId(null)
+              setDropPosition(null)
+            }}
             style={{
               flex: 1,
               overflow: 'auto',
               padding: '4px 0',
+              borderBottom: dragOverId === '__root' ? '2px solid #4488ff' : undefined,
             }}
           >
             {sceneData ? (
-              sceneData.entities.map(entity => (
-                <EntityRow
-                  key={entity.id}
-                  entity={entity}
-                  isSelected={selectedId === entity.id}
-                  isHidden={hiddenEntities.has(entity.id)}
-                  isRenaming={renamingId === entity.id}
-                  renameValue={renamingId === entity.id ? renameValue : ''}
-                  onSelect={() => onSelect(entity.id)}
-                  onDoubleClick={() => {
-                    setRenamingId(entity.id)
-                    setRenameValue(entity.name)
-                  }}
-                  onContextMenu={e => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    onSelect(entity.id)
-                    setContextMenu({ x: e.clientX, y: e.clientY, entityId: entity.id })
-                  }}
-                  onToggleVisibility={() => onToggleVisibility(entity.id)}
-                  onRenameChange={setRenameValue}
-                  onRenameCommit={() => {
-                    if (renameValue.trim()) onRenameEntity(entity.id, renameValue.trim())
-                    setRenamingId(null)
-                  }}
-                  onRenameCancel={() => setRenamingId(null)}
-                />
-              ))
+              renderEntityTree(sceneData.entities, 0)
             ) : (
               <div style={{ padding: 10, color: COLORS.textMuted, fontSize: 11 }}>Loading...</div>
             )}
@@ -875,38 +1058,86 @@ export function LeftPanel({
                   borderRadius: 6,
                   padding: '4px 0',
                   zIndex: 1001,
-                  minWidth: 120,
+                  minWidth: 140,
                   boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
                 }}
               >
-                <button
-                  onClick={() => {
-                    const entity = sceneData?.entities.find(e => e.id === contextMenu.entityId)
-                    if (entity) {
-                      setRenamingId(entity.id)
-                      setRenameValue(entity.name)
-                    }
-                    setContextMenu(null)
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = COLORS.hover
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'transparent'
-                  }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '5px 12px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: COLORS.text,
-                    fontSize: 11,
-                    textAlign: 'left',
-                  }}
-                >
-                  Rename
-                </button>
+                {[
+                  {
+                    label: 'Rename',
+                    action: () => {
+                      const found = sceneData ? findEntityInTree(sceneData.entities, contextMenu.entityId) : null
+                      if (found) {
+                        setRenamingId(found.entity.id)
+                        setRenameValue(found.entity.name)
+                      }
+                    },
+                  },
+                  {
+                    label: 'Duplicate',
+                    shortcut: `${MOD_KEY}+D`,
+                    action: () => onDuplicateEntity(contextMenu.entityId),
+                  },
+                  {
+                    label: 'Copy',
+                    shortcut: `${MOD_KEY}+C`,
+                    action: () => onCopyEntity(contextMenu.entityId),
+                  },
+                  ...(clipboard
+                    ? [
+                        {
+                          label: 'Paste as Child',
+                          shortcut: `${MOD_KEY}+V`,
+                          action: () => onPasteEntity(contextMenu.entityId),
+                        },
+                      ]
+                    : []),
+                  ...(() => {
+                    // Show "Unparent" if entity is nested (not at root)
+                    if (!sceneData) return []
+                    const isRoot = sceneData.entities.some(e => e.id === contextMenu.entityId)
+                    if (isRoot) return []
+                    return [
+                      {
+                        label: 'Unparent (Move to Root)',
+                        action: () => onMoveEntity(contextMenu.entityId, null, 'inside'),
+                      },
+                    ]
+                  })(),
+                ].map(item => (
+                  <button
+                    key={item.label}
+                    onClick={() => {
+                      item.action()
+                      setContextMenu(null)
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = COLORS.hover
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'transparent'
+                    }}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      width: '100%',
+                      padding: '5px 12px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: COLORS.text,
+                      fontSize: 11,
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span>{item.label}</span>
+                    {'shortcut' in item && (
+                      <span style={{ color: COLORS.textDim, fontSize: 10 }}>
+                        {(item as { shortcut: string }).shortcut}
+                      </span>
+                    )}
+                  </button>
+                ))}
+                <div style={{ height: 1, background: COLORS.border, margin: '4px 0' }} />
                 <button
                   onClick={() => {
                     onDeleteEntity(contextMenu.entityId)

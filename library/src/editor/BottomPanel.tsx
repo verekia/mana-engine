@@ -420,6 +420,15 @@ export function BottomPanel({
               return (
                 <div
                   key={entry.name}
+                  draggable={entry.type === 'file'}
+                  onDragStart={e => {
+                    if (entry.type !== 'file') return
+                    e.dataTransfer.setData(
+                      'application/mana-asset',
+                      JSON.stringify({ path: filePath, ext: entry.ext ?? '' }),
+                    )
+                    e.dataTransfer.effectAllowed = 'copy'
+                  }}
                   onClick={() => handleClick(entry)}
                   onDoubleClick={() => handleDoubleClick(entry)}
                   style={{

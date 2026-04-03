@@ -57,6 +57,39 @@ export interface ScriptContext {
   /** Set master volume (0–1) for all sounds and music. */
   setMasterVolume(volume: number): void
 
+  // ── Event bus ────────────────────────────────────────────────────────────────
+
+  /**
+   * Emit a named event to all listeners across all scripts.
+   * @param event Event name (e.g. 'player-died', 'coin-collected')
+   * @param data Optional payload data
+   */
+  emit(event: string, data?: unknown): void
+  /**
+   * Subscribe to a named event. The callback fires whenever any script emits that event.
+   * Listeners are automatically cleaned up when the script is disposed.
+   * @returns An unsubscribe function
+   */
+  on(event: string, callback: (data: unknown) => void): () => void
+  /**
+   * Remove a specific listener for a named event.
+   */
+  off(event: string, callback: (data: unknown) => void): void
+
+  // ── Animation ───────────────────────────────────────────────────────────────
+
+  /**
+   * Play a named animation clip on this entity's model.
+   * @param name Animation clip name (from the GLTF file)
+   * @param options.loop Whether to loop (default true)
+   * @param options.crossFadeDuration Crossfade from current animation in seconds (default 0.3)
+   */
+  playAnimation(name: string, options?: { loop?: boolean; crossFadeDuration?: number }): void
+  /** Stop the currently playing animation on this entity. */
+  stopAnimation(): void
+  /** Get the names of all animation clips available on this entity's model. */
+  getAnimationNames(): string[]
+
   // ── Adapter-agnostic helpers ─────────────────────────────────────────────────
 
   /** Get this entity's current position. */
@@ -69,6 +102,12 @@ export interface ScriptContext {
   setScale(x: number, y: number, z: number): void
   /** Find another entity by name and return its position, or null if not found. */
   findEntityPosition(name: string): { x: number; y: number; z: number } | null
+  /**
+   * Find all entity IDs that have a given tag.
+   * @param tag The tag to search for (e.g. 'enemy', 'collectible')
+   * @returns Array of entity IDs matching the tag
+   */
+  findEntitiesByTag(tag: string): string[]
   /**
    * Cast a ray from a world-space origin in a direction.
    * Returns the first entity hit with distance and hit point, or null.

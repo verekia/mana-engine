@@ -185,7 +185,12 @@ export function createThreeEntityObject(
   entity: SceneEntity,
   scene: Object3D,
   maps: ThreeEntityMaps,
-  options: { enableOrbitControls: boolean; showGizmos: boolean; renderer?: WebGPURenderer },
+  options: {
+    enableOrbitControls: boolean
+    showGizmos: boolean
+    renderer?: WebGPURenderer
+    onAnimationClips?: (entityId: string, clips: import('three/webgpu').AnimationClip[]) => void
+  },
 ): Object3D | null {
   let obj: Object3D | null = null
 
@@ -239,6 +244,9 @@ export function createThreeEntityObject(
                   applyModelMaterialOverride(group, entity.model.material, options.renderer)
                 }
                 applyShadowProps(group, entity)
+                if (gltf.animations.length > 0) {
+                  options.onAnimationClips?.(entity.id, gltf.animations)
+                }
               },
               undefined,
               err => console.warn(`[mana] Failed to load model "${modelSrc}":`, err),
@@ -290,6 +298,28 @@ export function createThreeEntityObject(
       const light = new AmbientLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 0.3)
       scene.add(light)
       obj = light
+      break
+    }
+    case 'audio': {
+      const audioGroup = new Group()
+      applyTransform(audioGroup, entity.transform)
+      scene.add(audioGroup)
+      obj = audioGroup
+      // Speaker icon helper — two concentric ring outlines around a small sphere
+      const helperGroup = new Group()
+      const helperMat = new LineBasicMaterial({ color: 0xe99444, depthTest: false })
+      const center = new Mesh(new SphereGeometry(0.12, 8, 8), new MeshLambertMaterial({ color: 0xe99444 }))
+      helperGroup.add(center)
+      // Inner ring
+      const innerRing = new LineSegments(new EdgesGeometry(new SphereGeometry(0.3, 16, 8)), helperMat)
+      helperGroup.add(innerRing)
+      // Outer ring
+      const outerRing = new LineSegments(new EdgesGeometry(new SphereGeometry(0.5, 16, 8)), helperMat)
+      helperGroup.add(outerRing)
+      applyTransform(helperGroup, entity.transform)
+      helperGroup.visible = options.showGizmos
+      scene.add(helperGroup)
+      maps.gizmoHelpers.set(entity.id, helperGroup)
       break
     }
   }
