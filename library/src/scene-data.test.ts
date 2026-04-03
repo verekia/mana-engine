@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
+import { flattenEntities } from './scene-data.ts'
+
 import type { ColliderData, SceneData, SceneEntity } from './scene-data.ts'
 
 describe('SceneData types', () => {
@@ -55,12 +57,10 @@ describe('SceneData types', () => {
     const box: ColliderData = { shape: 'box', halfExtents: [1, 1, 1] }
     const sphere: ColliderData = { shape: 'sphere', radius: 0.5 }
     const capsule: ColliderData = { shape: 'capsule', radius: 0.3, halfHeight: 0.5 }
-    const cylinder: ColliderData = { shape: 'cylinder', radius: 0.5, halfHeight: 1 }
 
     expect(box.halfExtents).toEqual([1, 1, 1])
     expect(sphere.radius).toBe(0.5)
     expect(capsule.halfHeight).toBe(0.5)
-    expect(cylinder.radius).toBe(0.5)
   })
 
   test('all entity types are representable', () => {
@@ -77,5 +77,83 @@ describe('SceneData types', () => {
       const entity: SceneEntity = { id: `test-${type}`, name: type, type }
       expect(entity.type).toBe(type)
     }
+  })
+})
+
+describe('flattenEntities', () => {
+  test('returns flat array unchanged', () => {
+    const entities: SceneEntity[] = [
+      { id: 'a', name: 'A', type: 'mesh' },
+      { id: 'b', name: 'B', type: 'mesh' },
+    ]
+    const result = flattenEntities(entities)
+    expect(result).toHaveLength(2)
+    expect(result[0].id).toBe('a')
+    expect(result[1].id).toBe('b')
+  })
+
+  test('returns empty array for empty input', () => {
+    expect(flattenEntities([])).toEqual([])
+  })
+
+  test('flattens one level of children', () => {
+    const entities: SceneEntity[] = [
+      {
+        id: 'parent',
+        name: 'Parent',
+        type: 'mesh',
+        children: [
+          { id: 'child1', name: 'Child 1', type: 'mesh' },
+          { id: 'child2', name: 'Child 2', type: 'mesh' },
+        ],
+      },
+    ]
+    const result = flattenEntities(entities)
+    expect(result).toHaveLength(3)
+    expect(result.map(e => e.id)).toEqual(['parent', 'child1', 'child2'])
+  })
+
+  test('flattens deeply nested children', () => {
+    const entities: SceneEntity[] = [
+      {
+        id: 'root',
+        name: 'Root',
+        type: 'mesh',
+        children: [
+          {
+            id: 'mid',
+            name: 'Mid',
+            type: 'mesh',
+            children: [{ id: 'leaf', name: 'Leaf', type: 'mesh' }],
+          },
+        ],
+      },
+    ]
+    const result = flattenEntities(entities)
+    expect(result).toHaveLength(3)
+    expect(result.map(e => e.id)).toEqual(['root', 'mid', 'leaf'])
+  })
+
+  test('handles mix of entities with and without children', () => {
+    const entities: SceneEntity[] = [
+      { id: 'solo', name: 'Solo', type: 'mesh' },
+      {
+        id: 'parent',
+        name: 'Parent',
+        type: 'mesh',
+        children: [{ id: 'child', name: 'Child', type: 'mesh' }],
+      },
+      { id: 'another', name: 'Another', type: 'mesh' },
+    ]
+    const result = flattenEntities(entities)
+    expect(result).toHaveLength(4)
+    expect(result.map(e => e.id)).toEqual(['solo', 'parent', 'child', 'another'])
+  })
+
+  test('handles entities with empty children array', () => {
+    const entities: SceneEntity[] = [{ id: 'a', name: 'A', type: 'mesh', children: [] }]
+    const result = flattenEntities(entities)
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('a')
   })
 })

@@ -24,7 +24,7 @@ function DragNumberInput({
       ref={inputRef}
       type="text"
       inputMode="decimal"
-      value={value}
+      value={Math.round(value * 1000) / 1000}
       onChange={e => {
         const parsed = Number.parseFloat(e.target.value)
         if (!Number.isNaN(parsed)) onChange(parsed)

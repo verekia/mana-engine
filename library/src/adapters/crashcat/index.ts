@@ -30,11 +30,6 @@ function ensureRegistered() {
   }
 }
 
-// Object layers for the two-tier broadphase
-const BROADPHASE_LAYER = 0
-const LAYER_STATIC = 0
-const LAYER_DYNAMIC = 1
-
 export type CrashcatRigidBody = RigidBody
 export type CrashcatWorld = World
 
@@ -97,6 +92,26 @@ function createManaRigidBody(
   }
 }
 
+/** Create a Crashcat shape from collider data, falling back to a unit box. */
+function createShape(entity: SceneEntity) {
+  if (entity.collider) {
+    switch (entity.collider.shape) {
+      case 'sphere':
+        return sphere.create({ radius: entity.collider.radius ?? 0.5 })
+      case 'capsule':
+        return capsule.create({
+          halfHeightOfCylinder: entity.collider.halfHeight ?? 0.5,
+          radius: entity.collider.radius ?? 0.5,
+        })
+      default: {
+        const he = entity.collider.halfExtents ?? [0.5, 0.5, 0.5]
+        return box.create({ halfExtents: [he[0], he[1], he[2]] })
+      }
+    }
+  }
+  return box.create({ halfExtents: [0.5, 0.5, 0.5] })
+}
+
 /**
  * PhysicsAdapter implementation backed by Crashcat.
  *
@@ -115,6 +130,59 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
   private staticLayer = 0
   private dynamicLayer = 1
 
+  /** Create a rigid body for an entity and register it in all maps. */
+  private _createBody(entity: SceneEntity, getInitialTransform: (id: string) => PhysicsTransform | null): void {
+    if (!entity.rigidBody) return
+
+    const initial = getInitialTransform(entity.id)
+    const px = initial?.position[0] ?? 0
+    const py = initial?.position[1] ?? 0
+    const pz = initial?.position[2] ?? 0
+    const qx = initial?.quaternion[0] ?? 0
+    const qy = initial?.quaternion[1] ?? 0
+    const qz = initial?.quaternion[2] ?? 0
+    const qw = initial?.quaternion[3] ?? 1
+
+    let motionType: MotionType
+    let objectLayer: number
+    switch (entity.rigidBody.type) {
+      case 'fixed':
+        motionType = MotionType.STATIC
+        objectLayer = this.staticLayer
+        break
+      case 'kinematic':
+        motionType = MotionType.KINEMATIC
+        objectLayer = this.dynamicLayer
+        break
+      default:
+        motionType = MotionType.DYNAMIC
+        objectLayer = this.dynamicLayer
+    }
+
+    let allowedDOF: number | undefined
+    if (entity.rigidBody.lockRotation) {
+      const [lx, ly, lz] = entity.rigidBody.lockRotation
+      allowedDOF = dof(true, true, true, !lx, !ly, !lz)
+    }
+
+    const body = rigidBody.create(this.world, {
+      shape: createShape(entity),
+      motionType,
+      objectLayer,
+      position: [px, py, pz],
+      quaternion: [qx, qy, qz, qw],
+      ...(allowedDOF !== undefined ? { allowedDegreesOfFreedom: allowedDOF } : {}),
+    })
+
+    this.bodyMap.set(entity.id, body)
+    this.originalMotionType.set(entity.id, motionType)
+    this.manaBodyMap.set(entity.id, createManaRigidBody(this.world, body, entity.id, this.originalMotionType))
+
+    if (motionType !== MotionType.STATIC) {
+      this.dynamicBodies.push({ id: entity.id, body })
+    }
+  }
+
   async init(sceneData: SceneData, getInitialTransform: (id: string) => PhysicsTransform | null): Promise<void> {
     const allEntities = flattenEntities(sceneData.entities)
     const hasPhysics = allEntities.some(e => e.rigidBody)
@@ -122,7 +190,6 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
 
     ensureRegistered()
 
-    // ── World setup ────────────────────────────────────────────────────────────
     const settings = createWorldSettings()
 
     const bpLayer = addBroadphaseLayer(settings)
@@ -131,100 +198,12 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
     enableCollision(settings, staticLayer, dynamicLayer)
     enableCollision(settings, dynamicLayer, dynamicLayer)
 
-    // Silence TS — we want consistent named constants even if unused post-setup
-    void BROADPHASE_LAYER
-    void LAYER_STATIC
-    void LAYER_DYNAMIC
-
     this.staticLayer = staticLayer
     this.dynamicLayer = dynamicLayer
     this.world = createWorld(settings)
 
-    // ── Entity bodies ──────────────────────────────────────────────────────────
     for (const entity of allEntities) {
-      if (!entity.rigidBody) continue
-
-      const initial = getInitialTransform(entity.id)
-      const px = initial?.position[0] ?? 0
-      const py = initial?.position[1] ?? 0
-      const pz = initial?.position[2] ?? 0
-      const qx = initial?.quaternion[0] ?? 0
-      const qy = initial?.quaternion[1] ?? 0
-      const qz = initial?.quaternion[2] ?? 0
-      const qw = initial?.quaternion[3] ?? 1
-
-      // ── Motion type ────────────────────────────────────────────────────────
-      let motionType: MotionType
-      let objectLayer: number
-      switch (entity.rigidBody.type) {
-        case 'fixed':
-          motionType = MotionType.STATIC
-          objectLayer = staticLayer
-          break
-        case 'kinematic':
-          motionType = MotionType.KINEMATIC
-          objectLayer = dynamicLayer
-          break
-        default:
-          motionType = MotionType.DYNAMIC
-          objectLayer = dynamicLayer
-      }
-
-      // ── DOF / rotation lock ────────────────────────────────────────────────
-      let allowedDOF: number | undefined
-      if (entity.rigidBody.lockRotation) {
-        const [lx, ly, lz] = entity.rigidBody.lockRotation
-        allowedDOF = dof(true, true, true, !lx, !ly, !lz)
-      }
-
-      // ── Shape ──────────────────────────────────────────────────────────────
-      let shape:
-        | ReturnType<typeof box.create>
-        | ReturnType<typeof sphere.create>
-        | ReturnType<typeof capsule.create>
-        | null = null
-
-      if (entity.collider) {
-        switch (entity.collider.shape) {
-          case 'sphere':
-            shape = sphere.create({ radius: entity.collider.radius ?? 0.5 })
-            break
-          case 'capsule': {
-            // Crashcat uses halfHeightOfCylinder (the straight section only)
-            // our ColliderData.halfHeight is already the half-height of the cylinder
-            shape = capsule.create({
-              halfHeightOfCylinder: entity.collider.halfHeight ?? 0.5,
-              radius: entity.collider.radius ?? 0.5,
-            })
-            break
-          }
-          default: {
-            const he = entity.collider.halfExtents ?? [0.5, 0.5, 0.5]
-            shape = box.create({ halfExtents: [he[0], he[1], he[2]] })
-          }
-        }
-      } else {
-        // No collider specified — use a unit box as a default shape
-        shape = box.create({ halfExtents: [0.5, 0.5, 0.5] })
-      }
-
-      // ── Create body ────────────────────────────────────────────────────────
-      const body = rigidBody.create(this.world, {
-        shape,
-        motionType,
-        objectLayer,
-        position: [px, py, pz],
-        quaternion: [qx, qy, qz, qw],
-        ...(allowedDOF !== undefined ? { allowedDegreesOfFreedom: allowedDOF } : {}),
-      })
-
-      this.bodyMap.set(entity.id, body)
-      this.originalMotionType.set(entity.id, motionType)
-      this.manaBodyMap.set(entity.id, createManaRigidBody(this.world, body, entity.id, this.originalMotionType))
-
-      if (motionType !== MotionType.STATIC) {
-        this.dynamicBodies.push({ id: entity.id, body })
-      }
+      this._createBody(entity, getInitialTransform)
     }
   }
 
@@ -261,85 +240,15 @@ export class CrashcatPhysicsAdapter implements PhysicsAdapter {
 
   addEntity(entity: SceneEntity, getInitialTransform: (id: string) => PhysicsTransform | null): void {
     if (!entity.rigidBody || !this.world) return
-
     ensureRegistered()
-
-    const initial = getInitialTransform(entity.id)
-    const px = initial?.position[0] ?? 0
-    const py = initial?.position[1] ?? 0
-    const pz = initial?.position[2] ?? 0
-    const qx = initial?.quaternion[0] ?? 0
-    const qy = initial?.quaternion[1] ?? 0
-    const qz = initial?.quaternion[2] ?? 0
-    const qw = initial?.quaternion[3] ?? 1
-
-    let motionType: MotionType
-    let objectLayer: number
-    switch (entity.rigidBody.type) {
-      case 'fixed':
-        motionType = MotionType.STATIC
-        objectLayer = this.staticLayer
-        break
-      case 'kinematic':
-        motionType = MotionType.KINEMATIC
-        objectLayer = this.dynamicLayer
-        break
-      default:
-        motionType = MotionType.DYNAMIC
-        objectLayer = this.dynamicLayer
-    }
-
-    let allowedDOF: number | undefined
-    if (entity.rigidBody.lockRotation) {
-      const [lx, ly, lz] = entity.rigidBody.lockRotation
-      allowedDOF = dof(true, true, true, !lx, !ly, !lz)
-    }
-
-    let shape:
-      | ReturnType<typeof box.create>
-      | ReturnType<typeof sphere.create>
-      | ReturnType<typeof capsule.create>
-      | null = null
-
-    if (entity.collider) {
-      switch (entity.collider.shape) {
-        case 'sphere':
-          shape = sphere.create({ radius: entity.collider.radius ?? 0.5 })
-          break
-        case 'capsule':
-          shape = capsule.create({
-            halfHeightOfCylinder: entity.collider.halfHeight ?? 0.5,
-            radius: entity.collider.radius ?? 0.5,
-          })
-          break
-        default: {
-          const he = entity.collider.halfExtents ?? [0.5, 0.5, 0.5]
-          shape = box.create({ halfExtents: [he[0], he[1], he[2]] })
-        }
-      }
-    } else {
-      shape = box.create({ halfExtents: [0.5, 0.5, 0.5] })
-    }
-
-    const body = rigidBody.create(this.world, {
-      shape,
-      motionType,
-      objectLayer,
-      position: [px, py, pz],
-      quaternion: [qx, qy, qz, qw],
-      ...(allowedDOF !== undefined ? { allowedDegreesOfFreedom: allowedDOF } : {}),
-    })
-
-    this.bodyMap.set(entity.id, body)
-    this.originalMotionType.set(entity.id, motionType)
-    this.manaBodyMap.set(entity.id, createManaRigidBody(this.world, body, entity.id, this.originalMotionType))
-
-    if (motionType !== MotionType.STATIC) {
-      this.dynamicBodies.push({ id: entity.id, body })
-    }
+    this._createBody(entity, getInitialTransform)
   }
 
   removeEntity(entityId: string): void {
+    const body = this.bodyMap.get(entityId)
+    if (body && this.world) {
+      rigidBody.remove(this.world, body)
+    }
     this.bodyMap.delete(entityId)
     this.manaBodyMap.delete(entityId)
     this.originalMotionType.delete(entityId)

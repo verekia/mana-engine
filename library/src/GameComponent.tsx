@@ -36,23 +36,15 @@ export function Game({
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !sceneData) return
-    let disposed = false
-    let manaScene: Awaited<ReturnType<typeof createScene>> | null = null
 
     const renderer = createRenderer()
     const physics = createPhysics?.()
     const data = coordinateSystem ? { ...sceneData, coordinateSystem } : sceneData
 
-    createScene(canvas, data, { renderer, physics, scripts, prefabs }).then(s => {
-      if (disposed) {
-        s.dispose()
-        return
-      }
-      manaScene = s
-    })
+    const scenePromise = createScene(canvas, data, { renderer, physics, scripts, prefabs })
     return () => {
-      disposed = true
-      manaScene?.dispose()
+      // Dispose the scene once the promise resolves (handles both already-resolved and pending cases)
+      scenePromise.then(s => s.dispose())
     }
   }, [sceneData, scripts, prefabs, createRenderer, createPhysics, coordinateSystem])
 
@@ -70,13 +62,19 @@ export function Game({
   return (
     <ManaContext.Provider value={contextValue}>
       <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-        {sceneData?.entities
-          .filter(e => e.type === 'ui')
-          .map(e => {
-            const Component = components[e.ui?.component ?? '']
-            return Component ? <Component key={e.id} /> : null
-          })}
         <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          {sceneData?.entities
+            .filter(e => e.type === 'ui')
+            .map(e => {
+              const Component = components[e.ui?.component ?? '']
+              return Component ? (
+                <div key={e.id} style={{ pointerEvents: 'auto' }}>
+                  <Component />
+                </div>
+              ) : null
+            })}
+        </div>
       </div>
     </ManaContext.Provider>
   )

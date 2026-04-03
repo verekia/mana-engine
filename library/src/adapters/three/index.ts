@@ -245,6 +245,8 @@ export class ThreeRendererAdapter implements RendererAdapter {
     this.transformControls?.dispose()
     this.controls?.dispose()
     this.renderPipeline?.dispose()
+    // Remove from cache so the next init() on this canvas creates a fresh renderer
+    rendererCache.delete(this.renderer.domElement)
 
     for (const wireframe of this.maps.debugWireframes.values()) {
       wireframe.geometry.dispose()

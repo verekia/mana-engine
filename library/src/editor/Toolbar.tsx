@@ -49,7 +49,7 @@ function ToolbarButton({
         if (!disabled && !active) e.currentTarget.style.background = COLORS.hover
       }}
       onMouseLeave={e => {
-        if (!active) e.currentTarget.style.background = active ? COLORS.accent : 'transparent'
+        e.currentTarget.style.background = active ? COLORS.accent : 'transparent'
       }}
     >
       {children}
