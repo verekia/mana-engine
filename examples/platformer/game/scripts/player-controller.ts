@@ -40,6 +40,9 @@ export default {
     if (horizontal > 0.1) state.playerFacingRight = true
     if (horizontal < -0.1) state.playerFacingRight = false
 
+    // Rotate character to face movement direction
+    ctx.setRotation(0, state.playerFacingRight ? 0 : Math.PI, 0)
+
     // Ground detection
     const grounded = Math.abs(vel.y) < 0.1
 
