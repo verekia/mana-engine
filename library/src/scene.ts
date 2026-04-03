@@ -1,4 +1,5 @@
 import { Input } from './input.ts'
+import { flattenEntities } from './scene-data.ts'
 
 import type { PhysicsAdapter } from './adapters/physics-adapter.ts'
 import type { RendererAdapter, EditorCameraState, TransformMode } from './adapters/renderer-adapter.ts'
@@ -65,11 +66,16 @@ function resolvePrefabs(entities: SceneEntity[], prefabs: Record<string, PrefabD
     if (entity.prefab) {
       const prefab = prefabs[entity.prefab]
       if (prefab) {
+        const cloned = structuredClone(prefab.entity)
         resolved = {
-          ...structuredClone(prefab.entity),
+          ...cloned,
           ...entity,
-          // Merge transform: entity overrides prefab
-          transform: entity.transform ?? prefab.entity.transform,
+          // Deep-merge transform: per-field override so partial overrides work
+          transform: {
+            position: entity.transform?.position ?? cloned.transform?.position,
+            rotation: entity.transform?.rotation ?? cloned.transform?.rotation,
+            scale: entity.transform?.scale ?? cloned.transform?.scale,
+          },
         }
       } else {
         console.warn(`[mana] Prefab "${entity.prefab}" not found for entity "${entity.name}"`)
@@ -83,16 +89,14 @@ function resolvePrefabs(entities: SceneEntity[], prefabs: Record<string, PrefabD
   })
 }
 
-/** Flatten a tree of entities (with children) into a flat array. */
-function flattenEntities(entities: SceneEntity[]): SceneEntity[] {
-  const result: SceneEntity[] = []
-  for (const entity of entities) {
-    result.push(entity)
-    if (entity.children?.length) {
-      result.push(...flattenEntities(entity.children))
+/** Assign unique IDs to all entities in a cloned prefab tree (root + children). */
+function assignUniqueIds(entity: SceneEntity, prefix: string): void {
+  entity.id = `${prefix}_${Math.random().toString(36).slice(2, 10)}`
+  if (entity.children) {
+    for (const child of entity.children) {
+      assignUniqueIds(child, prefix)
     }
   }
-  return result
 }
 
 interface ActiveScript {
@@ -199,6 +203,27 @@ export async function createScene(
   // Mutable list of active scripts — grows when prefabs are instantiated, shrinks on destroy
   const activeScripts: ActiveScript[] = []
 
+  // Track prefab instance → child entity IDs for recursive destruction
+  const instanceChildren = new Map<string, string[]>()
+
+  /** Remove a single entity from renderer, physics, scripts, and name lookup. */
+  function destroySingleEntity(id: string) {
+    renderer.removeEntity(id)
+    physicsAdapter?.removeEntity(id)
+    for (let i = activeScripts.length - 1; i >= 0; i--) {
+      if (activeScripts[i].entityId === id) {
+        activeScripts[i].script.dispose?.()
+        activeScripts.splice(i, 1)
+      }
+    }
+    for (const [name, eid] of nameToId) {
+      if (eid === id) {
+        nameToId.delete(name)
+        break
+      }
+    }
+  }
+
   /** Build a ScriptContext with adapter-agnostic helpers. */
   function makeCtx(
     entityId: string,
@@ -234,84 +259,63 @@ export async function createScene(
         const p = renderer.getEntityPosition(id)
         return p ? { x: p[0], y: p[1], z: p[2] } : null
       },
-      instantiatePrefab(name, position) {
+      instantiatePrefab(name, position, rotation) {
         const prefab = prefabs[name]
         if (!prefab) {
           console.warn(`[mana] Prefab "${name}" not found`)
           return null
         }
-        const instanceId = `${name}_${Math.random().toString(36).slice(2, 10)}`
-        const entity: SceneEntity = {
-          ...structuredClone(prefab.entity),
-          id: instanceId,
-          name: `${prefab.entity.name} (instance)`,
-        }
-        if (position && entity.transform) {
-          entity.transform.position = [position.x, position.y, position.z]
-        } else if (position) {
-          entity.transform = { position: [position.x, position.y, position.z] }
-        }
+        const entity: SceneEntity = structuredClone(prefab.entity)
+        // Assign unique IDs to the root and all children
+        assignUniqueIds(entity, name)
+        const instanceId = entity.id
+        entity.name = `${prefab.entity.name} (${instanceId})`
 
-        // Add to renderer
-        renderer.addEntity(entity)
-        nameToId.set(entity.name, instanceId)
-
-        // Add physics body if the prefab has one
-        if (entity.rigidBody && physicsAdapter) {
-          physicsAdapter.addEntity(entity, id => renderer.getEntityInitialPhysicsTransform(id))
+        if (position || rotation) {
+          if (!entity.transform) entity.transform = {}
+          if (position) entity.transform.position = [position.x, position.y, position.z]
+          if (rotation) entity.transform.rotation = [rotation.x, rotation.y, rotation.z]
         }
 
-        // Initialize scripts if the prefab has any
-        if (entity.scripts && scriptDefs && inputVal) {
-          const newScripts = setupScripts([entity], scriptDefs)
-          for (const entry of newScripts) {
-            activeScripts.push(entry)
-            entry.script.init?.(makeCtx(entry.entityId, 0, elapsed, inputVal, entry.params))
+        // Flatten all entities (root + children) and add them all
+        const allEntities = flattenEntities([entity])
+        for (const ent of allEntities) {
+          renderer.addEntity(ent)
+          nameToId.set(ent.name, ent.id)
+
+          if (ent.rigidBody && physicsAdapter) {
+            physicsAdapter.addEntity(ent, id => renderer.getEntityInitialPhysicsTransform(id))
           }
-        }
 
-        // Recursively add children
-        if (entity.children) {
-          for (const child of flattenEntities(entity.children)) {
-            renderer.addEntity(child)
-            nameToId.set(child.name, child.id)
-            if (child.rigidBody && physicsAdapter) {
-              physicsAdapter.addEntity(child, id => renderer.getEntityInitialPhysicsTransform(id))
-            }
-            if (child.scripts && scriptDefs && inputVal) {
-              const childScripts = setupScripts([child], scriptDefs)
-              for (const entry of childScripts) {
-                activeScripts.push(entry)
-                entry.script.init?.(makeCtx(entry.entityId, 0, elapsed, inputVal, entry.params))
-              }
+          if (ent.scripts && scriptDefs && inputVal) {
+            const newScripts = setupScripts([ent], scriptDefs)
+            for (const entry of newScripts) {
+              activeScripts.push(entry)
+              entry.script.init?.(makeCtx(entry.entityId, 0, elapsed, inputVal, entry.params))
             }
           }
+        }
+
+        // Track children for recursive destruction
+        if (allEntities.length > 1) {
+          instanceChildren.set(
+            instanceId,
+            allEntities.slice(1).map(e => e.id),
+          )
         }
 
         return instanceId
       },
       destroyEntity(id) {
-        // Remove from renderer
-        renderer.removeEntity(id)
-
-        // Remove physics body
-        physicsAdapter?.removeEntity(id)
-
-        // Dispose and remove scripts for this entity
-        for (let i = activeScripts.length - 1; i >= 0; i--) {
-          if (activeScripts[i].entityId === id) {
-            activeScripts[i].script.dispose?.()
-            activeScripts.splice(i, 1)
+        // Recursively destroy children of prefab instances first
+        const childIds = instanceChildren.get(id)
+        if (childIds) {
+          for (const childId of childIds) {
+            destroySingleEntity(childId)
           }
+          instanceChildren.delete(id)
         }
-
-        // Clean up name lookup
-        for (const [name, eid] of nameToId) {
-          if (eid === id) {
-            nameToId.delete(name)
-            break
-          }
-        }
+        destroySingleEntity(id)
       },
     }
   }

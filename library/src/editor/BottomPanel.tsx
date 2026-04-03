@@ -13,7 +13,7 @@ import {
   IconPrefab,
   IconVideo,
 } from './icons.tsx'
-import { type AssetEntry, assetFileUrl, fetchAssets } from './scene-api.ts'
+import { type AssetEntry, assetFileUrl, createPrefab, fetchAssets } from './scene-api.ts'
 
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.bmp'])
 const AUDIO_EXTS = new Set(['.mp3', '.wav', '.ogg', '.flac'])
@@ -366,19 +366,7 @@ export function BottomPanel({
               onClick={() => {
                 const name = prompt('New prefab name (letters, numbers, - and _ only):')
                 if (name && /^[a-zA-Z0-9_-]+$/.test(name)) {
-                  fetch(`/__mana/prefabs/${name}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      entity: {
-                        id: 'root',
-                        name,
-                        type: 'mesh',
-                        transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
-                        mesh: { geometry: 'box', material: { color: '#888888' } },
-                      },
-                    }),
-                  }).then(() => {
+                  createPrefab(name).then(() => {
                     loadDir('prefabs')
                     onPrefabCreated?.()
                   })

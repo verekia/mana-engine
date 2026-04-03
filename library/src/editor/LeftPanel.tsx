@@ -1157,60 +1157,64 @@ export function LeftPanel({
                     Edit
                   </button>
                 )}
-                <button
-                  onClick={() => {
-                    setRenamingPrefab(prefabContextMenu.name)
-                    setPrefabRenameValue(prefabContextMenu.name)
-                    setPrefabContextMenu(null)
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = COLORS.hover
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'transparent'
-                  }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '5px 12px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: COLORS.text,
-                    fontSize: 11,
-                    textAlign: 'left',
-                  }}
-                >
-                  Rename
-                </button>
-                <button
-                  onClick={() => {
-                    if (confirm(`Delete prefab "${prefabContextMenu.name}"?`)) {
-                      apiDeletePrefab(prefabContextMenu.name).then(() => {
-                        loadPrefabs()
-                        onPrefabListChanged?.()
-                      })
-                    }
-                    setPrefabContextMenu(null)
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(239,68,68,0.15)'
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'transparent'
-                  }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '5px 12px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: COLORS.danger,
-                    fontSize: 11,
-                    textAlign: 'left',
-                  }}
-                >
-                  Delete
-                </button>
+                {editingPrefab !== prefabContextMenu.name && (
+                  <button
+                    onClick={() => {
+                      setRenamingPrefab(prefabContextMenu.name)
+                      setPrefabRenameValue(prefabContextMenu.name)
+                      setPrefabContextMenu(null)
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = COLORS.hover
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'transparent'
+                    }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '5px 12px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: COLORS.text,
+                      fontSize: 11,
+                      textAlign: 'left',
+                    }}
+                  >
+                    Rename
+                  </button>
+                )}
+                {editingPrefab !== prefabContextMenu.name && (
+                  <button
+                    onClick={() => {
+                      if (confirm(`Delete prefab "${prefabContextMenu.name}"?`)) {
+                        apiDeletePrefab(prefabContextMenu.name).then(() => {
+                          loadPrefabs()
+                          onPrefabListChanged?.()
+                        })
+                      }
+                      setPrefabContextMenu(null)
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = 'rgba(239,68,68,0.15)'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'transparent'
+                    }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '5px 12px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: COLORS.danger,
+                      fontSize: 11,
+                      textAlign: 'left',
+                    }}
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
             </>
           )}

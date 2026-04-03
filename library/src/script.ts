@@ -50,8 +50,13 @@ export interface ScriptContext {
    *
    * @param name The prefab name (without .prefab.yaml extension)
    * @param position Optional spawn position override
+   * @param rotation Optional spawn rotation override (Euler angles in radians)
    */
-  instantiatePrefab(name: string, position?: { x: number; y: number; z: number }): string | null
+  instantiatePrefab(
+    name: string,
+    position?: { x: number; y: number; z: number },
+    rotation?: { x: number; y: number; z: number },
+  ): string | null
   /**
    * Destroy an entity by ID, removing it from the renderer, physics, and scripts.
    * Can destroy both scene entities and runtime-instantiated prefab instances.

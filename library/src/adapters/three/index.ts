@@ -21,6 +21,7 @@ import {
   WebGPURenderer,
 } from 'three/webgpu'
 
+import { flattenEntities } from '../../scene-data.ts'
 import {
   applyMaterialData,
   applyModelMaterialOverride,
@@ -35,18 +36,6 @@ import {
 
 import type { SceneData, SceneEntity } from '../../scene-data.ts'
 import type { RendererAdapter, RendererAdapterOptions, EditorCameraState, TransformMode } from '../renderer-adapter.ts'
-
-/** Flatten a tree of entities (with children) into a flat array. */
-function flattenEntities(entities: SceneEntity[]): SceneEntity[] {
-  const result: SceneEntity[] = []
-  for (const entity of entities) {
-    result.push(entity)
-    if (entity.children?.length) {
-      result.push(...flattenEntities(entity.children))
-    }
-  }
-  return result
-}
 
 const rendererCache = new WeakMap<HTMLCanvasElement, WebGPURenderer>()
 
