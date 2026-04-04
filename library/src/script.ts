@@ -148,6 +148,21 @@ export interface ScriptContext {
    * @param name Scene name (e.g. 'main-menu', 'level-1')
    */
   loadScene(name: string): void
+
+  // ── Particles ─────────────────────────────────────────────────────────────
+
+  /**
+   * Emit a burst of particles from this entity's particle emitter.
+   * Only works on entities with type 'particles'.
+   * @param count Number of particles to emit (default: maxParticles from config)
+   */
+  emitParticleBurst(count?: number): void
+
+  /**
+   * Reset and restart this entity's particle emitter.
+   * Clears all active particles and begins emitting again.
+   */
+  resetParticles(): void
 }
 
 /**

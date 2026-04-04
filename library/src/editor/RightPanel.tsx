@@ -124,6 +124,8 @@ function entityTypeLabel(type: SceneEntity['type']): string {
       return 'UI Group'
     case 'audio':
       return 'Audio'
+    case 'particles':
+      return 'Particles'
   }
 }
 
@@ -441,6 +443,7 @@ export function RightPanel({
     if (entity.rigidBody) activeSections.push('rigidBody')
     if (entity.collider) activeSections.push('collider')
     if (entity.light) activeSections.push('light')
+    if (entity.particles) activeSections.push('particles')
   }
 
   const allCollapsed = activeSections.length > 0 && activeSections.every(s => collapsed.has(s))
@@ -746,6 +749,113 @@ export function RightPanel({
                           audio: { src: entity.audio?.src ?? '', volume: entity.audio?.volume, loop: v },
                         })
                       }
+                    />
+                  </>
+                )}
+              </>
+            )}
+
+            {/* Particles */}
+            {entity.particles && (
+              <>
+                <SectionLabel {...s('particles')}>Particles</SectionLabel>
+                {!collapsed.has('particles') && (
+                  <>
+                    <NumberInput
+                      label="Max Particles"
+                      value={entity.particles.maxParticles ?? 100}
+                      step={10}
+                      onChange={v => onUpdate({ ...entity, particles: { ...entity.particles, maxParticles: v } })}
+                    />
+                    <NumberInput
+                      label="Rate"
+                      value={entity.particles.rate ?? 10}
+                      step={1}
+                      onChange={v => onUpdate({ ...entity, particles: { ...entity.particles, rate: v } })}
+                    />
+                    <NumberInput
+                      label="Lifetime"
+                      value={entity.particles.lifetime ?? 2}
+                      step={0.1}
+                      onChange={v => onUpdate({ ...entity, particles: { ...entity.particles, lifetime: v } })}
+                    />
+                    <NumberInput
+                      label="Speed"
+                      value={entity.particles.speed ?? 1}
+                      step={0.1}
+                      onChange={v => onUpdate({ ...entity, particles: { ...entity.particles, speed: v } })}
+                    />
+                    <NumberInput
+                      label="Spread"
+                      value={entity.particles.spread ?? 15}
+                      step={5}
+                      onChange={v => onUpdate({ ...entity, particles: { ...entity.particles, spread: v } })}
+                    />
+                    <NumberInput
+                      label="Start Size"
+                      value={entity.particles.startSize ?? 0.2}
+                      step={0.05}
+                      onChange={v => onUpdate({ ...entity, particles: { ...entity.particles, startSize: v } })}
+                    />
+                    <NumberInput
+                      label="End Size"
+                      value={entity.particles.endSize ?? 0}
+                      step={0.05}
+                      onChange={v => onUpdate({ ...entity, particles: { ...entity.particles, endSize: v } })}
+                    />
+                    <ColorInput
+                      label="Start Color"
+                      value={entity.particles.startColor ?? '#ffffff'}
+                      onChange={v => onUpdate({ ...entity, particles: { ...entity.particles, startColor: v } })}
+                    />
+                    <ColorInput
+                      label="End Color"
+                      value={entity.particles.endColor ?? '#ffffff'}
+                      onChange={v => onUpdate({ ...entity, particles: { ...entity.particles, endColor: v } })}
+                    />
+                    <NumberInput
+                      label="Start Opacity"
+                      value={entity.particles.startOpacity ?? 1}
+                      step={0.05}
+                      onChange={v => onUpdate({ ...entity, particles: { ...entity.particles, startOpacity: v } })}
+                    />
+                    <NumberInput
+                      label="End Opacity"
+                      value={entity.particles.endOpacity ?? 0}
+                      step={0.05}
+                      onChange={v => onUpdate({ ...entity, particles: { ...entity.particles, endOpacity: v } })}
+                    />
+                    <NumberInput
+                      label="Gravity"
+                      value={entity.particles.gravity ?? 0}
+                      step={0.1}
+                      onChange={v => onUpdate({ ...entity, particles: { ...entity.particles, gravity: v } })}
+                    />
+                    <TextInput
+                      label="Texture"
+                      value={entity.particles.texture ?? ''}
+                      onChange={v => onUpdate({ ...entity, particles: { ...entity.particles, texture: v } })}
+                    />
+                    <SelectInput
+                      label="Blending"
+                      value={entity.particles.blending ?? 'additive'}
+                      options={['additive', 'normal']}
+                      onChange={v =>
+                        onUpdate({
+                          ...entity,
+                          particles: { ...entity.particles, blending: v as 'additive' | 'normal' },
+                        })
+                      }
+                    />
+                    <CheckboxInput
+                      label="Loop"
+                      value={entity.particles.loop ?? true}
+                      onChange={v => onUpdate({ ...entity, particles: { ...entity.particles, loop: v } })}
+                    />
+                    <CheckboxInput
+                      label="Burst"
+                      value={entity.particles.burst ?? false}
+                      onChange={v => onUpdate({ ...entity, particles: { ...entity.particles, burst: v } })}
                     />
                   </>
                 )}

@@ -26,6 +26,7 @@ import {
   disposeEntityObject,
   type ThreeEntityMaps,
 } from './three-entity.ts'
+import { ThreeParticleHelper } from './three-particles.ts'
 import { ThreeRaycastHelper } from './three-raycast.ts'
 
 import type { SceneData, SceneEntity } from '../../scene-data.ts'
@@ -75,6 +76,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
 
   // Composed helpers
   private animation!: ThreeAnimationHelper
+  private particles!: ThreeParticleHelper
   private editor: ThreeEditorHelper | null = null
   private raycastHelper!: ThreeRaycastHelper
 
@@ -89,6 +91,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
     this.threeScene.add(this.sceneRoot)
 
     this.animation = new ThreeAnimationHelper(this.maps)
+    this.particles = new ThreeParticleHelper()
 
     // Set up camera
     if (this.enableOrbitControls) {
@@ -212,6 +215,9 @@ export class ThreeRendererAdapter implements RendererAdapter {
         if (entity.type === 'camera' && obj instanceof PerspectiveCamera) {
           this.gameCam = obj
         }
+        if (entity.type === 'particles' && obj) {
+          this.particles.addEmitter(entity.id, entity.particles, obj)
+        }
         if (entity.children?.length && obj) {
           addEntities(entity.children, obj)
         }
@@ -245,6 +251,9 @@ export class ThreeRendererAdapter implements RendererAdapter {
       isYUp: this.isYUp,
       onAnimationClips: this.animation.onAnimationClips,
     })
+    if (entity.type === 'particles' && obj) {
+      this.particles.addEmitter(entity.id, entity.particles, obj)
+    }
     if (entity.children?.length && obj) {
       for (const child of entity.children) {
         await this.addEntity(child, entity.id)
@@ -278,6 +287,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
       this.maps.gizmoHelpers.delete(id)
     }
     this.animation.removeEntity(id)
+    this.particles.removeEmitter(id)
   }
 
   updateEntity(id: string, entity: SceneEntity): void {
@@ -439,6 +449,20 @@ export class ThreeRendererAdapter implements RendererAdapter {
 
   updateAnimations(dt: number): void {
     this.animation.updateAnimations(dt)
+  }
+
+  // ── Particle delegation ───────────────────────────────────────────────────
+
+  updateParticles(dt: number): void {
+    this.particles.update(dt)
+  }
+
+  emitParticleBurst(entityId: string, count?: number): void {
+    this.particles.emitParticleBurst(entityId, count)
+  }
+
+  resetParticles(entityId: string): void {
+    this.particles.resetParticles(entityId)
   }
 
   // ── Entity transform helpers ───────────────────────────────────────────────

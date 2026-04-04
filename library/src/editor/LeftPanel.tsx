@@ -10,6 +10,7 @@ import {
   IconDirectionalLight,
   IconMesh,
   IconModel,
+  IconParticles,
   IconPlus,
   IconPointLight,
   IconPrefab,
@@ -62,6 +63,8 @@ function entityTypeIcon(type: SceneEntity['type']): React.ReactNode {
       return <IconUI />
     case 'audio':
       return <IconAudio />
+    case 'particles':
+      return <IconParticles />
   }
 }
 
@@ -218,6 +221,33 @@ const ADD_OBJECT_OPTIONS: { label: string; category: string; icon: React.ReactNo
       type: 'ui-group',
     }),
   },
+  {
+    label: 'Particles',
+    category: 'Effects',
+    icon: <IconParticles />,
+    create: () => ({
+      id: generateId(),
+      name: 'Particles',
+      type: 'particles',
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      particles: {
+        maxParticles: 100,
+        rate: 10,
+        lifetime: 2,
+        speed: 1,
+        spread: 15,
+        startSize: 0.2,
+        endSize: 0,
+        startColor: '#ffffff',
+        endColor: '#ffffff',
+        startOpacity: 1,
+        endOpacity: 0,
+        gravity: 0,
+        blending: 'additive',
+        loop: true,
+      },
+    }),
+  },
 ]
 
 function AddEntityPopover({
@@ -233,7 +263,7 @@ function AddEntityPopover({
 }) {
   return (
     <Popover anchorRef={anchorRef} position={position} onClose={onClose} maxHeight={320}>
-      {['General', 'Mesh', 'Light'].map(cat => (
+      {['General', 'Mesh', 'Light', 'Effects'].map(cat => (
         <div key={cat}>
           <PopoverCategory label={cat} />
           {ADD_OBJECT_OPTIONS.filter(o => o.category === cat).map(opt => (

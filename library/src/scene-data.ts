@@ -49,6 +49,41 @@ export interface AudioData {
   loop?: boolean
 }
 
+export interface ParticleData {
+  /** Maximum number of particles alive at once. Default: 100 */
+  maxParticles?: number
+  /** Particles emitted per second. Default: 10 */
+  rate?: number
+  /** Particle lifetime in seconds. Default: 2 */
+  lifetime?: number
+  /** Initial particle speed. Default: 1 */
+  speed?: number
+  /** Emission cone half-angle in degrees (0 = straight up, 180 = sphere). Default: 15 */
+  spread?: number
+  /** Start size. Default: 0.2 */
+  startSize?: number
+  /** End size (lerped over lifetime). Default: 0 */
+  endSize?: number
+  /** Start color (hex). Default: '#ffffff' */
+  startColor?: string
+  /** End color (hex, lerped over lifetime). Default: '#ffffff' */
+  endColor?: string
+  /** Start opacity (0–1). Default: 1 */
+  startOpacity?: number
+  /** End opacity (0–1, fades over lifetime). Default: 0 */
+  endOpacity?: number
+  /** Gravity multiplier applied to particles (scene-up axis). Default: 0 */
+  gravity?: number
+  /** Sprite texture path (relative to assets/). If unset, uses a soft circle. */
+  texture?: string
+  /** Blending mode. Default: 'additive' */
+  blending?: 'normal' | 'additive'
+  /** Whether to loop emission. Default: true */
+  loop?: boolean
+  /** Emit a single burst of particles instead of continuous emission. Default: false */
+  burst?: boolean
+}
+
 export interface UiData {
   component: string
 }
@@ -98,6 +133,7 @@ export interface SceneEntity {
     | 'ui-group'
     | 'model'
     | 'audio'
+    | 'particles'
   transform?: Transform
   camera?: CameraData
   mesh?: MeshData
@@ -105,6 +141,7 @@ export interface SceneEntity {
   light?: LightData
   ui?: UiData
   audio?: AudioData
+  particles?: ParticleData
   scripts?: ScriptEntry[]
   rigidBody?: RigidBodyData
   collider?: ColliderData

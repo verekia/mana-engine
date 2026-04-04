@@ -164,6 +164,11 @@ export function createVoidcoreEntity(entity: SceneEntity, parent: Node, state: V
       break
     }
 
+    case 'particles': {
+      node = new Group()
+      break
+    }
+
     case 'ui':
     case 'ui-group':
     case 'audio': {
