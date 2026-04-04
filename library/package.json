@@ -1,6 +1,6 @@
 {
   "name": "mana-engine",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "bin": {
     "mana": "./bin/mana.js"
   },
@@ -9,12 +9,12 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./game": {
-      "import": "./dist/game.js",
-      "types": "./dist/game.d.ts"
+      "types": "./dist/game.d.ts",
+      "import": "./dist/game.js"
     }
   },
   "scripts": {
