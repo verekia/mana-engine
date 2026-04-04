@@ -1,12 +1,11 @@
-import { attribute, vec4 } from 'three/tsl'
+import { instancedBufferAttribute, vec4 } from 'three/tsl'
 import {
   AdditiveBlending,
-  BufferAttribute,
-  BufferGeometry,
   Color,
+  InstancedBufferAttribute,
   NormalBlending,
   type Object3D,
-  Points,
+  Sprite,
   SpriteNodeMaterial,
   TextureLoader,
 } from 'three/webgpu'
@@ -28,12 +27,15 @@ interface ParticleEmitter {
   entityId: string
   config: Required<ParticleEmitterConfig>
   particles: Particle[]
-  positions: Float32Array
+  offsets: Float32Array
   sizes: Float32Array
   alphas: Float32Array
   colors: Float32Array
-  geometry: BufferGeometry
-  points: Points
+  offsetAttr: InstancedBufferAttribute
+  sizeAttr: InstancedBufferAttribute
+  alphaAttr: InstancedBufferAttribute
+  colorAttr: InstancedBufferAttribute
+  sprite: Sprite
   emitAccumulator: number
   startColor: Color
   endColor: Color
@@ -83,8 +85,9 @@ function resolveConfig(data?: ParticleData): ParticleEmitterConfig {
 }
 
 /**
- * Manages GPU-friendly particle emitters for the Three.js adapter.
- * Uses Points + BufferGeometry with TSL SpriteNodeMaterial for rendering.
+ * Manages particle emitters for the Three.js adapter.
+ * Uses instanced Sprite rendering with per-particle attributes via TSL nodes.
+ * WebGPU limits Points to 1px, so Sprite instancing is used for proper sizing.
  */
 export class ThreeParticleHelper {
   private emitters = new Map<string, ParticleEmitter>()
@@ -93,29 +96,28 @@ export class ThreeParticleHelper {
     const config = resolveConfig(data)
     const n = config.maxParticles
 
-    const positions = new Float32Array(n * 3)
+    const offsets = new Float32Array(n * 3)
     const sizes = new Float32Array(n)
     const alphas = new Float32Array(n)
     const colors = new Float32Array(n * 3)
 
-    const geometry = new BufferGeometry()
-    geometry.setAttribute('position', new BufferAttribute(positions, 3))
-    geometry.setAttribute('particleSize', new BufferAttribute(sizes, 1))
-    geometry.setAttribute('particleAlpha', new BufferAttribute(alphas, 1))
-    geometry.setAttribute('particleColor', new BufferAttribute(colors, 3))
+    const offsetAttr = new InstancedBufferAttribute(offsets, 3)
+    const sizeAttr = new InstancedBufferAttribute(sizes, 1)
+    const alphaAttr = new InstancedBufferAttribute(alphas, 1)
+    const colorAttr = new InstancedBufferAttribute(colors, 3)
 
-    // TSL material — reads per-particle attributes for size, color, and opacity
+    // SpriteNodeMaterial with instanced attributes for per-particle data
     const material = new SpriteNodeMaterial()
     material.transparent = true
     material.depthWrite = false
     material.blending = config.blending === 'additive' ? AdditiveBlending : NormalBlending
 
-    // Scale points by attribute
-    material.scaleNode = attribute('particleSize')
+    // Per-instance position, scale, and color via TSL nodes
+    material.positionNode = instancedBufferAttribute(offsetAttr)
+    material.scaleNode = instancedBufferAttribute(sizeAttr)
 
-    // Color from attribute
-    const pColor = attribute('particleColor')
-    const pAlpha = attribute('particleAlpha')
+    const pColor = instancedBufferAttribute(colorAttr)
+    const pAlpha = instancedBufferAttribute(alphaAttr)
     material.colorNode = vec4(pColor, pAlpha)
 
     if (config.texture) {
@@ -123,9 +125,11 @@ export class ThreeParticleHelper {
       material.map = texture
     }
 
-    const points = new Points(geometry, material)
-    points.frustumCulled = false
-    parent.add(points)
+    // Instanced sprite — single draw call for all particles, auto-billboarded
+    const sprite = new Sprite(material)
+    sprite.count = n
+    sprite.frustumCulled = false
+    parent.add(sprite)
 
     const particles: Particle[] = []
     for (let i = 0; i < n; i++) {
@@ -136,12 +140,15 @@ export class ThreeParticleHelper {
       entityId,
       config,
       particles,
-      positions,
+      offsets,
       sizes,
       alphas,
       colors,
-      geometry,
-      points,
+      offsetAttr,
+      sizeAttr,
+      alphaAttr,
+      colorAttr,
+      sprite,
       emitAccumulator: 0,
       startColor: new Color(config.startColor),
       endColor: new Color(config.endColor),
@@ -159,9 +166,8 @@ export class ThreeParticleHelper {
   removeEmitter(entityId: string): void {
     const emitter = this.emitters.get(entityId)
     if (!emitter) return
-    emitter.points.parent?.remove(emitter.points)
-    emitter.geometry.dispose()
-    ;(emitter.points.material as SpriteNodeMaterial).dispose()
+    emitter.sprite.parent?.remove(emitter.sprite)
+    ;(emitter.sprite.material as SpriteNodeMaterial).dispose()
     this.emitters.delete(entityId)
   }
 
@@ -188,7 +194,7 @@ export class ThreeParticleHelper {
   }
 
   private updateEmitter(emitter: ParticleEmitter, dt: number): void {
-    const { config, particles, positions, sizes, alphas, colors } = emitter
+    const { config, particles, offsets, sizes, alphas, colors } = emitter
     const gravity = config.gravity * -9.81
 
     // Emit new particles
@@ -233,9 +239,9 @@ export class ThreeParticleHelper {
 
       // Integrate position
       const i3 = i * 3
-      positions[i3] += p.vx * dt
-      positions[i3 + 1] += p.vy * dt
-      positions[i3 + 2] += p.vz * dt
+      offsets[i3] += p.vx * dt
+      offsets[i3 + 1] += p.vy * dt
+      offsets[i3 + 2] += p.vz * dt
 
       // Lerp size
       sizes[i] = config.startSize + (config.endSize - config.startSize) * t
@@ -250,11 +256,11 @@ export class ThreeParticleHelper {
       colors[i3 + 2] = tmpColor.b
     }
 
-    // Mark buffer attributes as needing upload
-    emitter.geometry.attributes.position.needsUpdate = true
-    emitter.geometry.attributes.particleSize.needsUpdate = true
-    emitter.geometry.attributes.particleAlpha.needsUpdate = true
-    emitter.geometry.attributes.particleColor.needsUpdate = true
+    // Mark buffer attributes as needing GPU upload
+    emitter.offsetAttr.needsUpdate = true
+    emitter.sizeAttr.needsUpdate = true
+    emitter.alphaAttr.needsUpdate = true
+    emitter.colorAttr.needsUpdate = true
 
     // For burst mode with no loop, check if all particles are dead
     if (config.burst && !config.loop && !anyActive && !emitter.active) {
@@ -263,7 +269,7 @@ export class ThreeParticleHelper {
   }
 
   private emitOne(emitter: ParticleEmitter): void {
-    const { config, particles, positions } = emitter
+    const { config, particles, offsets } = emitter
     const idx = particles.findIndex(p => !p.active)
     if (idx === -1) return
 
@@ -272,11 +278,11 @@ export class ThreeParticleHelper {
     p.age = 0
     p.lifetime = config.lifetime
 
-    // Reset position to origin (particles move in local space of the Points object)
+    // Reset position to origin (particles move in local space of the Sprite)
     const i3 = idx * 3
-    positions[i3] = 0
-    positions[i3 + 1] = 0
-    positions[i3 + 2] = 0
+    offsets[i3] = 0
+    offsets[i3 + 1] = 0
+    offsets[i3 + 2] = 0
 
     // Random direction within emission cone
     const spreadRad = (config.spread * Math.PI) / 180
