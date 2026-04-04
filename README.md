@@ -8,14 +8,14 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 
 - **YAML-based scenes** — Scenes defined as YAML files in `scenes/`, converted to JSON at build time (no YAML parser shipped in production)
 - **7 entity types** — `camera`, `mesh`, `model`, `directional-light`, `ambient-light`, `point-light`, `ui`
-- **Multi-scene support** — Switch between scenes at runtime with `useMana().loadScene()`
+- **Multi-scene support** — Switch between scenes at runtime with `useMana().loadScene()` from UI or `ctx.loadScene()` from scripts
 - **Coordinate system** — Project-level `y-up` (default) or `z-up` (Blender/CAD) in `mana.json`
 
 ### Meshes & Materials
 
 - **4 geometry types** — `box`, `sphere`, `plane`, `capsule`
 - **Lambert material** — Diffuse color, albedo texture map, emissive texture map
-- **GLTF/GLB model loading** — Import 3D models as `model` entities (Three.js only)
+- **GLTF/GLB model loading** — Import 3D models as `model` entities (Three.js and VoidCore)
 
 ### Lighting & Shadows
 
@@ -95,6 +95,8 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 - **Collider wireframe gizmos** — Visible in editor edit mode
 - **UI overlay toggle** — Show/hide React UI components in the viewport
 - **Transform gizmos** — Translate (W), rotate (E), scale (R) gizmos for manipulating entities in the viewport
+- **Snap-to-grid** — Toggle snap (X key) to snap translations to 1-unit grid, rotations to 15° steps, scale to 0.25 steps
+- **Local/World space** — Toggle transform gizmo coordinate space between local and world
 - **Undo/redo** — Cmd+Z / Ctrl+Shift+Z with full action history for transforms, entity operations, and property changes
 - **Copy/paste/duplicate** — Ctrl+C/V/D for entity clipboard operations, Delete/Backspace to remove entities
 
@@ -123,7 +125,7 @@ The engine is decoupled from any specific 3D renderer or physics library. Choose
 | **Geometries**        | box, sphere, plane, capsule              | box, sphere, plane, capsule |
 | **Materials**         | Lambert (color, map, emissiveMap)        | Lambert (color only)        |
 | **Textures**          | PNG, JPG, KTX2 (basis transcoder)        | —                           |
-| **GLTF/GLB models**   | Yes (GLTFLoader)                         | — (placeholder)             |
+| **GLTF/GLB models**   | Yes (GLTFLoader)                         | Yes (loadGLTF)              |
 | **Camera**            | PerspectiveCamera                        | PerspectiveCamera           |
 | **Directional light** | Yes + shadows                            | Yes + shadows               |
 | **Ambient light**     | Yes                                      | Yes                         |
@@ -140,7 +142,7 @@ The engine is decoupled from any specific 3D renderer or physics library. Choose
 | **Raycasting / click-to-select** | Yes                        | Yes                       |
 | **Selection outline**            | Yes (post-processing)      | Yes (native mesh outline) |
 | **Transform gizmos** (W/E/R)     | Yes (TransformControls)    | Yes (custom gizmos)       |
-| **Collider wireframe gizmos**    | Yes (green wireframes)     | —                         |
+| **Collider wireframe gizmos**    | Yes (green wireframes)     | Yes (green transparent)   |
 | **Light helper gizmos**          | Camera, directional, point | —                         |
 
 ### Physics Adapters
@@ -185,6 +187,7 @@ These APIs work identically regardless of which renderer or physics adapter is a
 | `ctx.playAnimation(name)`      | Done   | Play GLTF animation clip (with crossfade)        |
 | `ctx.stopAnimation()`          | Done   | Stop current animation                           |
 | `ctx.getAnimationNames()`      | Done   | List available animation clips                   |
+| `ctx.loadScene(name)`          | Done   | Switch to a different scene by name              |
 
 ### Adapter-Agnostic Physics API (`ManaRigidBody`)
 
@@ -308,7 +311,7 @@ export default {
 - `fixedUpdate(ctx)` — Called at fixed 60Hz (for physics)
 - `dispose()` — Called on scene cleanup
 
-`ScriptContext` provides: `entityId` (the entity's ID string), `entity` (native renderer object), `scene`, `dt` (seconds), `time` (elapsed seconds), `input` (keyboard/mouse state), `rigidBody` (adapter-agnostic physics body), plus helpers like `getPosition()`, `setPosition()`, `setRotation()`, `setScale()`, `findEntityPosition()`, `findEntitiesByTag()`, `instantiatePrefab()`, `destroyEntity()`, `emit()`/`on()`/`off()` for cross-script events, and `playAnimation()`/`stopAnimation()`/`getAnimationNames()` for GLTF animations.
+`ScriptContext` provides: `entityId` (the entity's ID string), `entity` (native renderer object), `scene`, `dt` (seconds), `time` (elapsed seconds), `input` (keyboard/mouse state), `rigidBody` (adapter-agnostic physics body), plus helpers like `getPosition()`, `setPosition()`, `setRotation()`, `setScale()`, `findEntityPosition()`, `findEntitiesByTag()`, `instantiatePrefab()`, `destroyEntity()`, `loadScene()`, `emit()`/`on()`/`off()` for cross-script events, and `playAnimation()`/`stopAnimation()`/`getAnimationNames()` for GLTF animations.
 
 ## Scene Switching
 
@@ -321,6 +324,18 @@ export default function MainMenu() {
   const { loadScene } = useMana()
   return <button onClick={() => loadScene('first-world')}>Play</button>
 }
+```
+
+Scripts can also switch scenes directly:
+
+```typescript
+export default {
+  onCollisionEnter(ctx, other) {
+    if (other.entityId === 'exit-door') {
+      ctx.loadScene('next-level')
+    }
+  },
+} satisfies ManaScript
 ```
 
 ## Editor

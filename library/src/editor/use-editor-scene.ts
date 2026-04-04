@@ -15,6 +15,8 @@ export function useEditorScene({
   prefabs,
   showGizmos,
   transformMode,
+  snapEnabled,
+  transformSpace,
   createRenderer,
   createPhysics,
   coordinateSystem,
@@ -28,6 +30,8 @@ export function useEditorScene({
   prefabs?: Record<string, PrefabData>
   showGizmos: boolean
   transformMode: string
+  snapEnabled: boolean
+  transformSpace: 'local' | 'world'
   createRenderer: () => RendererAdapter
   createPhysics?: () => PhysicsAdapter
   coordinateSystem?: 'y-up' | 'z-up'
@@ -40,6 +44,10 @@ export function useEditorScene({
   showGizmosRef.current = showGizmos
   const transformModeRef = useRef(transformMode)
   transformModeRef.current = transformMode
+  const snapEnabledRef = useRef(snapEnabled)
+  snapEnabledRef.current = snapEnabled
+  const transformSpaceRef = useRef(transformSpace)
+  transformSpaceRef.current = transformSpace
   const sceneDataRef = useRef(sceneData)
   sceneDataRef.current = sceneData
 
@@ -69,6 +77,8 @@ export function useEditorScene({
       }
       sceneRef.current = s
       s.setTransformMode(transformModeRef.current as 'translate' | 'rotate' | 'scale')
+      if (snapEnabledRef.current) s.setTransformSnap(1, 15, 0.25)
+      s.setTransformSpace(transformSpaceRef.current)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only create on first sceneData availability; sceneData read via ref
   }, [sceneData, onTransformStart, onTransformChange, onTransformEnd])
@@ -110,6 +120,8 @@ export function useEditorScene({
       sceneRef.current = await createScene(canvas, sceneWithCoords, opts)
       if (!isPlaying) {
         sceneRef.current?.setTransformMode(transformModeRef.current as 'translate' | 'rotate' | 'scale')
+        if (snapEnabledRef.current) sceneRef.current?.setTransformSnap(1, 15, 0.25)
+        sceneRef.current?.setTransformSpace(transformSpaceRef.current)
       }
     },
     [
@@ -129,6 +141,24 @@ export function useEditorScene({
   useEffect(() => {
     sceneRef.current?.setTransformMode(transformMode as 'translate' | 'rotate' | 'scale')
   }, [transformMode])
+
+  // Sync snap to the active scene
+  const prevSnapRef = useRef(snapEnabled)
+  if (prevSnapRef.current !== snapEnabled) {
+    prevSnapRef.current = snapEnabled
+    if (snapEnabled) {
+      sceneRef.current?.setTransformSnap(1, 15, 0.25)
+    } else {
+      sceneRef.current?.setTransformSnap(null, null, null)
+    }
+  }
+
+  // Sync transform space to the active scene
+  const prevSpaceRef = useRef(transformSpace)
+  if (prevSpaceRef.current !== transformSpace) {
+    prevSpaceRef.current = transformSpace
+    sceneRef.current?.setTransformSpace(transformSpace)
+  }
 
   return { sceneRef, recreateScene }
 }

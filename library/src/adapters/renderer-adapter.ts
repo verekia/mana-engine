@@ -175,6 +175,12 @@ export interface RendererAdapter {
   /** Set the transform gizmo mode. */
   setTransformMode(mode: TransformMode): void
 
+  /** Set transform gizmo snapping. When non-null, values snap to the given increment. */
+  setTransformSnap(translate: number | null, rotate: number | null, scale: number | null): void
+
+  /** Set transform gizmo space ('local' or 'world'). */
+  setTransformSpace(space: 'local' | 'world'): void
+
   /** Get the editor camera state (position + orbit target). Null in play mode. */
   getEditorCamera(): EditorCameraState | null
 

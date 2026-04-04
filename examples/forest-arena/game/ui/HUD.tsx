@@ -65,9 +65,7 @@ export default function HUD() {
             style={{ width: `${xpProgress * 100}%`, backgroundColor: levelColor }}
           />
         </div>
-        <span className="text-xs text-gray-400">
-          {nextXP === Infinity ? 'MAX' : `${xp} / ${nextXP} XP`}
-        </span>
+        <span className="text-xs text-gray-400">{nextXP === Infinity ? 'MAX' : `${xp} / ${nextXP} XP`}</span>
       </div>
 
       {/* Controls hint */}
@@ -77,7 +75,7 @@ export default function HUD() {
 
       {/* Level up flash */}
       {levelUpFlash && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="animate-pulse text-4xl font-bold" style={{ color: levelColor }}>
             LEVEL UP!
           </div>

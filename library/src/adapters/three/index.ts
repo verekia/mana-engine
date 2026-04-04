@@ -87,6 +87,8 @@ export class ThreeRendererAdapter implements RendererAdapter {
     attach(obj: Object3D): void
     detach(): void
     setMode(mode: TransformMode): void
+    setSnap(translate: number | null, rotate: number | null, scale: number | null): void
+    setSpace(space: 'local' | 'world'): void
     dispose(): void
     object?: Object3D
   } | null = null
@@ -104,7 +106,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
   private options: RendererAdapterOptions = {}
   private enableOrbitControls = false
   private showGizmos = false
-  private _setTransformSpace: ((space: 'local' | 'world') => void) | null = null
+  private defaultTransformSpace: 'local' | 'world' = 'world'
   private isYUp = true
   private gridHelper: GridHelper | null = null
   private isOrtho = false
@@ -180,9 +182,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
     const tc = new TransformControls(this.camera, canvas)
     this.threeScene.add(tc.getHelper())
     this.transformControlsRoot = tc.getHelper()
-    this._setTransformSpace = (space: 'local' | 'world') => {
-      tc.space = space
-    }
+    // Store the space setter for later use
 
     tc.addEventListener('dragging-changed', event => {
       orbitControls.enabled = !event.value
@@ -227,6 +227,14 @@ export class ThreeRendererAdapter implements RendererAdapter {
         attachedEntityId = null
       },
       setMode: (mode: TransformMode) => tc.setMode(mode),
+      setSnap: (translate: number | null, rotate: number | null, scale: number | null) => {
+        tc.translationSnap = translate
+        tc.rotationSnap = rotate != null ? (rotate * Math.PI) / 180 : null
+        tc.scaleSnap = scale
+      },
+      setSpace: (space: 'local' | 'world') => {
+        tc.space = space
+      },
       dispose: () => {
         tc.detach()
         tc.dispose()
@@ -338,7 +346,10 @@ export class ThreeRendererAdapter implements RendererAdapter {
     this.sceneRoot.rotation.x = isZUp ? -Math.PI / 2 : 0
     // In z-up mode, use local space for TransformControls so gizmo axes align with
     // scene axes (green=Y forward, blue=Z up) instead of Three.js world axes.
-    if (isZUp) this._setTransformSpace?.('local')
+    if (isZUp) {
+      this.defaultTransformSpace = 'local'
+      this.transformControls?.setSpace('local')
+    }
     this.gameCam = null
 
     // Grid helper (editor only) — added to sceneRoot so it respects coordinate system rotation
@@ -677,6 +688,14 @@ export class ThreeRendererAdapter implements RendererAdapter {
 
   setTransformMode(mode: TransformMode): void {
     this.transformControls?.setMode(mode)
+  }
+
+  setTransformSnap(translate: number | null, rotate: number | null, scale: number | null): void {
+    this.transformControls?.setSnap(translate, rotate, scale)
+  }
+
+  setTransformSpace(space: 'local' | 'world'): void {
+    this.transformControls?.setSpace(space)
   }
 
   getEditorCamera(): EditorCameraState | null {

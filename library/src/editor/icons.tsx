@@ -265,6 +265,33 @@ export function IconPrefab() {
   )
 }
 
+export function IconMagnet() {
+  return (
+    <svg {...svgProps} viewBox="0 0 16 16">
+      <path d="M4 2v6a4 4 0 0 0 8 0V2" />
+      <path d="M4 2h2v3H4zM10 2h2v3h-2z" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+export function IconGlobe() {
+  return (
+    <svg {...svgProps} viewBox="0 0 16 16">
+      <circle cx="8" cy="8" r="6" />
+      <path d="M2 8h12M8 2c-2 2-2 10 0 12M8 2c2 2 2 10 0 12" />
+    </svg>
+  )
+}
+
+export function IconCube() {
+  return (
+    <svg {...svgProps} viewBox="0 0 16 16">
+      <path d="M8 1.5l5.5 3v7L8 14.5l-5.5-3v-7z" />
+      <path d="M8 8l5.5-3M8 8L2.5 5M8 8v6.5" />
+    </svg>
+  )
+}
+
 export function IconChevronDown() {
   return (
     <svg {...svgProps} viewBox="0 0 16 16" width={10} height={10}>
