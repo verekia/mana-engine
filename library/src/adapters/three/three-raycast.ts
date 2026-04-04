@@ -35,6 +35,19 @@ export class ThreeRaycastHelper {
     this.getTransformControlsRoot = getTransformControlsRoot
   }
 
+  /** Build entity object → entity ID mapping into the provided map. */
+  private buildEntityMapping(map: Map<Object3D, string>, targets: Object3D[]): void {
+    for (const [id, obj] of this.maps.entityObjects) {
+      if (obj instanceof Mesh) {
+        targets.push(obj)
+        map.set(obj, id)
+      } else if (obj instanceof Group) {
+        targets.push(obj)
+        obj.traverse(child => map.set(child, id))
+      }
+    }
+  }
+
   raycast(ndcX: number, ndcY: number): string | null {
     this.raycaster.setFromCamera(this.ndcVec.set(ndcX, ndcY), this.getCamera())
     this.raycaster.params.Line.threshold = 0.15
@@ -43,15 +56,7 @@ export class ThreeRaycastHelper {
     this.raycastObjectToEntity.clear()
     const tcRoot = this.getTransformControlsRoot()
 
-    for (const [id, obj] of this.maps.entityObjects) {
-      if (obj instanceof Mesh) {
-        this.raycastTargets.push(obj)
-        this.raycastObjectToEntity.set(obj, id)
-      } else if (obj instanceof Group) {
-        this.raycastTargets.push(obj)
-        obj.traverse(child => this.raycastObjectToEntity.set(child, id))
-      }
-    }
+    this.buildEntityMapping(this.raycastObjectToEntity, this.raycastTargets)
     for (const [id, helper] of this.maps.gizmoHelpers) {
       this.raycastTargets.push(helper)
       helper.traverse(child => this.raycastObjectToEntity.set(child, id))
@@ -89,7 +94,6 @@ export class ThreeRaycastHelper {
     const originVec = _v1.set(origin.x, origin.y, origin.z)
     const dirVec = _v2.set(direction.x, direction.y, direction.z).normalize()
 
-    // Transform from scene coordinate space into Three.js world space via the sceneRoot
     const sceneRoot = this.getSceneRoot()
     if (sceneRoot) {
       originVec.applyMatrix4(sceneRoot.matrixWorld)
@@ -103,15 +107,7 @@ export class ThreeRaycastHelper {
     // Build targets from entity objects only (no gizmos/helpers)
     const targets: Object3D[] = []
     const objToEntity = new Map<Object3D, string>()
-    for (const [id, obj] of this.maps.entityObjects) {
-      if (obj instanceof Mesh) {
-        targets.push(obj)
-        objToEntity.set(obj, id)
-      } else if (obj instanceof Group) {
-        targets.push(obj)
-        obj.traverse(child => objToEntity.set(child, id))
-      }
-    }
+    this.buildEntityMapping(objToEntity, targets)
 
     const hits = this.raycaster.intersectObjects(targets, true)
     this.raycaster.far = prevFar
@@ -119,7 +115,6 @@ export class ThreeRaycastHelper {
     for (const hit of hits) {
       const entityId = objToEntity.get(hit.object)
       if (entityId) {
-        // Transform hit point back to scene coordinate space
         const worldPoint = _v3.copy(hit.point)
         if (sceneRoot) {
           worldPoint.applyMatrix4(_mat4.copy(sceneRoot.matrixWorld).invert())

@@ -5,11 +5,7 @@ import type { RigidBody, World } from 'crashcat'
 import type { SceneEntity } from '../../scene-data.ts'
 import type { ManaRigidBody, PhysicsTransform } from '../physics-adapter.ts'
 
-/**
- * Creates a ManaRigidBody wrapper around a Crashcat body.
- * This bridges the Crashcat functional API (rigidBody.setPosition(world, body, ...))
- * to the object-oriented ManaRigidBody interface (handle.setTranslation(pos, wake)).
- */
+/** Create a ManaRigidBody wrapper around a Crashcat body. */
 export function createManaRigidBody(
   world: World,
   body: RigidBody,

@@ -3,7 +3,7 @@ import type { ManaRigidBody, PhysicsTransform } from '../physics-adapter.ts'
 import type { RapierModule, RapierRigidBody } from './index.ts'
 
 /** Create a ManaRigidBody wrapper around a Rapier rigid body. */
-export function createManaBody(rb: RapierRigidBody): ManaRigidBody {
+export function createManaRigidBody(rb: RapierRigidBody): ManaRigidBody {
   return {
     translation: () => rb.translation(),
     linvel: () => rb.linvel(),
@@ -103,7 +103,7 @@ export function createRapierBody(
     colliderHandles.push(collider.handle)
   }
 
-  const manaBody = createManaBody(rb)
+  const manaBody = createManaRigidBody(rb)
   const isDynamic = entity.rigidBody.type !== 'fixed'
 
   return { rigidBody: rb, manaBody, colliderHandles, isSensor, isDynamic }
