@@ -33,6 +33,8 @@ export interface ManaScene {
   setTransformSpace(space: 'local' | 'world'): void
   /** Show or hide an entity in the viewport. For lights, only hides the gizmo helper. */
   setEntityVisible(id: string, visible: boolean): void
+  /** Frame an entity: fly the camera to center and fit the entity in the viewport. */
+  frameEntity?(id: string): void
   /** Switch to an orthographic view or back to perspective. */
   setOrthographicView?(view: 'front' | 'back' | 'right' | 'left' | 'top' | 'bottom' | 'perspective'): void
 }
@@ -590,6 +592,9 @@ export async function createScene(
     },
     setEntityVisible(id: string, visible: boolean) {
       renderer.setEntityVisible(id, visible)
+    },
+    frameEntity(id: string) {
+      renderer.frameEntity?.(id)
     },
     setOrthographicView(view) {
       renderer.setOrthographicView?.(view)

@@ -932,6 +932,39 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     this.controls.update(0)
   }
 
+  frameEntity(id: string): void {
+    if (!this.controls) return
+    const node = this.entityNodes.get(id)
+    if (!node) return
+    const p = node.position
+    // Target the entity's position; set camera distance to at least 5 units
+    const t = this.controls.target
+    const dx = this.camera.position[0] - t[0]
+    const dy = this.camera.position[1] - t[1]
+    const dz = this.camera.position[2] - t[2]
+    const currentDist = Math.sqrt(dx * dx + dy * dy + dz * dz)
+    const dist = Math.max(currentDist, 5)
+
+    // Convert entity position to VoidCore Z-up if needed
+    let tx: number, ty: number, tz: number
+    if (this.isYUp) {
+      ;[tx, ty, tz] = yUpToZUp(p[0], p[1], p[2])
+    } else {
+      ;[tx, ty, tz] = [p[0], p[1], p[2]]
+    }
+
+    vec3Set(this.controls.target, tx, ty, tz)
+    const camDx = this.camera.position[0] - tx
+    const camDy = this.camera.position[1] - ty
+    const camDz = this.camera.position[2] - tz
+    this.controls.distance = dist
+    this.controls.elevation = Math.asin(
+      Math.max(-1, Math.min(1, camDz / (Math.sqrt(camDx * camDx + camDy * camDy + camDz * camDz) || 1))),
+    )
+    this.controls.azimuth = Math.atan2(camDy, camDx)
+    this.controls.update(0)
+  }
+
   setOrthographicView(view: 'front' | 'back' | 'right' | 'left' | 'top' | 'bottom' | 'perspective'): void {
     if (!this.controls) return
 
