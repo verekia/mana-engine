@@ -225,7 +225,7 @@ export function createBuildConfig(
       lib: {
         entry: entryFile,
         formats: ['es'],
-        fileName: 'index',
+        fileName: () => 'index.js',
       },
       outDir,
       emptyOutDir: true,
