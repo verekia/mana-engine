@@ -184,10 +184,16 @@ export function createVoidcoreEntity(entity: SceneEntity, parent: Node, state: V
   state.entityNodes.set(entity.id, node)
 
   // Collider wireframe (editor mode only)
+  // Apply only position and rotation — the wireframe geometry is already sized
+  // from the collider dimensions, so entity scale must NOT be applied.
   if (entity.collider && state.enableOrbitControls) {
     const wireframe = createColliderWireframe(entity.collider, state.isYUp)
     wireframe.visible = state.showGizmos
-    applyTransform(wireframe, entity.transform)
+    applyTransform(
+      wireframe,
+      entity.transform && { position: entity.transform.position, rotation: entity.transform.rotation },
+    )
+    wireframe.setScale(1.005, 1.005, 1.005)
     parent.add(wireframe)
     state.debugWireframes.set(entity.id, wireframe)
   }

@@ -6,7 +6,7 @@ entity:
     scale: [0.2, 0.2, 0.2]
   mesh:
     geometry: sphere
-    material: { color: '#ffaa00' }
+    material: {color: "#ffaa00"}
   rigidBody:
     type: dynamic
     lockRotation: [true, true, true]
@@ -15,12 +15,6 @@ entity:
     radius: 0.2
   castShadow: true
   scripts:
-    - { name: projectile }
+    - {name: projectile}
   children:
-    - {
-        id: ewlymowq,
-        name: Box,
-        type: mesh,
-        transform: { position: [4.075, 0, -1.102], rotation: [0, 0, 0], scale: [1.837, 1.837, 1.837] },
-        mesh: { geometry: box, material: { color: '#888888' } },
-      }
+    - {id: h6809z78, name: Particles, type: particles, transform: {position: [-0.364, 0, -0.096], rotation: [0, 0, 0], scale: [29.279, 29.279, 29.279]}, particles: {maxParticles: 1000, rate: 101, lifetime: 1.1, speed: 0.4, spread: 430, startSize: 0.05, endSize: 0, startColor: "#ff0000", endColor: "#fff700", startOpacity: 1, endOpacity: 0, gravity: 0, blending: normal, loop: true}}
