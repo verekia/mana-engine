@@ -22,7 +22,7 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 
 - Defines all rendering operations: `init`, `loadScene`, `addEntity`, `removeEntity`, `updateEntity`, `setEntityVisible`, `setEntityPhysicsTransform`, `getEntityInitialPhysicsTransform`, `getEntityNativeObject`, `getNativeScene`, `setEntityScale`
 - Animation: `playAnimation`, `stopAnimation`, `getAnimationNames`, `updateAnimations` — GLTF animation clip playback with crossfade
-- Editor-specific: `setGizmos`, `setSelectedEntities`, `raycast`, `setTransformTarget`, `setTransformMode`, `getEditorCamera`, `setEditorCamera`
+- Editor-specific: `setGizmos`, `setSelectedEntities`, `raycast`, `setTransformTarget`, `setTransformMode`, `setTransformSnap`, `setTransformSpace`, `getEditorCamera`, `setEditorCamera`
 - Implementations live in `library/src/adapters/<name>/index.ts`
 
 ### PhysicsAdapter (`library/src/adapters/physics-adapter.ts`)
@@ -45,13 +45,15 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 
 - `ThreeRendererAdapter` wraps Three.js entity creation, OrbitControls, TransformControls, outline post-processing, and raycasting
 - `VoidcoreRendererAdapter` wraps VoidCore (WebGPU/WebGL2): meshes (box, sphere, plane, capsule), Lambert materials, directional/ambient lights, shadow casting, coordinate system rotation, physics transform sync
-  - No GLTF model loading yet (creates placeholder Group)
+  - GLTF/GLB model loading via `loadGLTF()` with animation support (AnimationMixer, AnimationAction, crossfade)
   - No point lights yet (VoidCore has no PointLight)
   - Editor features: raycasting (VoidCore `Raycaster`), selection outline (native `MeshOutline`), orbit controls
   - Custom transform gizmos (`transform-gizmo.ts`): translate (arrow handles), rotate (torus rings), scale (cube handles + center sphere) — built with VoidCore `BasicMaterial`, `CylinderGeometry`, `ConeGeometry`, `SphereGeometry`, and a custom torus `Geometry`
     - Screen-constant sizing, axis hover highlighting, click capture to prevent deselection
     - Drag uses ray-axis/ray-plane intersection in scene-local space (sceneRoot inverse transform)
-  - No collider wireframe gizmos yet, no light helper gizmos
+    - Snap-to-grid support: translate snaps to grid increments, rotate snaps to angle steps, scale snaps to scale steps
+  - Collider wireframe gizmos: semi-transparent green meshes (box, sphere, capsule) shown when gizmos are enabled, synced with entity transforms
+  - No light helper gizmos
   - Uses `Engine.create()` for async WebGPU init with WebGL2 fallback
 - `RapierPhysicsAdapter` wraps Rapier 3D world setup, rigid body/collider creation, and transform readback
 - `CrashcatPhysicsAdapter` wraps Crashcat — a pure-JS physics engine (no WASM, synchronous init)
@@ -265,6 +267,7 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - `ctx.destroyEntity(id)` removes an entity from the renderer, physics, and scripts at runtime
 - `ctx.setScale(x, y, z)` sets the entity's scale
 - `ctx.findEntitiesByTag(tag)` returns all entity IDs with a given tag (e.g. `'enemy'`, `'collectible'`)
+- `ctx.loadScene(name)` switches to a different scene by name (disposes current scene, loads the new one)
 - `ctx.emit(event, data?)` / `ctx.on(event, cb)` / `ctx.off(event, cb)` — script-to-script event bus with auto-cleanup on entity destruction
 - `ctx.playAnimation(name, { loop?, crossFadeDuration? })` / `ctx.stopAnimation()` / `ctx.getAnimationNames()` — GLTF animation playback with crossfade support
 - Scripts are auto-discovered from `scripts/` directory by the CLI — no manual registration needed
@@ -323,6 +326,8 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
   - Gizmo attaches to selected entity automatically
   - OrbitControls disabled while dragging gizmo to prevent camera conflicts
   - Gizmo drag fires `onTransformStart`, `onTransformChange`, `onTransformEnd` callbacks
+- Snap-to-grid: toolbar toggle (X key shortcut) that snaps translations to 1-unit grid, rotations to 15° steps, and scale to 0.25 steps; persisted to localStorage
+- Transform space toggle: toolbar button to switch between Local and World coordinate space for gizmo axes; Three.js uses `TransformControls.space`, VoidCore operates in scene-local space
 - Undo/redo: `UndoHistory` class in `history.ts` with stack-based action history
   - Cmd+Z / Ctrl+Z to undo, Cmd+Shift+Z / Ctrl+Shift+Z to redo
   - Toolbar buttons for undo/redo with enabled/disabled state
@@ -336,7 +341,9 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 
 - `useMana()` hook from `mana-engine/game` provides `{ loadScene, currentScene }`
 - UI components call `loadScene('scene-name')` to switch scenes
+- Scripts can call `ctx.loadScene('scene-name')` to switch scenes from gameplay code (e.g. entering a door, completing a level)
 - `ManaContext` is provided by the Game component
+- The `loadScene` callback is passed from `GameComponent` through `CreateSceneOptions` to `makeCtx()` in `scene.ts`
 
 ## Commands
 

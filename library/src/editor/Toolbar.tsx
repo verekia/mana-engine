@@ -3,8 +3,11 @@ import { COLORS } from './colors.ts'
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
 const MOD_KEY = isMac ? '\u2318' : 'Ctrl'
 import {
+  IconCube,
   IconEye,
+  IconGlobe,
   IconGrid,
+  IconMagnet,
   IconPlay,
   IconRedo,
   IconRotate,
@@ -126,6 +129,10 @@ export function Toolbar({
   onRedo,
   showUI,
   onToggleUI,
+  snapEnabled,
+  onToggleSnap,
+  transformSpace,
+  onToggleTransformSpace,
   showGizmos,
   onToggleGizmos,
   editingPrefab,
@@ -143,6 +150,10 @@ export function Toolbar({
   onRedo: () => void
   showUI: boolean
   onToggleUI: () => void
+  snapEnabled: boolean
+  onToggleSnap: () => void
+  transformSpace: 'local' | 'world'
+  onToggleTransformSpace: () => void
   showGizmos: boolean
   onToggleGizmos: () => void
   editingPrefab?: string | null
@@ -222,6 +233,17 @@ export function Toolbar({
         disabled={playing}
       >
         <IconScale />
+      </ToolbarButton>
+      <ToolbarSeparator />
+      <ToolbarButton title="Snap (X)" onClick={onToggleSnap} active={!playing && snapEnabled} disabled={playing}>
+        <IconMagnet />
+      </ToolbarButton>
+      <ToolbarButton
+        title={`${transformSpace === 'local' ? 'Local' : 'World'} Space`}
+        onClick={onToggleTransformSpace}
+        disabled={playing}
+      >
+        {transformSpace === 'world' ? <IconGlobe /> : <IconCube />}
       </ToolbarButton>
       <ToolbarSeparator />
       <ToolbarButton title={`Undo (${MOD_KEY}+Z)`} onClick={onUndo} disabled={!canUndo || playing}>

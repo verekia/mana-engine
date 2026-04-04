@@ -234,6 +234,11 @@ export class TransformGizmo {
   private dragStartScale = vec3Create()
   private dragStartAngle = 0
 
+  // Snap settings
+  private translateSnap: number | null = null
+  private rotateSnap: number | null = null
+  private scaleSnap: number | null = null
+
   // Shared geometry
   private torusGeometry: Geometry
   private raycaster = new Raycaster()
@@ -438,6 +443,12 @@ export class TransformGizmo {
   setMode(mode: TransformMode): void {
     this.mode = mode
     this._updateModeVisibility()
+  }
+
+  setSnap(translate: number | null, rotate: number | null, scale: number | null): void {
+    this.translateSnap = translate
+    this.rotateSnap = rotate != null ? (rotate * Math.PI) / 180 : null
+    this.scaleSnap = scale
   }
 
   isDragging(): boolean {
@@ -676,18 +687,24 @@ export class TransformGizmo {
     if (this.mode === 'translate') {
       const axisDir = this._getAxisDirection(this.dragAxis)
       const t = closestPointOnAxis(rayOrigin, rayDir, this.dragStartPosition, axisDir)
-      const delta = t - this.dragStartValue
+      let delta = t - this.dragStartValue
 
       const newPos = vec3Create()
       vec3Set(newPos, this.dragStartPosition[0], this.dragStartPosition[1], this.dragStartPosition[2])
       newPos[this.dragAxis] += delta
+      if (this.translateSnap) {
+        newPos[this.dragAxis] = Math.round(newPos[this.dragAxis] / this.translateSnap) * this.translateSnap
+      }
 
       this.targetNode.setPosition(newPos[0], newPos[1], newPos[2])
       this._syncPosition()
     } else if (this.mode === 'scale') {
       if (this.dragAxis === AXIS_ALL) {
         const delta = ndcY - this.dragStartValue
-        const factor = 1 + delta * 2
+        let factor = 1 + delta * 2
+        if (this.scaleSnap) {
+          factor = Math.round(factor / this.scaleSnap) * this.scaleSnap || this.scaleSnap
+        }
         this.targetNode.setScale(
           this.dragStartScale[0] * factor,
           this.dragStartScale[1] * factor,
@@ -697,7 +714,10 @@ export class TransformGizmo {
         const axisDir = this._getAxisDirection(this.dragAxis)
         const t = closestPointOnAxis(rayOrigin, rayDir, this.dragStartPosition, axisDir)
         const delta = t - this.dragStartValue
-        const factor = 1 + delta
+        let factor = 1 + delta
+        if (this.scaleSnap) {
+          factor = Math.round(factor / this.scaleSnap) * this.scaleSnap || this.scaleSnap
+        }
 
         const newScale = vec3Create()
         vec3Set(newScale, this.dragStartScale[0], this.dragStartScale[1], this.dragStartScale[2])
@@ -710,7 +730,10 @@ export class TransformGizmo {
       const hitPoint = vec3Create()
       if (rayPlaneIntersection(hitPoint, rayOrigin, rayDir, this.dragStartPosition, planeNormal)) {
         const currentAngle = this._planeAngle(hitPoint, this.dragStartPosition, this.dragAxis)
-        const deltaAngle = currentAngle - this.dragStartAngle
+        let deltaAngle = currentAngle - this.dragStartAngle
+        if (this.rotateSnap) {
+          deltaAngle = Math.round(deltaAngle / this.rotateSnap) * this.rotateSnap
+        }
 
         // Apply incremental rotation to the start rotation
         const axisVec = this._getAxisDirection(this.dragAxis)

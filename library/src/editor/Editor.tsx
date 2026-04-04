@@ -51,6 +51,10 @@ export default function Editor({
   const [showGizmos, setShowGizmos] = useState(() => localStorage.getItem('mana:showGizmos') !== 'false')
   const [playing, setPlaying] = useState(false)
   const [transformMode, setTransformMode] = useState<TransformMode>('translate')
+  const [snapEnabled, setSnapEnabled] = useState(() => localStorage.getItem('mana:snapEnabled') === 'true')
+  const [transformSpace, setTransformSpace] = useState<'local' | 'world'>(
+    () => (localStorage.getItem('mana:transformSpace') as 'local' | 'world') || 'world',
+  )
   const historyRef = useRef(new UndoHistory())
   const [, forceUpdate] = useState(0)
   const transformStartRef = useRef<{ id: string; transform: Transform } | null>(null)
@@ -190,6 +194,8 @@ export default function Editor({
     prefabs,
     showGizmos,
     transformMode,
+    snapEnabled,
+    transformSpace,
     createRenderer,
     createPhysics,
     coordinateSystem,
@@ -1056,6 +1062,13 @@ export default function Editor({
       if (e.key === 'w' && !mod) setTransformMode('translate')
       if (e.key === 'e' && !mod) setTransformMode('rotate')
       if (e.key === 'r' && !mod) setTransformMode('scale')
+      if (e.key === 'x' && !mod) {
+        setSnapEnabled(s => {
+          const next = !s
+          localStorage.setItem('mana:snapEnabled', String(next))
+          return next
+        })
+      }
 
       // Orthographic view shortcuts (Blender-style numpad)
       if (e.key === '1') {
@@ -1158,6 +1171,22 @@ export default function Editor({
                     return next
                   })
                 }
+                snapEnabled={snapEnabled}
+                onToggleSnap={() => {
+                  setSnapEnabled(s => {
+                    const next = !s
+                    localStorage.setItem('mana:snapEnabled', String(next))
+                    return next
+                  })
+                }}
+                transformSpace={transformSpace}
+                onToggleTransformSpace={() => {
+                  setTransformSpace(s => {
+                    const next = s === 'world' ? 'local' : 'world'
+                    localStorage.setItem('mana:transformSpace', next)
+                    return next
+                  })
+                }}
                 showGizmos={showGizmos}
                 onToggleGizmos={() => {
                   setShowGizmos(s => {

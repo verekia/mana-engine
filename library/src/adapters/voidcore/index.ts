@@ -1,5 +1,6 @@
 import {
   AmbientLight,
+  AnimationMixer,
   BasicMaterial,
   BoxGeometry,
   CapsuleGeometry,
@@ -17,6 +18,7 @@ import {
   Scene,
   SphereGeometry,
   createRaycastHit,
+  loadGLTF,
   mat4Invert,
   quatConjugate,
   quatCreate,
@@ -26,7 +28,10 @@ import {
   vec3TransformQuat,
 } from 'voidcore'
 
+import { resolveAsset } from '../../assets.ts'
 import { TransformGizmo } from './transform-gizmo.ts'
+
+import type { AnimationClip, Skeleton } from 'voidcore'
 
 import type { SceneData, SceneEntity } from '../../scene-data.ts'
 import type { PhysicsTransform } from '../physics-adapter.ts'
@@ -201,6 +206,53 @@ function addQuad(
   indices.push(vi + 4, vi + 5, vi + 6, vi + 4, vi + 6, vi + 7)
 }
 
+/** Create a transparent green wireframe-style mesh for a collider shape. */
+function createColliderWireframe(collider: import('../../scene-data.ts').ColliderData, isYUp: boolean): Node {
+  let geometry: BoxGeometry | SphereGeometry | CapsuleGeometry
+  let needsCapsuleRotation = false
+
+  switch (collider.shape) {
+    case 'sphere': {
+      const r = collider.radius ?? 0.5
+      geometry = new SphereGeometry({ radius: r })
+      break
+    }
+    case 'capsule': {
+      const r = collider.radius ?? 0.5
+      const hh = collider.halfHeight ?? 0.5
+      geometry = new CapsuleGeometry({ radius: r, height: hh * 2 })
+      needsCapsuleRotation = true
+      break
+    }
+    default: {
+      const he = collider.halfExtents ?? [0.5, 0.5, 0.5]
+      geometry = new BoxGeometry({ width: he[0] * 2, height: he[1] * 2, depth: he[2] * 2 })
+      break
+    }
+  }
+
+  const material = new BasicMaterial({
+    color: [0, 1, 0],
+    opacity: 0.15,
+  })
+  material.transparent = true
+  material.side = 'double'
+
+  const mesh = new Mesh(geometry, material)
+  mesh.castShadow = false
+
+  // Capsule pre-rotation to match the entity orientation
+  if (needsCapsuleRotation && isYUp) {
+    const [qx, qy, qz, qw] = eulerToQuat(-Math.PI / 2, 0, 0)
+    mesh.setRotation(qx, qy, qz, qw)
+    const wrapper = new Group()
+    wrapper.add(mesh)
+    return wrapper
+  }
+
+  return mesh
+}
+
 export class VoidcoreRendererAdapter implements RendererAdapter {
   private engine!: Engine
   private scene!: Scene
@@ -222,6 +274,14 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   private isOrtho = false
   private transformGizmo: TransformGizmo | null = null
   private currentTransformMode: TransformMode = 'translate'
+  /** Animation clips stored per entity from GLTF loading. */
+  private entityClips = new Map<string, AnimationClip[]>()
+  /** Skeletons stored per entity from GLTF loading. */
+  private entitySkeletons = new Map<string, Skeleton>()
+  /** Active AnimationMixers per entity. */
+  private entityMixers = new Map<string, AnimationMixer>()
+  /** Collider wireframe nodes per entity. */
+  private debugWireframes = new Map<string, Node>()
   /** Outline thickness for selected entities. */
   private static readonly SELECTION_OUTLINE_THICKNESS = 0.1
   private static readonly SELECTION_OUTLINE_COLOR: [number, number, number] = [0.27, 0.53, 1]
@@ -281,6 +341,10 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     this.observer?.disconnect()
     this.controls?.dispose()
     this.entityNodes.clear()
+    this.entityClips.clear()
+    this.entitySkeletons.clear()
+    this.entityMixers.clear()
+    this.debugWireframes.clear()
     this.engine?.dispose()
   }
 
@@ -443,7 +507,34 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
       }
 
       case 'model': {
-        node = new Group()
+        const group = new Group()
+        node = group
+        const modelSrc = entity.model?.src
+        if (modelSrc) {
+          const entityId = entity.id
+          const url = resolveAsset(modelSrc)
+          loadGLTF(url).then(gltf => {
+            // Check entity hasn't been removed while loading
+            if (!this.entityNodes.has(entityId)) return
+            group.add(gltf.scene)
+            // Apply shadow props recursively
+            const applyShadow = (n: Node) => {
+              if (n instanceof Mesh) {
+                n.castShadow = entity.castShadow ?? false
+                ;(n.material as LambertMaterial).receiveShadow = entity.receiveShadow ?? false
+              }
+              for (const child of n.children) applyShadow(child)
+            }
+            applyShadow(gltf.scene)
+            // Store animation data
+            if (gltf.animations.length > 0) {
+              this.entityClips.set(entityId, gltf.animations)
+              if (gltf.skeletons.length > 0) {
+                this.entitySkeletons.set(entityId, gltf.skeletons[0])
+              }
+            }
+          })
+        }
         break
       }
 
@@ -486,6 +577,15 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     applyTransform(node, entity.transform)
     ;(parent ?? this.sceneRoot).add(node)
     this.entityNodes.set(entity.id, node)
+
+    // Collider wireframe (editor mode only)
+    if (entity.collider && this.enableOrbitControls) {
+      const wireframe = createColliderWireframe(entity.collider, this.isYUp)
+      wireframe.visible = this.showGizmos
+      applyTransform(wireframe, entity.transform)
+      ;(parent ?? this.sceneRoot).add(wireframe)
+      this.debugWireframes.set(entity.id, wireframe)
+    }
   }
 
   private _createGeometry(type?: string) {
@@ -520,12 +620,22 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
       node.parent?.remove(node)
       this.entityNodes.delete(id)
     }
+    this.entityClips.delete(id)
+    this.entitySkeletons.delete(id)
+    this.entityMixers.delete(id)
+    const wireframe = this.debugWireframes.get(id)
+    if (wireframe) {
+      wireframe.parent?.remove(wireframe)
+      this.debugWireframes.delete(id)
+    }
   }
 
   updateEntity(id: string, entity: SceneEntity): void {
     const node = this.entityNodes.get(id)
     if (!node) return
     applyTransform(node, entity.transform)
+    const wireframe = this.debugWireframes.get(id)
+    if (wireframe) applyTransform(wireframe, entity.transform)
 
     if (entity.type === 'mesh' && node instanceof Mesh && entity.mesh?.material?.color) {
       ;(node.material as LambertMaterial).color = hexToRgb(entity.mesh.material.color)
@@ -565,13 +675,54 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     }
   }
 
-  // Animation stubs — VoidCore does not support GLTF animation playback yet
-  playAnimation(_entityId: string, _name: string, _options?: { loop?: boolean; crossFadeDuration?: number }): void {}
-  stopAnimation(_entityId: string): void {}
-  getAnimationNames(_entityId: string): string[] {
-    return []
+  playAnimation(entityId: string, name: string, options?: { loop?: boolean; crossFadeDuration?: number }): void {
+    const clips = this.entityClips.get(entityId)
+    const skeleton = this.entitySkeletons.get(entityId)
+    if (!clips || !skeleton) return
+
+    const clip = clips.find(c => c.name === name)
+    if (!clip) return
+
+    let mixer = this.entityMixers.get(entityId)
+    if (!mixer) {
+      mixer = new AnimationMixer(skeleton)
+      this.entityMixers.set(entityId, mixer)
+    }
+
+    const crossFade = options?.crossFadeDuration ?? 0.3
+
+    // Stop current animations with crossfade
+    for (const c of clips) {
+      const existing = mixer.clipAction(c)
+      if (existing !== mixer.clipAction(clip)) {
+        existing.fadeOut(crossFade)
+      }
+    }
+
+    const action = mixer.clipAction(clip)
+    action.fadeIn(crossFade)
+    action.play()
   }
-  updateAnimations(_dt: number): void {}
+
+  stopAnimation(entityId: string): void {
+    const mixer = this.entityMixers.get(entityId)
+    const clips = this.entityClips.get(entityId)
+    if (!mixer || !clips) return
+    for (const clip of clips) {
+      mixer.clipAction(clip).stop()
+    }
+  }
+
+  getAnimationNames(entityId: string): string[] {
+    const clips = this.entityClips.get(entityId)
+    return clips ? clips.map(c => c.name) : []
+  }
+
+  updateAnimations(dt: number): void {
+    for (const mixer of this.entityMixers.values()) {
+      mixer.update(dt)
+    }
+  }
 
   getEntityPosition(id: string): [number, number, number] | null {
     const node = this.entityNodes.get(id)
@@ -609,6 +760,9 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   setGizmos(enabled: boolean): void {
     this.showGizmos = enabled
     if (this.gridGroup) this.gridGroup.visible = enabled
+    for (const wireframe of this.debugWireframes.values()) {
+      wireframe.visible = enabled
+    }
   }
 
   setSelectedEntities(ids: string[]): void {
@@ -731,6 +885,14 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   setTransformMode(mode: TransformMode): void {
     this.currentTransformMode = mode
     this.transformGizmo?.setMode(mode)
+  }
+
+  setTransformSnap(translate: number | null, rotate: number | null, scale: number | null): void {
+    this.transformGizmo?.setSnap(translate, rotate, scale)
+  }
+
+  setTransformSpace(_space: 'local' | 'world'): void {
+    // VoidCore transform gizmo always operates in scene-local space
   }
 
   getEditorCamera(): EditorCameraState | null {

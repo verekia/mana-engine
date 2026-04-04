@@ -141,6 +141,13 @@ export interface ScriptContext {
    * Can destroy both scene entities and runtime-instantiated prefab instances.
    */
   destroyEntity(id: string): void
+
+  /**
+   * Load a different scene by name.
+   * The current scene will be disposed and replaced with the new one.
+   * @param name Scene name (e.g. 'main-menu', 'level-1')
+   */
+  loadScene(name: string): void
 }
 
 /**

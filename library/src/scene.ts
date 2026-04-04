@@ -27,6 +27,10 @@ export interface ManaScene {
   setTransformMode(mode: TransformMode): void
   /** Attach transform gizmo to entity, or detach if id is null. Editor mode only. */
   setTransformTarget(id: string | null): void
+  /** Set transform gizmo snap increments. Null disables snapping. */
+  setTransformSnap(translate: number | null, rotate: number | null, scale: number | null): void
+  /** Set transform gizmo space ('local' or 'world'). */
+  setTransformSpace(space: 'local' | 'world'): void
   /** Show or hide an entity in the viewport. For lights, only hides the gizmo helper. */
   setEntityVisible(id: string, visible: boolean): void
   /** Switch to an orthographic view or back to perspective. */
@@ -45,6 +49,8 @@ export interface CreateSceneOptions {
   scripts?: Record<string, ManaScript>
   /** Prefab definitions, keyed by name. Used by `ctx.instantiatePrefab()` in scripts. */
   prefabs?: Record<string, PrefabData>
+  /** Callback for scripts to switch scenes via ctx.loadScene(). */
+  loadScene?: (name: string) => void
   /** Enable editor orbit controls (edit mode). When false, the game camera is used. */
   orbitControls?: boolean
   /** Initial editor camera state (orbit controls mode only). */
@@ -425,6 +431,9 @@ export async function createScene(
         }
         destroySingleEntity(id)
       },
+      loadScene(name) {
+        options.loadScene?.(name)
+      },
     }
   }
 
@@ -572,6 +581,12 @@ export async function createScene(
     },
     setTransformTarget(id: string | null) {
       renderer.setTransformTarget(id)
+    },
+    setTransformSnap(translate: number | null, rotate: number | null, scale: number | null) {
+      renderer.setTransformSnap(translate, rotate, scale)
+    },
+    setTransformSpace(space: 'local' | 'world') {
+      renderer.setTransformSpace(space)
     },
     setEntityVisible(id: string, visible: boolean) {
       renderer.setEntityVisible(id, visible)

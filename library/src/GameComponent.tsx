@@ -33,6 +33,13 @@ export function Game({
   const [currentScene, setCurrentScene] = useState(initialScene)
   const sceneData = scenes[currentScene]
 
+  const loadScene = useCallback(
+    (name: string) => {
+      if (scenes[name]) setCurrentScene(name)
+    },
+    [scenes],
+  )
+
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !sceneData) return
@@ -41,19 +48,12 @@ export function Game({
     const physics = createPhysics?.()
     const data = coordinateSystem ? { ...sceneData, coordinateSystem } : sceneData
 
-    const scenePromise = createScene(canvas, data, { renderer, physics, scripts, prefabs })
+    const scenePromise = createScene(canvas, data, { renderer, physics, scripts, prefabs, loadScene })
     return () => {
       // Dispose the scene once the promise resolves (handles both already-resolved and pending cases)
       scenePromise.then(s => s.dispose())
     }
-  }, [sceneData, scripts, prefabs, createRenderer, createPhysics, coordinateSystem])
-
-  const loadScene = useCallback(
-    (name: string) => {
-      if (scenes[name]) setCurrentScene(name)
-    },
-    [scenes],
-  )
+  }, [sceneData, scripts, prefabs, createRenderer, createPhysics, coordinateSystem, loadScene])
 
   const contextValue = useMemo(() => ({ loadScene, currentScene }), [loadScene, currentScene])
 
