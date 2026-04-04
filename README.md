@@ -238,6 +238,8 @@ These features are not yet implemented in the shared abstraction or any adapter:
 mkdir my-game && cd my-game
 bun add mana-engine
 bunx mana editor    # Scaffolds project + opens the editor
+bunx mana build     # Build for production
+bunx mana start     # Serve the production build locally
 ```
 
 Running `mana editor` (or `mana dev` / `mana build`) in an empty directory automatically creates the project structure with a default scene containing a camera, light, and cube.

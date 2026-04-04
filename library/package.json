@@ -18,7 +18,7 @@
     }
   },
   "scripts": {
-    "build": "bun build src/index.ts src/game.ts src/cli.ts --outdir dist --format esm --splitting --packages=external && tsgo --emitDeclarationOnly",
+    "build": "bun build src/index.ts src/game.ts src/cli.ts --outdir dist --format esm --splitting --packages=external --production && tsgo --emitDeclarationOnly",
     "test": "bun test"
   },
   "dependencies": {

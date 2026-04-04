@@ -10,6 +10,9 @@ switch (command) {
   case 'build':
     await runBuild()
     break
+  case 'start':
+    await runStart()
+    break
   case 'dev':
     await runDev()
     break
@@ -21,6 +24,7 @@ switch (command) {
     console.log('')
     console.log('Commands:')
     console.log('  build    Build the game for production')
+    console.log('  start    Serve the production build locally')
     console.log('  dev      Start development server')
     console.log('  editor   Open the Mana Engine editor')
     process.exit(command ? 1 : 0)
@@ -233,7 +237,58 @@ async function runBuild() {
   const { aliases } = getManaAliases()
   console.log(`Building game from ${config.gameDir}...`)
   await build(createBuildConfig(gameDir, outDir, entryFile, aliases, resolvePackagePath('tailwindcss')))
+
+  // Generate index.html that mounts the game fullscreen
+  writeFileSync(
+    resolve(outDir, 'index.html'),
+    `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mana Game</title>
+    <style>
+      html, body { margin: 0; width: 100%; height: 100%; }
+    </style>
+  </head>
+  <body>
+    <div id="game" style="width: 100%; height: 100vh"></div>
+    <script type="module">
+      import * as game from './index.js'
+      const el = document.getElementById('game')
+      const shadow = el.attachShadow({ mode: 'open' })
+      const style = document.createElement('style')
+      style.textContent = game.css
+      shadow.appendChild(style)
+      const container = document.createElement('div')
+      container.style.containerType = 'inline-size'
+      container.style.width = '100%'
+      container.style.height = '100%'
+      shadow.appendChild(container)
+      game.mount(container, { assetManifest: game.assetManifest })
+    </script>
+  </body>
+</html>
+`,
+  )
+
   console.log(`Game built to ${config.outDir}`)
+}
+
+async function runStart() {
+  const config = await loadConfig()
+  const outDir = resolve(process.cwd(), config.outDir)
+  if (!existsSync(resolve(outDir, 'index.html'))) {
+    console.error('No build found. Run "mana build" first.')
+    process.exit(1)
+  }
+
+  const { preview } = await import('vite')
+  const server = await preview({
+    build: { outDir },
+    preview: { open: true },
+  })
+  server.printUrls()
 }
 
 async function runDev() {

@@ -366,6 +366,8 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 
 Always run `bun install` first to ensure dependencies (including CLI tools like `oxfmt`, `oxlint`, `tsgo`) are installed. All commands below are defined in the root `package.json` and must be run from the repository root. Always run `bun run format` before committing, and run `bun run all` to validate everything passes before pushing.
 
+- `mana build` — build the game for production (outputs to `outDir` with an `index.html` that mounts the game fullscreen)
+- `mana start` — serve the production build locally (run `mana build` first)
 - `bun run all` — lint + format check + typecheck + test + build (the full CI pipeline)
 - `bun run dev:game` — starts the platformer example in dev mode
 - `bun run dev:host` — builds the production game, then starts the platformer host in dev mode

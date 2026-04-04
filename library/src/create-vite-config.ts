@@ -212,6 +212,7 @@ export function createBuildConfig(
   const assetsDir = resolve(gameDir, 'assets')
   const scenesDir = resolve(gameDir, 'scenes')
   return {
+    mode: 'production',
     plugins: [
       yamlPlugin(),
       tailwindResolvePlugin(tailwindPath),
@@ -233,6 +234,9 @@ export function createBuildConfig(
           assetFileNames: '[name]-[hash].[ext]',
         },
       },
+    },
+    define: {
+      'process.env.NODE_ENV': JSON.stringify('production'),
     },
     resolve: {
       alias: aliases,
