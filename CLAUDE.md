@@ -22,6 +22,7 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 
 - Defines all rendering operations: `init`, `loadScene`, `addEntity`, `removeEntity`, `updateEntity`, `setEntityVisible`, `setEntityPhysicsTransform`, `getEntityInitialPhysicsTransform`, `getEntityNativeObject`, `getNativeScene`, `setEntityScale`
 - Animation: `playAnimation`, `stopAnimation`, `getAnimationNames`, `updateAnimations` — GLTF animation clip playback with crossfade
+- Particles: `updateParticles`, `emitParticleBurst`, `resetParticles` — per-frame particle simulation and burst control
 - Editor-specific: `setGizmos`, `setSelectedEntities`, `raycast`, `setTransformTarget`, `setTransformMode`, `setTransformSnap`, `setTransformSpace`, `getEditorCamera`, `setEditorCamera`
 - Implementations live in `library/src/adapters/<name>/index.ts`
 
@@ -125,6 +126,19 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - Animation clips are captured during GLTF model loading via `onAnimationClips` callback
 - Mixers and clips are cleaned up on entity removal
 
+### Particle System
+
+- Entity type `'particles'` creates a particle emitter at the entity's transform
+- `ParticleData` in `scene-data.ts` configures: `maxParticles`, `rate`, `lifetime`, `speed`, `spread`, `startSize`/`endSize`, `startColor`/`endColor`, `startOpacity`/`endOpacity`, `gravity`, `texture`, `blending` (`'additive'` | `'normal'`), `loop`, `burst`
+- `RendererAdapter.updateParticles(dt)` is called once per frame by `scene.ts`, after `updateAnimations`
+- **Three.js adapter** (`three-particles.ts`): `ThreeParticleHelper` uses `Points` + `BufferGeometry` with per-particle attributes (`particleSize`, `particleAlpha`, `particleColor`) and TSL `SpriteNodeMaterial` for size attenuation and alpha blending
+- **VoidCore adapter** (`voidcore-particles.ts`): `VoidcoreParticleHelper` uses a pool of `Sprite` objects with `SpriteMaterial` — CPU-driven position/scale/opacity updates per frame; `Sprite` provides automatic camera-facing billboard behavior
+- Emission modes: continuous (rate-based with optional loop) or burst (emit all at once)
+- Gravity applies downward along scene-up axis, velocity integrated per frame
+- Color and opacity are linearly interpolated from start to end over particle lifetime
+- Script API: `ctx.emitParticleBurst(count?)` triggers a burst, `ctx.resetParticles()` restarts the emitter
+- Editor: "Particles" entity in Add Entity menu (Effects category), full inspector panel with all particle properties
+
 ### Audio System
 
 - `Audio` class in `audio.ts` wraps the Web Audio API with buffer caching
@@ -177,7 +191,7 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - Scenes are YAML files in `scenes/` (e.g., `main-menu.yaml`, `first-world.yaml`)
 - YAML is used for authoring; at build time a Vite plugin (`yamlPlugin`) transforms `.yaml` imports into JSON so `js-yaml` stays out of the production bundle
 - Each scene has a `background` color and an `entities` array
-- Entity types: `camera`, `mesh`, `model`, `directional-light`, `ambient-light`, `point-light`, `ui`, `audio`
+- Entity types: `camera`, `mesh`, `model`, `directional-light`, `ambient-light`, `point-light`, `ui`, `audio`, `particles`
 - UI entities reference React components by name via `ui: { component: ComponentName }`
 - Entities can have `scripts: [scriptName]` to attach behavior scripts
 - The `Game` component in the library manages scene switching via `ManaContext`

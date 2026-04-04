@@ -141,6 +141,20 @@ export interface RendererAdapter {
    */
   updateAnimations(dt: number): void
 
+  // ── Particles ─────────────────────────────────────────────────────────────
+
+  /**
+   * Advance all active particle emitters by dt seconds.
+   * Called once per frame by the scene loop, after updateAnimations.
+   */
+  updateParticles(dt: number): void
+
+  /** Emit a burst of particles from an entity's particle emitter. */
+  emitParticleBurst(entityId: string, count?: number): void
+
+  /** Reset and restart an entity's particle emitter. */
+  resetParticles(entityId: string): void
+
   // ── Script helpers ──────────────────────────────────────────────────────────
 
   /**

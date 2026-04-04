@@ -314,6 +314,13 @@ export function createThreeEntityObject(
       obj = light
       break
     }
+    case 'particles': {
+      const particleGroup = new Group()
+      applyTransform(particleGroup, entity.transform)
+      scene.add(particleGroup)
+      obj = particleGroup
+      break
+    }
     case 'audio': {
       const audioGroup = new Group()
       applyTransform(audioGroup, entity.transform)

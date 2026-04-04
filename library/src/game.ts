@@ -14,6 +14,7 @@ export type {
   SceneEntity,
   ScriptEntry,
   Transform,
+  ParticleData,
   UiData,
 } from './scene-data.ts'
 export { ManaContext, useMana } from './scene-context.ts'

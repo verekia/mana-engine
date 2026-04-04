@@ -142,6 +142,19 @@ export function IconUI() {
   )
 }
 
+export function IconParticles() {
+  return (
+    <svg {...svgProps} viewBox="0 0 16 16">
+      <circle cx="8" cy="4" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="5" cy="7" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="11" cy="6.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="6.5" cy="10.5" r="0.9" fill="currentColor" stroke="none" />
+      <circle cx="10" cy="10" r="0.7" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="13" r="0.5" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
 // -- Asset icons --
 
 export function IconFolder() {

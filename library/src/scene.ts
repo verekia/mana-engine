@@ -434,6 +434,12 @@ export async function createScene(
       loadScene(name) {
         options.loadScene?.(name)
       },
+      emitParticleBurst(count) {
+        renderer.emitParticleBurst(entityId, count)
+      },
+      resetParticles() {
+        renderer.resetParticles(entityId)
+      },
     }
   }
 
@@ -535,6 +541,7 @@ export async function createScene(
     scriptInput?.endFrame()
 
     renderer.updateAnimations(dt)
+    renderer.updateParticles(dt)
     renderer.updateControls()
     renderer.render()
   }

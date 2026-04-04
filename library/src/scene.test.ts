@@ -397,6 +397,9 @@ function createMockRenderer(): RendererAdapter {
     stopAnimation: mock(() => {}),
     getAnimationNames: mock(() => []),
     updateAnimations: mock(() => {}),
+    updateParticles: mock(() => {}),
+    emitParticleBurst: mock(() => {}),
+    resetParticles: mock(() => {}),
   }
 }
 

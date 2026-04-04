@@ -7,7 +7,7 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 ### Scene System
 
 - **YAML-based scenes** — Scenes defined as YAML files in `scenes/`, converted to JSON at build time (no YAML parser shipped in production)
-- **7 entity types** — `camera`, `mesh`, `model`, `directional-light`, `ambient-light`, `point-light`, `ui`
+- **8 entity types** — `camera`, `mesh`, `model`, `directional-light`, `ambient-light`, `point-light`, `ui`, `particles`
 - **Multi-scene support** — Switch between scenes at runtime with `useMana().loadScene()` from UI or `ctx.loadScene()` from scripts
 - **Coordinate system** — Project-level `y-up` (default) or `z-up` (Blender/CAD) in `mana.json`
 
@@ -60,6 +60,16 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 - **Music playback** — `ctx.playMusic('audio/bgm.mp3')` with looping by default, stops previous track
 - **Master volume** — `ctx.setMasterVolume(0.5)` affects all sounds and music
 - **Web Audio API** — Buffer caching, automatic AudioContext resume for browser autoplay policy
+
+### Particle System
+
+- **Configurable emitters** — Particles entity type with rate, lifetime, speed, spread, size, color, opacity, gravity, texture, and blending mode
+- **Burst mode** — Emit all particles at once for explosions, impacts, etc.
+- **Color & opacity interpolation** — Start/end values linearly interpolated over particle lifetime
+- **Three.js adapter** — GPU-friendly `Points` + `BufferGeometry` with TSL `SpriteNodeMaterial` for size attenuation and alpha blending
+- **VoidCore adapter** — Pool of `Sprite` billboard objects with CPU-driven updates
+- **Script API** — `ctx.emitParticleBurst(count?)` for triggering bursts, `ctx.resetParticles()` for restarting emitters
+- **Editor support** — Full inspector panel with all particle properties, "Particles" entry in Add Entity menu
 
 ### Prefab System
 
@@ -162,34 +172,36 @@ The engine is decoupled from any specific 3D renderer or physics library. Choose
 
 These APIs work identically regardless of which renderer or physics adapter is active:
 
-| API                            | Status | Description                                      |
-| ------------------------------ | ------ | ------------------------------------------------ |
-| `ctx.getPosition()`            | Done   | Get entity position                              |
-| `ctx.setPosition(x, y, z)`     | Done   | Set entity position (bypasses physics)           |
-| `ctx.setRotation(x, y, z)`     | Done   | Set entity Euler rotation (radians)              |
-| `ctx.setScale(x, y, z)`        | Done   | Set entity scale                                 |
-| `ctx.findEntityPosition(name)` | Done   | Find another entity's position by name           |
-| `ctx.instantiatePrefab(name)`  | Done   | Spawn a prefab instance (with physics + scripts) |
-| `ctx.destroyEntity(id)`        | Done   | Remove entity from renderer, physics, scripts    |
-| `ctx.entity`                   | Done   | Native renderer object (`unknown`, cast to use)  |
-| `ctx.scene`                    | Done   | Native scene object (`unknown`, cast to use)     |
-| `ctx.dt` / `ctx.time`          | Done   | Frame delta and elapsed time                     |
-| `ctx.input`                    | Done   | Keyboard, mouse, and axis input                  |
-| `ctx.params`                   | Done   | Script parameters from editor                    |
-| `ctx.raycast(origin, dir)`     | Done   | World-space raycast for gameplay (shooting, LOS) |
-| `ctx.playSound(path)`          | Done   | Play a one-shot sound effect                     |
-| `ctx.stopSound(id)`            | Done   | Stop a sound by ID                               |
-| `ctx.playMusic(path)`          | Done   | Play looping music (stops previous)              |
-| `ctx.stopMusic()`              | Done   | Stop current music                               |
-| `ctx.setMasterVolume(vol)`     | Done   | Set master volume (0–1)                          |
-| `ctx.findEntitiesByTag(tag)`   | Done   | Find all entity IDs with a given tag             |
-| `ctx.emit(event, data?)`       | Done   | Emit event to all listeners                      |
-| `ctx.on(event, callback)`      | Done   | Subscribe to events (auto-cleanup on destroy)    |
-| `ctx.off(event, callback)`     | Done   | Unsubscribe from events                          |
-| `ctx.playAnimation(name)`      | Done   | Play GLTF animation clip (with crossfade)        |
-| `ctx.stopAnimation()`          | Done   | Stop current animation                           |
-| `ctx.getAnimationNames()`      | Done   | List available animation clips                   |
-| `ctx.loadScene(name)`          | Done   | Switch to a different scene by name              |
+| API                             | Status | Description                                      |
+| ------------------------------- | ------ | ------------------------------------------------ |
+| `ctx.getPosition()`             | Done   | Get entity position                              |
+| `ctx.setPosition(x, y, z)`      | Done   | Set entity position (bypasses physics)           |
+| `ctx.setRotation(x, y, z)`      | Done   | Set entity Euler rotation (radians)              |
+| `ctx.setScale(x, y, z)`         | Done   | Set entity scale                                 |
+| `ctx.findEntityPosition(name)`  | Done   | Find another entity's position by name           |
+| `ctx.instantiatePrefab(name)`   | Done   | Spawn a prefab instance (with physics + scripts) |
+| `ctx.destroyEntity(id)`         | Done   | Remove entity from renderer, physics, scripts    |
+| `ctx.entity`                    | Done   | Native renderer object (`unknown`, cast to use)  |
+| `ctx.scene`                     | Done   | Native scene object (`unknown`, cast to use)     |
+| `ctx.dt` / `ctx.time`           | Done   | Frame delta and elapsed time                     |
+| `ctx.input`                     | Done   | Keyboard, mouse, and axis input                  |
+| `ctx.params`                    | Done   | Script parameters from editor                    |
+| `ctx.raycast(origin, dir)`      | Done   | World-space raycast for gameplay (shooting, LOS) |
+| `ctx.playSound(path)`           | Done   | Play a one-shot sound effect                     |
+| `ctx.stopSound(id)`             | Done   | Stop a sound by ID                               |
+| `ctx.playMusic(path)`           | Done   | Play looping music (stops previous)              |
+| `ctx.stopMusic()`               | Done   | Stop current music                               |
+| `ctx.setMasterVolume(vol)`      | Done   | Set master volume (0–1)                          |
+| `ctx.findEntitiesByTag(tag)`    | Done   | Find all entity IDs with a given tag             |
+| `ctx.emit(event, data?)`        | Done   | Emit event to all listeners                      |
+| `ctx.on(event, callback)`       | Done   | Subscribe to events (auto-cleanup on destroy)    |
+| `ctx.off(event, callback)`      | Done   | Unsubscribe from events                          |
+| `ctx.playAnimation(name)`       | Done   | Play GLTF animation clip (with crossfade)        |
+| `ctx.stopAnimation()`           | Done   | Stop current animation                           |
+| `ctx.getAnimationNames()`       | Done   | List available animation clips                   |
+| `ctx.loadScene(name)`           | Done   | Switch to a different scene by name              |
+| `ctx.emitParticleBurst(count?)` | Done   | Emit a burst of particles from this emitter      |
+| `ctx.resetParticles()`          | Done   | Reset and restart the particle emitter           |
 
 ### Adapter-Agnostic Physics API (`ManaRigidBody`)
 
@@ -386,7 +398,6 @@ Bun workspaces, Vite, React 19, Tailwind CSS v4, oxlint, oxfmt, tsgo
 
 Features not yet implemented that would enhance the engine:
 
-- **Particle system** — Configurable emitters for effects like fire, smoke, and sparks
 - **Asset manager** — Centralized loading and caching of textures, models, and audio files (asset browser in editor is implemented)
 - **Post-processing** — Bloom, depth of field, tone mapping, color grading, SSAO
 - **Skybox / environment maps** — HDR environment lighting and reflections

@@ -37,6 +37,7 @@ import {
   setTransformTarget as setTransformTargetFn,
 } from './voidcore-editor.ts'
 import { createVoidcoreEntity, updateVoidcoreEntity } from './voidcore-entity.ts'
+import { VoidcoreParticleHelper } from './voidcore-particles.ts'
 import { createGridGroup, eulerToQuat, hexToRgb, orthoMatrixZO, setClearColor, yUpToZUp } from './voidcore-utils.ts'
 
 import type { SceneData, SceneEntity } from '../../scene-data.ts'
@@ -79,6 +80,7 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   private transformGizmo: TransformGizmo | null = null
   private currentTransformMode: TransformMode = 'translate'
   private animState = createAnimationState()
+  private particleHelper = new VoidcoreParticleHelper()
   /** Collider wireframe nodes per entity. */
   private debugWireframes = new Map<string, Node>()
 
@@ -197,6 +199,10 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     const addEntities = (entities: SceneEntity[], parent: Node) => {
       for (const entity of entities) {
         createVoidcoreEntity(entity, parent, entityState)
+        if (entity.type === 'particles') {
+          const node = this.entityNodes.get(entity.id)
+          if (node) this.particleHelper.addEmitter(entity.id, entity.particles, node)
+        }
         if (entity.children?.length) {
           const parentNode = this.entityNodes.get(entity.id)
           if (parentNode) addEntities(entity.children, parentNode)
@@ -270,6 +276,10 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   async addEntity(entity: SceneEntity, parentId?: string): Promise<void> {
     const parent = parentId ? (this.entityNodes.get(parentId) ?? this.sceneRoot) : this.sceneRoot
     createVoidcoreEntity(entity, parent, this._getEntityState())
+    if (entity.type === 'particles') {
+      const node = this.entityNodes.get(entity.id)
+      if (node) this.particleHelper.addEmitter(entity.id, entity.particles, node)
+    }
     if (entity.children?.length) {
       for (const child of entity.children) {
         await this.addEntity(child, entity.id)
@@ -288,6 +298,7 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     this.animState.entityClips.delete(id)
     this.animState.entitySkeletons.delete(id)
     this.animState.entityMixers.delete(id)
+    this.particleHelper.removeEmitter(id)
     const wireframe = this.debugWireframes.get(id)
     if (wireframe) {
       wireframe.parent?.remove(wireframe)
@@ -340,6 +351,20 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
 
   updateAnimations(dt: number): void {
     updateAnimations(this.animState, dt)
+  }
+
+  // ── Particle delegation ───────────────────────────────────────────────────
+
+  updateParticles(dt: number): void {
+    this.particleHelper.update(dt)
+  }
+
+  emitParticleBurst(entityId: string, count?: number): void {
+    this.particleHelper.emitParticleBurst(entityId, count)
+  }
+
+  resetParticles(entityId: string): void {
+    this.particleHelper.resetParticles(entityId)
   }
 
   getEntityPosition(id: string): [number, number, number] | null {
