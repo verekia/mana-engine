@@ -47,4 +47,11 @@ export const EDITOR_CSS = `
   ::-webkit-scrollbar-thumb:hover { background: ${COLORS.textDim}; }
   ::-webkit-scrollbar-corner { background: transparent; }
   div:hover > .entity-vis-toggle { opacity: 1 !important; }
+  .mana-hover:hover { background: ${COLORS.hover} !important; }
+  .mana-hover-active:hover { background: ${COLORS.active} !important; }
+  .mana-hover-accent:hover { background: ${COLORS.accentHover} !important; }
+  .mana-hover-danger:hover { background: ${COLORS.dangerHover} !important; }
+  .mana-toolbar-btn { background: transparent; border: none; color: ${COLORS.text}; cursor: default; }
+  .mana-toolbar-btn:hover { background: ${COLORS.hover}; }
+  .mana-toolbar-btn-active { background: ${COLORS.active} !important; }
 `

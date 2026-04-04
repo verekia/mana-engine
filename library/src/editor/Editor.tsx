@@ -1,7 +1,14 @@
 import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ManaContext } from '../scene-context.ts'
-import { cloneEntity, findEntityInTree, flattenEntities, mapEntityTree, removeEntityFromTree } from '../scene-data.ts'
+import {
+  cloneEntity,
+  findEntityInTree,
+  flattenEntities,
+  generateId,
+  mapEntityTree,
+  removeEntityFromTree,
+} from '../scene-data.ts'
 import { BottomPanel } from './BottomPanel.tsx'
 import { COLORS, EDITOR_CSS } from './colors.ts'
 import { UndoHistory } from './history.ts'
@@ -15,11 +22,10 @@ import {
   loadPrefabData,
   loadSceneData,
   renameScene as apiRenameScene,
-  savePrefabData,
-  saveSceneData,
 } from './scene-api.ts'
 import { Toolbar } from './Toolbar.tsx'
 import { useEditorScene } from './use-editor-scene.ts'
+import { useEditorShortcuts } from './use-editor-shortcuts.ts'
 import { Viewport } from './Viewport.tsx'
 
 import type { PhysicsAdapter } from '../adapters/physics-adapter.ts'
@@ -918,8 +924,6 @@ export default function Editor({
 
   const handleAssetDrop = useCallback(
     (path: string, ext: string, hitInfo: string | null) => {
-      const generateId = () => Math.random().toString(36).slice(2, 10)
-
       // Texture drop onto an existing mesh → apply as material map
       if (TEXTURE_EXTS.has(ext) && hitInfo?.startsWith('__ndc:')) {
         const [, nx, ny] = hitInfo.split(':')
@@ -1015,122 +1019,24 @@ export default function Editor({
   )
 
   // Keyboard shortcuts: Cmd+S (save), Cmd+Z (undo), Cmd+Shift+Z (redo), W/E/R (transform mode), Ctrl+C/V/D, Delete
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey
-
-      if (mod && e.key === 's') {
-        e.preventDefault()
-        const data = sceneDataRef.current
-        if (!data) return
-
-        const prefabName = editingPrefabRef.current
-        if (prefabName) {
-          const prefabEntity = data.entities.find(ent => ent.id === prefabEntityIdRef.current)
-          if (prefabEntity) {
-            const prefabData: PrefabData = { entity: prefabEntity }
-            savePrefabData(prefabName, prefabData)
-              .then(() => {
-                setSavedSceneJson(JSON.stringify(data))
-                log(`Prefab saved: ${prefabName}`)
-              })
-              .catch(err => log(`Error saving prefab: ${err.message}`))
-          }
-          return
-        }
-
-        const name = activeSceneRef.current
-        if (!name) return
-        saveSceneData(name, data)
-          .then(() => {
-            setSavedSceneJson(JSON.stringify(data))
-            log(`Scene saved: ${name}`)
-          })
-          .catch(err => log(`Error saving: ${err.message}`))
-        return
-      }
-
-      if (mod && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault()
-        if (historyRef.current.undo()) forceUpdate(n => n + 1)
-        return
-      }
-
-      if (mod && e.key === 'z' && e.shiftKey) {
-        e.preventDefault()
-        if (historyRef.current.redo()) forceUpdate(n => n + 1)
-        return
-      }
-
-      if (mod && e.key === 'c') {
-        e.preventDefault()
-        const ids = selectedIdsRef.current
-        const id = ids.length > 0 ? ids[ids.length - 1] : null
-        if (id) handleCopyEntity(id)
-        return
-      }
-
-      if (mod && e.key === 'v') {
-        e.preventDefault()
-        const ids = selectedIdsRef.current
-        handlePasteEntity(ids.length > 0 ? ids[ids.length - 1] : null)
-        return
-      }
-
-      if (mod && e.key === 'd') {
-        e.preventDefault()
-        const ids = selectedIdsRef.current
-        const id = ids.length > 0 ? ids[ids.length - 1] : null
-        if (id) handleDuplicateEntity(id)
-        return
-      }
-
-      // Transform mode shortcuts (only when not typing in an input)
-      const tag = (e.target as HTMLElement).tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
-
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIdsRef.current.length > 0) {
-        // Delete all selected entities
-        const ids = [...selectedIdsRef.current]
-        for (const id of ids) handleDeleteEntity(id)
-        return
-      }
-
-      if (e.key === 'f' && !mod) {
-        const ids = selectedIdsRef.current
-        const id = ids.length > 0 ? ids[ids.length - 1] : null
-        if (id) sceneRef.current?.frameEntity?.(id)
-        return
-      }
-
-      if (e.key === 'w' && !mod) setTransformMode('translate')
-      if (e.key === 'e' && !mod) setTransformMode('rotate')
-      if (e.key === 'r' && !mod) setTransformMode('scale')
-      if (e.key === 'x' && !mod) {
-        setSnapEnabled(s => {
-          const next = !s
-          localStorage.setItem('mana:snapEnabled', String(next))
-          return next
-        })
-      }
-
-      // Orthographic view shortcuts (Blender-style numpad)
-      if (e.key === '1') {
-        sceneRef.current?.setOrthographicView?.(mod ? 'back' : 'front')
-        return
-      }
-      if (e.key === '3') {
-        sceneRef.current?.setOrthographicView?.(mod ? 'left' : 'right')
-        return
-      }
-      if (e.key === '7') {
-        sceneRef.current?.setOrthographicView?.(mod ? 'bottom' : 'top')
-        return
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [log, handleCopyEntity, handlePasteEntity, handleDuplicateEntity, handleDeleteEntity, sceneRef])
+  useEditorShortcuts({
+    sceneDataRef,
+    activeSceneRef,
+    selectedIdsRef,
+    editingPrefabRef,
+    prefabEntityIdRef,
+    sceneRef,
+    historyRef,
+    log,
+    setSavedSceneJson,
+    setTransformMode,
+    setSnapEnabled,
+    forceUpdate: () => forceUpdate(n => n + 1),
+    handleCopyEntity,
+    handlePasteEntity,
+    handleDuplicateEntity,
+    handleDeleteEntity,
+  })
 
   return (
     <div

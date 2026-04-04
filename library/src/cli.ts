@@ -230,9 +230,9 @@ async function runBuild() {
     ].join('\n'),
   )
 
-  const { aliases, threePath } = getManaAliases()
+  const { aliases } = getManaAliases()
   console.log(`Building game from ${config.gameDir}...`)
-  await build(createBuildConfig(gameDir, outDir, entryFile, aliases, resolvePackagePath('tailwindcss'), threePath))
+  await build(createBuildConfig(gameDir, outDir, entryFile, aliases, resolvePackagePath('tailwindcss')))
   console.log(`Game built to ${config.outDir}`)
 }
 

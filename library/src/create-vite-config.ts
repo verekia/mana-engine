@@ -133,6 +133,12 @@ function findReferencedAssets(scenesDir: string, allAssets: Set<string>, gameDir
   return referenced
 }
 
+/** Maximum request body size for scene/prefab API endpoints (5 MB). */
+const MAX_BODY_SIZE = 5 * 1024 * 1024
+
+/** Valid name pattern for scenes and prefabs (alphanumeric, hyphens, underscores). */
+const VALID_NAME_RE = /^[a-zA-Z0-9_-]+$/
+
 const ASSET_PUBLIC_DIR = 'game-assets'
 const VIRTUAL_ASSETS = 'virtual:mana-asset-manifest'
 const RESOLVED_ASSETS = '\0virtual:mana-asset-manifest'
@@ -202,7 +208,6 @@ export function createBuildConfig(
   entryFile: string,
   aliases: Record<string, string>,
   tailwindPath: string,
-  _threePath?: string,
 ): InlineConfig {
   const assetsDir = resolve(gameDir, 'assets')
   const scenesDir = resolve(gameDir, 'scenes')
@@ -264,6 +269,99 @@ export function createDevConfig(
   }
 }
 
+/** Collect request body with size limit. Returns body string or null if too large. */
+function collectBody(
+  req: import('node:http').IncomingMessage,
+  res: import('node:http').ServerResponse,
+): Promise<string | null> {
+  return new Promise(done => {
+    let body = ''
+    let bodySize = 0
+    let aborted = false
+    req.on('data', (chunk: Buffer) => {
+      if (aborted) return
+      bodySize += chunk.length
+      if (bodySize > MAX_BODY_SIZE) {
+        aborted = true
+        res.writeHead(413)
+        res.end('Request body too large')
+        req.destroy()
+        done(null)
+        return
+      }
+      body += chunk.toString()
+    })
+    req.on('end', () => {
+      if (!aborted) done(body)
+    })
+  })
+}
+
+/** Read a YAML file and send as JSON. Returns true if handled. */
+function sendYamlAsJson(filePath: string, res: import('node:http').ServerResponse, entityType: string): boolean {
+  if (!existsSync(filePath)) {
+    res.writeHead(404, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ error: `${entityType} not found` }))
+    return true
+  }
+  try {
+    const data = load(readFileSync(filePath, 'utf-8'))
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(data))
+  } catch {
+    res.writeHead(500, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ error: `Failed to read ${entityType}` }))
+  }
+  return true
+}
+
+/** Write JSON body as YAML to disk. Validates and writes atomically. */
+async function writeJsonAsYaml(
+  req: import('node:http').IncomingMessage,
+  res: import('node:http').ServerResponse,
+  dir: string,
+  filePath: string,
+  validate?: (data: unknown) => string | null,
+): Promise<void> {
+  const body = await collectBody(req, res)
+  if (body === null) return
+  try {
+    const data = JSON.parse(body)
+    if (validate) {
+      const error = validate(data)
+      if (error) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error }))
+        return
+      }
+    }
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(filePath, dump(data, { lineWidth: -1, quotingType: '"', flowLevel: 3 }))
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true }))
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ error: 'Invalid JSON' }))
+  }
+}
+
+/** Delete a YAML file. */
+function deleteYamlFile(filePath: string, res: import('node:http').ServerResponse, entityType: string): void {
+  if (!existsSync(filePath)) {
+    res.writeHead(404, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ error: `${entityType} not found` }))
+    return
+  }
+  try {
+    unlinkSync(filePath)
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true }))
+  } catch {
+    res.writeHead(500, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ error: `Failed to delete ${entityType}` }))
+  }
+}
+
 function sceneApiPlugin(scenesDir: string): Plugin {
   return {
     name: 'mana-scene-api',
@@ -288,64 +386,25 @@ function sceneApiPlugin(scenesDir: string): Plugin {
         const match = req.url.match(/^\/__mana\/scenes\/([^/]+)$/)
         if (!match) return next()
         const sceneName = match[1]
-        if (!/^[a-zA-Z0-9_-]+$/.test(sceneName)) {
-          res.writeHead(400)
-          res.end('Invalid scene name')
+        if (!VALID_NAME_RE.test(sceneName)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'Invalid scene name' }))
           return
         }
         const filePath = resolve(scenesDir, `${sceneName}.yaml`)
 
         if (req.method === 'GET') {
-          if (!existsSync(filePath)) {
-            res.writeHead(404)
-            res.end('Scene not found')
-            return
-          }
-          const data = load(readFileSync(filePath, 'utf-8'))
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify(data))
+          sendYamlAsJson(filePath, res, 'Scene')
           return
         }
 
         if (req.method === 'POST') {
-          let body = ''
-          let bodySize = 0
-          const MAX_BODY_SIZE = 5 * 1024 * 1024 // 5 MB
-          req.on('data', (chunk: Buffer) => {
-            bodySize += chunk.length
-            if (bodySize > MAX_BODY_SIZE) {
-              res.writeHead(413)
-              res.end('Request body too large')
-              req.destroy()
-              return
-            }
-            body += chunk.toString()
-          })
-          req.on('end', () => {
-            if (bodySize > MAX_BODY_SIZE) return
-            try {
-              mkdirSync(scenesDir, { recursive: true })
-              const data = JSON.parse(body)
-              writeFileSync(filePath, dump(data, { lineWidth: -1, quotingType: '"', flowLevel: 3 }))
-              res.writeHead(200, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify({ ok: true }))
-            } catch {
-              res.writeHead(400, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify({ error: 'Invalid JSON' }))
-            }
-          })
+          writeJsonAsYaml(req, res, scenesDir, filePath)
           return
         }
 
         if (req.method === 'DELETE') {
-          if (!existsSync(filePath)) {
-            res.writeHead(404)
-            res.end('Scene not found')
-            return
-          }
-          unlinkSync(filePath)
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: true }))
+          deleteYamlFile(filePath, res, 'Scene')
           return
         }
 
@@ -379,74 +438,36 @@ function prefabApiPlugin(prefabsDir: string): Plugin {
         const match = req.url.match(/^\/__mana\/prefabs\/([^/]+)$/)
         if (!match) return next()
         const prefabName = match[1]
-        if (!/^[a-zA-Z0-9_-]+$/.test(prefabName)) {
-          res.writeHead(400)
-          res.end('Invalid prefab name')
+        if (!VALID_NAME_RE.test(prefabName)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'Invalid prefab name' }))
           return
         }
         const filePath = resolve(prefabsDir, `${prefabName}.prefab.yaml`)
 
         if (req.method === 'GET') {
-          if (!existsSync(filePath)) {
-            res.writeHead(404)
-            res.end('Prefab not found')
-            return
-          }
-          const data = load(readFileSync(filePath, 'utf-8'))
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify(data))
+          sendYamlAsJson(filePath, res, 'Prefab')
           return
         }
 
         if (req.method === 'POST') {
-          let body = ''
-          let bodySize = 0
-          const MAX_BODY_SIZE = 5 * 1024 * 1024
-          req.on('data', (chunk: Buffer) => {
-            bodySize += chunk.length
-            if (bodySize > MAX_BODY_SIZE) {
-              res.writeHead(413)
-              res.end('Request body too large')
-              req.destroy()
-              return
+          writeJsonAsYaml(req, res, prefabsDir, filePath, data => {
+            const d = data as { entity?: { id?: unknown; name?: unknown; type?: unknown } }
+            if (
+              !d.entity ||
+              typeof d.entity.id !== 'string' ||
+              typeof d.entity.name !== 'string' ||
+              typeof d.entity.type !== 'string'
+            ) {
+              return 'Invalid prefab data: entity must have id, name, and type'
             }
-            body += chunk.toString()
-          })
-          req.on('end', () => {
-            if (bodySize > MAX_BODY_SIZE) return
-            try {
-              mkdirSync(prefabsDir, { recursive: true })
-              const data = JSON.parse(body)
-              if (
-                !data.entity ||
-                typeof data.entity.id !== 'string' ||
-                typeof data.entity.name !== 'string' ||
-                typeof data.entity.type !== 'string'
-              ) {
-                res.writeHead(400, { 'Content-Type': 'application/json' })
-                res.end(JSON.stringify({ error: 'Invalid prefab data: entity must have id, name, and type' }))
-                return
-              }
-              writeFileSync(filePath, dump(data, { lineWidth: -1, quotingType: '"', flowLevel: 3 }))
-              res.writeHead(200, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify({ ok: true }))
-            } catch {
-              res.writeHead(400, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify({ error: 'Invalid JSON' }))
-            }
+            return null
           })
           return
         }
 
         if (req.method === 'DELETE') {
-          if (!existsSync(filePath)) {
-            res.writeHead(404)
-            res.end('Prefab not found')
-            return
-          }
-          unlinkSync(filePath)
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: true }))
+          deleteYamlFile(filePath, res, 'Prefab')
           return
         }
 
@@ -470,14 +491,25 @@ function basisTranscoderPlugin(threePath: string): Plugin {
           return
         }
         const filePath = resolve(basisDir, fileName)
+        // Ensure resolved path stays within basisDir
+        if (!filePath.startsWith(basisDir + '/')) {
+          res.writeHead(400)
+          res.end('Invalid filename')
+          return
+        }
         if (!existsSync(filePath)) {
           res.writeHead(404)
           res.end('Not found')
           return
         }
-        const contentType = fileName.endsWith('.wasm') ? 'application/wasm' : 'application/javascript'
-        res.writeHead(200, { 'Content-Type': contentType })
-        res.end(readFileSync(filePath))
+        try {
+          const contentType = fileName.endsWith('.wasm') ? 'application/wasm' : 'application/javascript'
+          res.writeHead(200, { 'Content-Type': contentType })
+          res.end(readFileSync(filePath))
+        } catch {
+          res.writeHead(500)
+          res.end('Failed to read file')
+        }
       })
     },
   }
@@ -524,7 +556,14 @@ function assetsApiPlugin(assetsDir: string, prefabsDir?: string): Plugin {
       // Serve game/assets/ files at /assets/ for direct access (models, textures, etc.)
       server.middlewares.use((req, res, next) => {
         if (!req.url?.startsWith('/assets/') || req.method !== 'GET') return next()
-        const relPath = decodeURIComponent(req.url.slice('/assets/'.length).split('?')[0])
+        let relPath: string
+        try {
+          relPath = decodeURIComponent(req.url.slice('/assets/'.length).split('?')[0])
+        } catch {
+          res.writeHead(400)
+          res.end('Invalid URL encoding')
+          return
+        }
         const absPath = validateAssetPath(assetsDir, relPath)
         if (!absPath || !existsSync(absPath) || statSync(absPath).isDirectory()) return next()
         const ext = extname(absPath).toLowerCase()

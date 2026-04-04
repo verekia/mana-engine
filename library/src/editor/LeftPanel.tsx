@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 
-import { findEntityInTree } from '../scene-data.ts'
+import { findEntityInTree, generateId } from '../scene-data.ts'
 import { COLORS, INPUT_STYLE } from './colors.ts'
 import {
   IconAmbientLight,
@@ -15,6 +15,7 @@ import {
   IconPrefab,
   IconUI,
 } from './icons.tsx'
+import { Popover, PopoverCategory, PopoverItem } from './Popover.tsx'
 import {
   createPrefab as apiCreatePrefab,
   deletePrefab as apiDeletePrefab,
@@ -62,10 +63,6 @@ function entityTypeIcon(type: SceneEntity['type']): React.ReactNode {
     case 'audio':
       return <IconAudio />
   }
-}
-
-function generateId() {
-  return Math.random().toString(36).slice(2, 10)
 }
 
 const ADD_OBJECT_OPTIONS: { label: string; category: string; icon: React.ReactNode; create: () => SceneEntity }[] = [
@@ -234,103 +231,25 @@ function AddEntityPopover({
   onAdd: (entity: SceneEntity) => void
   onClose: () => void
 }) {
-  const popoverRef = useRef<HTMLDivElement>(null)
-  const popoverHeight = 320
-  const pos = (() => {
-    if (position) {
-      const spaceBelow = window.innerHeight - position.y
-      const top = spaceBelow < popoverHeight ? position.y - popoverHeight : position.y
-      return { top: Math.max(4, top), left: Math.max(4, position.x) }
-    }
-    if (!anchorRef?.current) return { top: 0, left: 0 }
-    const rect = anchorRef.current.getBoundingClientRect()
-    const spaceBelow = window.innerHeight - rect.bottom
-    const top = spaceBelow < popoverHeight ? rect.top - popoverHeight - 2 : rect.bottom + 2
-    return { top: Math.max(4, top), left: Math.max(4, rect.right - 180) }
-  })()
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        onClose()
-      }
-    }
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('mousedown', handleClick)
-    document.addEventListener('keydown', handleKey)
-    return () => {
-      document.removeEventListener('mousedown', handleClick)
-      document.removeEventListener('keydown', handleKey)
-    }
-  }, [onClose])
-
   return (
-    <div
-      ref={popoverRef}
-      style={{
-        position: 'fixed',
-        top: pos.top,
-        left: pos.left,
-        width: 180,
-        background: COLORS.panel,
-        border: `1px solid ${COLORS.border}`,
-        borderRadius: 6,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-        zIndex: 1001,
-        padding: '4px 0',
-        maxHeight: 300,
-        overflow: 'auto',
-      }}
-    >
+    <Popover anchorRef={anchorRef} position={position} onClose={onClose} maxHeight={320}>
       {['General', 'Mesh', 'Light'].map(cat => (
         <div key={cat}>
-          <div
-            style={{
-              padding: '5px 10px 3px',
-              fontSize: 9,
-              color: COLORS.textMuted,
-              fontWeight: 600,
-              textTransform: 'uppercase' as const,
-              letterSpacing: '0.06em',
-            }}
-          >
-            {cat}
-          </div>
+          <PopoverCategory label={cat} />
           {ADD_OBJECT_OPTIONS.filter(o => o.category === cat).map(opt => (
-            <button
+            <PopoverItem
               key={opt.label}
+              label={opt.label}
+              icon={opt.icon}
               onClick={() => {
                 onAdd(opt.create())
                 onClose()
               }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = COLORS.hover
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent'
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                width: '100%',
-                padding: '4px 10px',
-                background: 'transparent',
-                border: 'none',
-                color: COLORS.text,
-                fontSize: 11,
-                textAlign: 'left',
-              }}
-            >
-              <span style={{ color: COLORS.textMuted, display: 'flex' }}>{opt.icon}</span>
-              {opt.label}
-            </button>
+            />
           ))}
         </div>
       ))}
-    </div>
+    </Popover>
   )
 }
 
@@ -916,12 +835,7 @@ export function LeftPanel({
                     setRenamingScene(true)
                     setSceneContextMenu(null)
                   }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = COLORS.hover
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'transparent'
-                  }}
+                  className="mana-hover"
                   style={{
                     display: 'block',
                     width: '100%',
@@ -1185,12 +1099,7 @@ export function LeftPanel({
                         userSelect: 'none',
                         fontSize: 12,
                       }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.background = COLORS.hover
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.background = 'transparent'
-                      }}
+                      className="mana-hover"
                     >
                       {renamingPrefab === name ? (
                         <input
