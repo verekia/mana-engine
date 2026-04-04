@@ -1,24 +1,12 @@
 import {
-  AmbientLight,
-  AnimationMixer,
-  BasicMaterial,
-  BoxGeometry,
-  CapsuleGeometry,
-  DirectionalLight,
   Engine,
-  Geometry,
   Group,
-  LambertMaterial,
-  Mesh,
   type Node,
   OrbitControls,
   PerspectiveCamera,
-  PlaneGeometry,
   Raycaster,
   Scene,
-  SphereGeometry,
   createRaycastHit,
-  loadGLTF,
   mat4Invert,
   quatConjugate,
   quatCreate,
@@ -28,118 +16,39 @@ import {
   vec3TransformQuat,
 } from 'voidcore'
 
-import { resolveAsset } from '../../assets.ts'
 import { TransformGizmo } from './transform-gizmo.ts'
-
-import type { AnimationClip, Skeleton } from 'voidcore'
+import {
+  createAnimationState,
+  getAnimationNames,
+  playAnimation,
+  stopAnimation,
+  updateAnimations,
+} from './voidcore-animation.ts'
+import {
+  clearOutline,
+  frameEntity as frameEntityFn,
+  getEditorCamera as getEditorCameraFn,
+  setEditorCamera as setEditorCameraFn,
+  setGizmos as setGizmosFn,
+  setOrthographicView as setOrthographicViewFn,
+  setSelectedEntities as setSelectedEntitiesFn,
+  setTransformMode as setTransformModeFn,
+  setTransformSnap as setTransformSnapFn,
+  setTransformTarget as setTransformTargetFn,
+} from './voidcore-editor.ts'
+import { createVoidcoreEntity, updateVoidcoreEntity } from './voidcore-entity.ts'
+import { createGridGroup, eulerToQuat, hexToRgb, orthoMatrixZO, setClearColor, yUpToZUp } from './voidcore-utils.ts'
 
 import type { SceneData, SceneEntity } from '../../scene-data.ts'
 import type { PhysicsTransform } from '../physics-adapter.ts'
-import type { RendererAdapter, RendererAdapterOptions, EditorCameraState, TransformMode } from '../renderer-adapter.ts'
-
-/** Parse a CSS hex color string into [r, g, b] in 0–1 range. */
-/** Build an orthographic projection matrix (clip-space Z from 0 to 1 for WebGPU). */
-function orthoMatrixZO(
-  out: Float32Array,
-  left: number,
-  right: number,
-  bottom: number,
-  top: number,
-  near: number,
-  far: number,
-): Float32Array {
-  const lr = 1 / (left - right)
-  const bt = 1 / (bottom - top)
-  const nf = 1 / (near - far)
-  out[0] = -2 * lr
-  out[1] = 0
-  out[2] = 0
-  out[3] = 0
-  out[4] = 0
-  out[5] = -2 * bt
-  out[6] = 0
-  out[7] = 0
-  out[8] = 0
-  out[9] = 0
-  out[10] = nf
-  out[11] = 0
-  out[12] = (left + right) * lr
-  out[13] = (top + bottom) * bt
-  out[14] = near * nf
-  out[15] = 1
-  return out
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  const h = hex.replace('#', '')
-  const n = parseInt(h.length === 3 ? h[0] + h[0] + h[1] + h[1] + h[2] + h[2] : h, 16)
-  return [(n >> 16) / 255, ((n >> 8) & 0xff) / 255, (n & 0xff) / 255]
-}
-
-/** Convert Euler angles (x, y, z in radians) to a quaternion [x, y, z, w]. */
-function eulerToQuat(ex: number, ey: number, ez: number): [number, number, number, number] {
-  const c1 = Math.cos(ex / 2),
-    s1 = Math.sin(ex / 2)
-  const c2 = Math.cos(ey / 2),
-    s2 = Math.sin(ey / 2)
-  const c3 = Math.cos(ez / 2),
-    s3 = Math.sin(ez / 2)
-  // XYZ order
-  return [
-    s1 * c2 * c3 + c1 * s2 * s3,
-    c1 * s2 * c3 - s1 * c2 * s3,
-    c1 * c2 * s3 + s1 * s2 * c3,
-    c1 * c2 * c3 - s1 * s2 * s3,
-  ]
-}
-
-/**
- * Convert a Y-up position to VoidCore's Z-up coordinate system.
- * Y-up (x, y, z) → Z-up (x, -z, y)
- */
-function yUpToZUp(x: number, y: number, z: number): [number, number, number] {
-  return [x, -z, y]
-}
-
-/**
- * Convert a VoidCore Z-up position back to Y-up.
- * Z-up (x, y, z) → Y-up (x, z, -y)
- */
-function zUpToYUp(x: number, y: number, z: number): [number, number, number] {
-  return [x, z, -y]
-}
-
-function applyTransform(node: Node, transform?: SceneEntity['transform']): void {
-  if (!transform) return
-  if (transform.position) {
-    node.setPosition(transform.position[0], transform.position[1], transform.position[2])
-  }
-  if (transform.rotation) {
-    const [qx, qy, qz, qw] = eulerToQuat(transform.rotation[0], transform.rotation[1], transform.rotation[2])
-    node.setRotation(qx, qy, qz, qw)
-  }
-  if (transform.scale) {
-    node.setScale(transform.scale[0], transform.scale[1], transform.scale[2])
-  }
-}
-
-/**
- * Set the background clear color on VoidCore's internal renderer.
- * VoidCore has no public API for this — we patch the internal clear values directly.
- */
-function setClearColor(engine: Engine, r: number, g: number, b: number): void {
-  const renderer = engine.renderer as any
-  // WebGPU: patch the render pass clear values
-  if (renderer._opaquePassCA0) {
-    renderer._opaquePassCA0.clearValue = { r, g, b, a: 1 }
-  }
-  if (renderer._opaquePassCA1) {
-    renderer._opaquePassCA1.clearValue = { r, g, b, a: 1 }
-  }
-  if (renderer._blitPassCA) {
-    renderer._blitPassCA.clearValue = { r, g, b, a: 1 }
-  }
-}
+import type {
+  EditorCameraState,
+  RaycastHit,
+  RendererAdapter,
+  RendererAdapterOptions,
+  TransformMode,
+} from '../renderer-adapter.ts'
+import type { VoidcoreEntityState } from './voidcore-entity.ts'
 
 /**
  * RendererAdapter implementation backed by VoidCore.
@@ -148,111 +57,6 @@ function setClearColor(engine: Engine, r: number, g: number, b: number): void {
  * Scene data is authored in Y-up; this adapter converts via a sceneRoot rotation.
  * Geometries that have an inherent axis (capsule) are pre-rotated to match.
  */
-
-/** Create a grid of thin quads in the XY plane (z-up). sceneRoot rotation handles y-up. */
-function createGridGroup(size: number, divisions: number): Group {
-  const group = new Group()
-  const half = size / 2
-  const step = size / divisions
-  const thickness = 0.005
-  const color: [number, number, number] = [0.25, 0.25, 0.25]
-
-  // Build all grid lines as a single geometry for performance
-  const positions: number[] = []
-  const normals: number[] = []
-  const indices: number[] = []
-  let vi = 0
-
-  for (let i = 0; i <= divisions; i++) {
-    const offset = -half + i * step
-
-    // Line along X (from -half to +half at y=offset)
-    addQuad(positions, normals, indices, vi, -half, offset - thickness, half, offset + thickness)
-    vi += 8
-    // Line along Y (from -half to +half at x=offset)
-    addQuad(positions, normals, indices, vi, offset - thickness, -half, offset + thickness, half)
-    vi += 8
-  }
-
-  const geometry = new Geometry({
-    positions: new Float32Array(positions),
-    normals: new Float32Array(normals),
-    indices: new Uint16Array(indices),
-  })
-  const material = new BasicMaterial({ color })
-  const mesh = new Mesh(geometry, material)
-  group.add(mesh)
-  return group
-}
-
-function addQuad(
-  positions: number[],
-  normals: number[],
-  indices: number[],
-  vi: number,
-  x0: number,
-  y0: number,
-  x1: number,
-  y1: number,
-): void {
-  // Double-sided quad in XY plane at z=0
-  // Front face (normal +Z)
-  positions.push(x0, y0, 0, x1, y0, 0, x1, y1, 0, x0, y1, 0)
-  normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1)
-  indices.push(vi, vi + 1, vi + 2, vi, vi + 2, vi + 3)
-  // Back face (normal -Z)
-  positions.push(x0, y0, 0, x0, y1, 0, x1, y1, 0, x1, y0, 0)
-  normals.push(0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1)
-  indices.push(vi + 4, vi + 5, vi + 6, vi + 4, vi + 6, vi + 7)
-}
-
-/** Create a transparent green wireframe-style mesh for a collider shape. */
-function createColliderWireframe(collider: import('../../scene-data.ts').ColliderData, isYUp: boolean): Node {
-  let geometry: BoxGeometry | SphereGeometry | CapsuleGeometry
-  let needsCapsuleRotation = false
-
-  switch (collider.shape) {
-    case 'sphere': {
-      const r = collider.radius ?? 0.5
-      geometry = new SphereGeometry({ radius: r })
-      break
-    }
-    case 'capsule': {
-      const r = collider.radius ?? 0.5
-      const hh = collider.halfHeight ?? 0.5
-      geometry = new CapsuleGeometry({ radius: r, height: hh * 2 })
-      needsCapsuleRotation = true
-      break
-    }
-    default: {
-      const he = collider.halfExtents ?? [0.5, 0.5, 0.5]
-      geometry = new BoxGeometry({ width: he[0] * 2, height: he[1] * 2, depth: he[2] * 2 })
-      break
-    }
-  }
-
-  const material = new BasicMaterial({
-    color: [0, 1, 0],
-    opacity: 0.15,
-  })
-  material.transparent = true
-  material.side = 'double'
-
-  const mesh = new Mesh(geometry, material)
-  mesh.castShadow = false
-
-  // Capsule pre-rotation to match the entity orientation
-  if (needsCapsuleRotation && isYUp) {
-    const [qx, qy, qz, qw] = eulerToQuat(-Math.PI / 2, 0, 0)
-    mesh.setRotation(qx, qy, qz, qw)
-    const wrapper = new Group()
-    wrapper.add(mesh)
-    return wrapper
-  }
-
-  return mesh
-}
-
 export class VoidcoreRendererAdapter implements RendererAdapter {
   private engine!: Engine
   private scene!: Scene
@@ -274,17 +78,9 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   private isOrtho = false
   private transformGizmo: TransformGizmo | null = null
   private currentTransformMode: TransformMode = 'translate'
-  /** Animation clips stored per entity from GLTF loading. */
-  private entityClips = new Map<string, AnimationClip[]>()
-  /** Skeletons stored per entity from GLTF loading. */
-  private entitySkeletons = new Map<string, Skeleton>()
-  /** Active AnimationMixers per entity. */
-  private entityMixers = new Map<string, AnimationMixer>()
+  private animState = createAnimationState()
   /** Collider wireframe nodes per entity. */
   private debugWireframes = new Map<string, Node>()
-  /** Outline thickness for selected entities. */
-  private static readonly SELECTION_OUTLINE_THICKNESS = 0.1
-  private static readonly SELECTION_OUTLINE_COLOR: [number, number, number] = [0.27, 0.53, 1]
 
   async init(canvas: HTMLCanvasElement, options: RendererAdapterOptions): Promise<void> {
     this.options = options
@@ -341,9 +137,9 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     this.observer?.disconnect()
     this.controls?.dispose()
     this.entityNodes.clear()
-    this.entityClips.clear()
-    this.entitySkeletons.clear()
-    this.entityMixers.clear()
+    this.animState.entityClips.clear()
+    this.animState.entitySkeletons.clear()
+    this.animState.entityMixers.clear()
     this.debugWireframes.clear()
     this.engine?.dispose()
   }
@@ -397,9 +193,10 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
       this.scene.add(this.gridGroup)
     }
 
+    const entityState = this._getEntityState()
     const addEntities = (entities: SceneEntity[], parent: Node) => {
       for (const entity of entities) {
-        this._addEntity(entity, parent)
+        createVoidcoreEntity(entity, parent, entityState)
         if (entity.children?.length) {
           const parentNode = this.entityNodes.get(entity.id)
           if (parentNode) addEntities(entity.children, parentNode)
@@ -453,158 +250,26 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     }
   }
 
-  private _addEntity(entity: SceneEntity, parent?: Node): void {
-    let node: Node | null = null
-
-    switch (entity.type) {
-      case 'camera': {
-        const cam = new PerspectiveCamera({
-          fov: entity.camera?.fov ?? 50,
-          near: entity.camera?.near ?? 0.1,
-          far: entity.camera?.far ?? 100,
-        })
-        applyTransform(cam, entity.transform)
-        // Only apply default lookAt when no rotation was authored in the scene data
-        if (!entity.transform?.rotation) cam.lookAt([0, 0, 0])
-        cam.name = entity.name
-        ;(parent ?? this.sceneRoot).add(cam)
-        this.entityNodes.set(entity.id, cam)
-        if (!this.gameCam) this.gameCam = cam
-        return
-      }
-
-      case 'mesh': {
-        const geomType = entity.mesh?.geometry
-        if (!geomType) {
-          // No mesh data — empty container (Group) that can hold children
-          node = new Group()
-          break
-        }
-        const geometry = this._createGeometry(geomType)
-        const color = entity.mesh?.material?.color
-          ? hexToRgb(entity.mesh.material.color)
-          : ([0.27, 0.53, 1] as [number, number, number])
-        const material = new LambertMaterial({
-          color,
-          receiveShadow: entity.receiveShadow ?? false,
-        })
-        const mesh = new Mesh(geometry, material)
-        mesh.castShadow = entity.castShadow ?? false
-
-        // VoidCore creates capsules along Z and planes in XY (facing +Z). In Y-up
-        // scene space, capsules should extend along Y and planes should lie in XZ
-        // (facing +Y), so pre-rotate -90° around X.
-        if ((geomType === 'capsule' || geomType === 'plane') && this.isYUp) {
-          const [qx, qy, qz, qw] = eulerToQuat(-Math.PI / 2, 0, 0)
-          mesh.setRotation(qx, qy, qz, qw)
-          const wrapper = new Group()
-          wrapper.add(mesh)
-          node = wrapper
-        } else {
-          node = mesh
-        }
-        break
-      }
-
-      case 'model': {
-        const group = new Group()
-        node = group
-        const modelSrc = entity.model?.src
-        if (modelSrc) {
-          const entityId = entity.id
-          const url = resolveAsset(modelSrc)
-          loadGLTF(url).then(gltf => {
-            // Check entity hasn't been removed while loading
-            if (!this.entityNodes.has(entityId)) return
-            group.add(gltf.scene)
-            // Apply shadow props recursively
-            const applyShadow = (n: Node) => {
-              if (n instanceof Mesh) {
-                n.castShadow = entity.castShadow ?? false
-                ;(n.material as LambertMaterial).receiveShadow = entity.receiveShadow ?? false
-              }
-              for (const child of n.children) applyShadow(child)
-            }
-            applyShadow(gltf.scene)
-            // Store animation data
-            if (gltf.animations.length > 0) {
-              this.entityClips.set(entityId, gltf.animations)
-              if (gltf.skeletons.length > 0) {
-                this.entitySkeletons.set(entityId, gltf.skeletons[0])
-              }
-            }
-          })
-        }
-        break
-      }
-
-      case 'directional-light': {
-        const color = entity.light?.color ? hexToRgb(entity.light.color) : ([1, 1, 1] as [number, number, number])
-        const light = new DirectionalLight({
-          color,
-          intensity: entity.light?.intensity ?? 1,
-          castShadow: entity.light?.castShadow ?? false,
-        })
-        node = light
-        break
-      }
-
-      case 'ambient-light': {
-        const color = entity.light?.color ? hexToRgb(entity.light.color) : ([1, 1, 1] as [number, number, number])
-        const light = new AmbientLight({
-          color,
-          intensity: entity.light?.intensity ?? 0.3,
-        })
-        node = light
-        break
-      }
-
-      case 'point-light': {
-        node = new Group()
-        break
-      }
-
-      case 'ui':
-      case 'ui-group':
-      case 'audio': {
-        return
-      }
-    }
-
-    if (!node) return
-
-    node.name = entity.name
-    applyTransform(node, entity.transform)
-    ;(parent ?? this.sceneRoot).add(node)
-    this.entityNodes.set(entity.id, node)
-
-    // Collider wireframe (editor mode only)
-    if (entity.collider && this.enableOrbitControls) {
-      const wireframe = createColliderWireframe(entity.collider, this.isYUp)
-      wireframe.visible = this.showGizmos
-      applyTransform(wireframe, entity.transform)
-      ;(parent ?? this.sceneRoot).add(wireframe)
-      this.debugWireframes.set(entity.id, wireframe)
-    }
-  }
-
-  private _createGeometry(type?: string) {
-    switch (type) {
-      case 'sphere':
-        return new SphereGeometry()
-      case 'plane':
-        return new PlaneGeometry()
-      case 'capsule':
-        // VoidCore height = total height. radius 0.5 + height 2 → cylinder section = 1.
-        return new CapsuleGeometry({ radius: 0.5, height: 2 })
-      default:
-        return new BoxGeometry()
+  private _getEntityState(): VoidcoreEntityState {
+    return {
+      entityNodes: this.entityNodes,
+      sceneRoot: this.sceneRoot,
+      isYUp: this.isYUp,
+      enableOrbitControls: this.enableOrbitControls,
+      showGizmos: this.showGizmos,
+      gameCam: this.gameCam,
+      setGameCam: (cam: PerspectiveCamera) => {
+        this.gameCam = cam
+      },
+      entityClips: this.animState.entityClips,
+      entitySkeletons: this.animState.entitySkeletons,
+      debugWireframes: this.debugWireframes,
     }
   }
 
   async addEntity(entity: SceneEntity, parentId?: string): Promise<void> {
     const parent = parentId ? (this.entityNodes.get(parentId) ?? this.sceneRoot) : this.sceneRoot
-    this._addEntity(entity, parent)
+    createVoidcoreEntity(entity, parent, this._getEntityState())
     if (entity.children?.length) {
       for (const child of entity.children) {
         await this.addEntity(child, entity.id)
@@ -615,14 +280,14 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   removeEntity(id: string): void {
     const node = this.entityNodes.get(id)
     if (node) {
-      this._clearOutline(node)
+      clearOutline(node)
       this.selectedIds.delete(id)
       node.parent?.remove(node)
       this.entityNodes.delete(id)
     }
-    this.entityClips.delete(id)
-    this.entitySkeletons.delete(id)
-    this.entityMixers.delete(id)
+    this.animState.entityClips.delete(id)
+    this.animState.entitySkeletons.delete(id)
+    this.animState.entityMixers.delete(id)
     const wireframe = this.debugWireframes.get(id)
     if (wireframe) {
       wireframe.parent?.remove(wireframe)
@@ -631,21 +296,7 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   }
 
   updateEntity(id: string, entity: SceneEntity): void {
-    const node = this.entityNodes.get(id)
-    if (!node) return
-    applyTransform(node, entity.transform)
-    const wireframe = this.debugWireframes.get(id)
-    if (wireframe) applyTransform(wireframe, entity.transform)
-
-    if (entity.type === 'mesh' && node instanceof Mesh && entity.mesh?.material?.color) {
-      ;(node.material as LambertMaterial).color = hexToRgb(entity.mesh.material.color)
-      ;(node.material as LambertMaterial).needsUpdate = true
-    }
-
-    if (node instanceof DirectionalLight || node instanceof AmbientLight) {
-      if (entity.light?.color) node.color = hexToRgb(entity.light.color)
-      if (entity.light?.intensity !== undefined) node.intensity = entity.light.intensity
-    }
+    updateVoidcoreEntity(id, entity, this.entityNodes, this.debugWireframes)
   }
 
   setEntityVisible(id: string, visible: boolean): void {
@@ -676,52 +327,19 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   }
 
   playAnimation(entityId: string, name: string, options?: { loop?: boolean; crossFadeDuration?: number }): void {
-    const clips = this.entityClips.get(entityId)
-    const skeleton = this.entitySkeletons.get(entityId)
-    if (!clips || !skeleton) return
-
-    const clip = clips.find(c => c.name === name)
-    if (!clip) return
-
-    let mixer = this.entityMixers.get(entityId)
-    if (!mixer) {
-      mixer = new AnimationMixer(skeleton)
-      this.entityMixers.set(entityId, mixer)
-    }
-
-    const crossFade = options?.crossFadeDuration ?? 0.3
-
-    // Stop current animations with crossfade
-    for (const c of clips) {
-      const existing = mixer.clipAction(c)
-      if (existing !== mixer.clipAction(clip)) {
-        existing.fadeOut(crossFade)
-      }
-    }
-
-    const action = mixer.clipAction(clip)
-    action.fadeIn(crossFade)
-    action.play()
+    playAnimation(this.animState, entityId, name, options)
   }
 
   stopAnimation(entityId: string): void {
-    const mixer = this.entityMixers.get(entityId)
-    const clips = this.entityClips.get(entityId)
-    if (!mixer || !clips) return
-    for (const clip of clips) {
-      mixer.clipAction(clip).stop()
-    }
+    stopAnimation(this.animState, entityId)
   }
 
   getAnimationNames(entityId: string): string[] {
-    const clips = this.entityClips.get(entityId)
-    return clips ? clips.map(c => c.name) : []
+    return getAnimationNames(this.animState, entityId)
   }
 
   updateAnimations(dt: number): void {
-    for (const mixer of this.entityMixers.values()) {
-      mixer.update(dt)
-    }
+    updateAnimations(this.animState, dt)
   }
 
   getEntityPosition(id: string): [number, number, number] | null {
@@ -759,50 +377,11 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
 
   setGizmos(enabled: boolean): void {
     this.showGizmos = enabled
-    if (this.gridGroup) this.gridGroup.visible = enabled
-    for (const wireframe of this.debugWireframes.values()) {
-      wireframe.visible = enabled
-    }
+    setGizmosFn(enabled, this.gridGroup, this.debugWireframes)
   }
 
   setSelectedEntities(ids: string[]): void {
-    // Remove outline from previously selected entities
-    for (const prevId of this.selectedIds) {
-      if (!ids.includes(prevId)) {
-        const node = this.entityNodes.get(prevId)
-        if (node) this._clearOutline(node)
-      }
-    }
-
-    this.selectedIds = new Set(ids)
-
-    // Apply outline to newly selected entities
-    for (const id of ids) {
-      const node = this.entityNodes.get(id)
-      if (node) this._applyOutline(node)
-    }
-  }
-
-  private _applyOutline(node: Node): void {
-    if (node instanceof Mesh) {
-      node.outline = {
-        thickness: VoidcoreRendererAdapter.SELECTION_OUTLINE_THICKNESS,
-        color: VoidcoreRendererAdapter.SELECTION_OUTLINE_COLOR,
-      }
-    }
-    // For groups (e.g. capsule wrappers, model groups), apply to child meshes
-    for (const child of node.children) {
-      this._applyOutline(child)
-    }
-  }
-
-  private _clearOutline(node: Node): void {
-    if (node instanceof Mesh) {
-      node.outline = undefined
-    }
-    for (const child of node.children) {
-      this._clearOutline(child)
-    }
+    this.selectedIds = setSelectedEntitiesFn(ids, this.selectedIds, this.entityNodes)
   }
 
   raycast(ndcX: number, ndcY: number): string | null {
@@ -827,7 +406,7 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     origin: { x: number; y: number; z: number },
     direction: { x: number; y: number; z: number },
     maxDistance = 1000,
-  ): import('../renderer-adapter.ts').RaycastHit | null {
+  ): RaycastHit | null {
     if (!this.sceneRoot) return null
 
     const originVec = new Float32Array([origin.x, origin.y, origin.z])
@@ -849,7 +428,7 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
     if (hit.distance > maxDistance) return null
 
     // Walk up from hit mesh to find the entity node
-    let hitNode: import('voidcore').Node | null = hit.object
+    let hitNode: Node | null = hit.object
     while (hitNode) {
       for (const [id, node] of this.entityNodes) {
         if (node === hitNode) {
@@ -873,22 +452,16 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   }
 
   setTransformTarget(id: string | null): void {
-    if (!this.transformGizmo) return
-    if (id) {
-      const node = this.entityNodes.get(id)
-      if (node) this.transformGizmo.attach(node, id)
-    } else {
-      this.transformGizmo.detach()
-    }
+    setTransformTargetFn(this.transformGizmo, id, this.entityNodes)
   }
 
   setTransformMode(mode: TransformMode): void {
     this.currentTransformMode = mode
-    this.transformGizmo?.setMode(mode)
+    setTransformModeFn(this.transformGizmo, mode)
   }
 
   setTransformSnap(translate: number | null, rotate: number | null, scale: number | null): void {
-    this.transformGizmo?.setSnap(translate, rotate, scale)
+    setTransformSnapFn(this.transformGizmo, translate, rotate, scale)
   }
 
   setTransformSpace(_space: 'local' | 'world'): void {
@@ -896,118 +469,19 @@ export class VoidcoreRendererAdapter implements RendererAdapter {
   }
 
   getEditorCamera(): EditorCameraState | null {
-    if (!this.controls) return null
-    const p = this.camera.position
-    const t = this.controls.target
-    // Convert from VoidCore Z-up back to scene coordinates
-    if (this.isYUp) {
-      return {
-        position: zUpToYUp(p[0], p[1], p[2]),
-        target: zUpToYUp(t[0], t[1], t[2]),
-      }
-    }
-    return {
-      position: [p[0], p[1], p[2]],
-      target: [t[0], t[1], t[2]],
-    }
+    return getEditorCameraFn(this.controls, this.camera, this.isYUp)
   }
 
   setEditorCamera(state: EditorCameraState): void {
-    if (!this.controls) return
-    let cx: number, cy: number, cz: number, tx: number, ty: number, tz: number
-    if (this.isYUp) {
-      ;[cx, cy, cz] = yUpToZUp(state.position[0], state.position[1], state.position[2])
-      ;[tx, ty, tz] = yUpToZUp(state.target[0], state.target[1], state.target[2])
-    } else {
-      ;[cx, cy, cz] = state.position
-      ;[tx, ty, tz] = state.target
-    }
-    vec3Set(this.controls.target, tx, ty, tz)
-    const dx = cx - tx,
-      dy = cy - ty,
-      dz = cz - tz
-    this.controls.distance = Math.sqrt(dx * dx + dy * dy + dz * dz)
-    this.controls.elevation = Math.asin(Math.max(-1, Math.min(1, dz / this.controls.distance)))
-    this.controls.azimuth = Math.atan2(dy, dx)
-    this.controls.update(0)
+    setEditorCameraFn(this.controls, state, this.isYUp)
   }
 
   frameEntity(id: string): void {
-    if (!this.controls) return
-    const node = this.entityNodes.get(id)
-    if (!node) return
-    const p = node.position
-    // Target the entity's position; set camera distance to at least 5 units
-    const t = this.controls.target
-    const dx = this.camera.position[0] - t[0]
-    const dy = this.camera.position[1] - t[1]
-    const dz = this.camera.position[2] - t[2]
-    const currentDist = Math.sqrt(dx * dx + dy * dy + dz * dz)
-    const dist = Math.max(currentDist, 5)
-
-    // Convert entity position to VoidCore Z-up if needed
-    let tx: number, ty: number, tz: number
-    if (this.isYUp) {
-      ;[tx, ty, tz] = yUpToZUp(p[0], p[1], p[2])
-    } else {
-      ;[tx, ty, tz] = [p[0], p[1], p[2]]
-    }
-
-    vec3Set(this.controls.target, tx, ty, tz)
-    const camDx = this.camera.position[0] - tx
-    const camDy = this.camera.position[1] - ty
-    const camDz = this.camera.position[2] - tz
-    this.controls.distance = dist
-    this.controls.elevation = Math.asin(
-      Math.max(-1, Math.min(1, camDz / (Math.sqrt(camDx * camDx + camDy * camDy + camDz * camDz) || 1))),
-    )
-    this.controls.azimuth = Math.atan2(camDy, camDx)
-    this.controls.update(0)
+    frameEntityFn(this.controls, this.camera, this.entityNodes, id, this.isYUp)
   }
 
   setOrthographicView(view: 'front' | 'back' | 'right' | 'left' | 'top' | 'bottom' | 'perspective'): void {
-    if (!this.controls) return
-
-    if (view === 'perspective') {
-      this.isOrtho = false
-      this.camera._projectionDirty = true
-      return
-    }
-
-    const t = this.controls.target
-    const dist = this.controls.distance
-
-    // View directions in scene coordinates (y-up), converted if needed
-    const sceneOffsets: Record<string, [number, number, number]> = {
-      front: [0, 0, 1],
-      back: [0, 0, -1],
-      right: [1, 0, 0],
-      left: [-1, 0, 0],
-      top: [0, 1, 0],
-      bottom: [0, -1, 0],
-    }
-    let [ox, oy, oz] = sceneOffsets[view]
-    if (this.isYUp) {
-      ;[ox, oy, oz] = yUpToZUp(ox, oy, oz)
-    }
-
-    const cx = t[0] + ox * dist
-    const cy = t[1] + oy * dist
-    const cz = t[2] + oz * dist
-    const dx = cx - t[0],
-      dy = cy - t[1],
-      dz = cz - t[2]
-    this.controls.distance = dist
-    this.controls.elevation = Math.asin(Math.max(-1, Math.min(1, dz / dist)))
-    this.controls.azimuth = Math.atan2(dy, dx)
-    // Kill any inertia so the view snaps cleanly
-    ;(this.controls as any)._velocityAz = 0
-    ;(this.controls as any)._velocityEl = 0
-    ;(this.controls as any)._velocityDist = 0
-    ;(this.controls as any)._velocityPanX = 0
-    ;(this.controls as any)._velocityPanY = 0
-    this.controls.update(0)
-    this.isOrtho = true
+    this.isOrtho = setOrthographicViewFn(this.controls, this.camera, this.isYUp, view)
   }
 
   updateControls(): void {

@@ -1,28 +1,11 @@
 import { flattenEntities } from '../../scene-data.ts'
+import { createRapierBody } from './rapier-body.ts'
 
 import type { SceneData, SceneEntity } from '../../scene-data.ts'
 import type { CollisionEvent, ManaRigidBody, PhysicsAdapter, PhysicsTransform } from '../physics-adapter.ts'
 
 export type RapierModule = typeof import('@dimforge/rapier3d-compat')
 export type RapierRigidBody = InstanceType<RapierModule['RigidBody']>
-
-/** Create a ManaRigidBody wrapper around a Rapier rigid body. */
-function createManaBody(rb: RapierRigidBody): ManaRigidBody {
-  return {
-    translation: () => rb.translation(),
-    linvel: () => rb.linvel(),
-    setTranslation: (pos, wake) => rb.setTranslation(pos, wake),
-    setLinvel: (vel, wake) => rb.setLinvel(vel, wake),
-    angvel: () => rb.angvel(),
-    setAngvel: (vel, wake) => rb.setAngvel(vel, wake),
-    rotation: () => rb.rotation(),
-    setRotation: (quat, wake) => rb.setRotation(quat, wake),
-    applyImpulse: impulse => rb.applyImpulse(impulse, true),
-    applyForce: force => rb.addForce(force, true),
-    mass: () => rb.mass(),
-    setEnabled: enabled => rb.setEnabled(enabled),
-  }
-}
 
 /**
  * PhysicsAdapter implementation backed by Rapier 3D.
@@ -45,75 +28,19 @@ export class RapierPhysicsAdapter implements PhysicsAdapter {
 
   /** Create a rigid body + collider for an entity and register it in all maps. */
   private _createBody(entity: SceneEntity, getInitialTransform: (id: string) => PhysicsTransform | null): void {
-    if (!entity.rigidBody) return
+    const result = createRapierBody(entity, this.world, this.RAPIER, getInitialTransform)
+    if (!result) return
 
-    const RAPIER = this.RAPIER
-    const initial = getInitialTransform(entity.id)
-    const px = initial?.position[0] ?? 0
-    const py = initial?.position[1] ?? 0
-    const pz = initial?.position[2] ?? 0
-    const qx = initial?.quaternion[0] ?? 0
-    const qy = initial?.quaternion[1] ?? 0
-    const qz = initial?.quaternion[2] ?? 0
-    const qw = initial?.quaternion[3] ?? 1
+    this.rigidBodyMap.set(entity.id, result.rigidBody)
+    this.manaBodyMap.set(entity.id, result.manaBody)
 
-    let bodyDesc: InstanceType<RapierModule['RigidBodyDesc']>
-    switch (entity.rigidBody.type) {
-      case 'fixed':
-        bodyDesc = RAPIER.RigidBodyDesc.fixed()
-        break
-      case 'kinematic':
-        bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
-        break
-      default:
-        bodyDesc = RAPIER.RigidBodyDesc.dynamic()
+    for (const handle of result.colliderHandles) {
+      this.colliderToEntity.set(handle, entity.id)
     }
+    this.sensorMap.set(entity.id, result.isSensor)
 
-    bodyDesc.setTranslation(px, py, pz)
-    bodyDesc.setRotation({ x: qx, y: qy, z: qz, w: qw })
-
-    if (entity.rigidBody.lockRotation) {
-      const [lx, ly, lz] = entity.rigidBody.lockRotation
-      bodyDesc.enabledRotations(!lx, !ly, !lz)
-    }
-
-    const rb = this.world.createRigidBody(bodyDesc)
-
-    if (entity.collider) {
-      let colliderDesc: InstanceType<RapierModule['ColliderDesc']>
-      switch (entity.collider.shape) {
-        case 'sphere':
-          colliderDesc = RAPIER.ColliderDesc.ball(entity.collider.radius ?? 0.5)
-          break
-        case 'capsule':
-          colliderDesc = RAPIER.ColliderDesc.capsule(entity.collider.halfHeight ?? 0.5, entity.collider.radius ?? 0.5)
-          break
-        default: {
-          const he = entity.collider.halfExtents ?? [0.5, 0.5, 0.5]
-          colliderDesc = RAPIER.ColliderDesc.cuboid(he[0], he[1], he[2])
-        }
-      }
-      if (entity.collider.friction !== undefined) {
-        colliderDesc.setFriction(entity.collider.friction)
-      }
-      if (entity.collider.restitution !== undefined) {
-        colliderDesc.setRestitution(entity.collider.restitution)
-      }
-      const isSensor = entity.collider.sensor === true
-      if (isSensor) {
-        colliderDesc.setSensor(true)
-      }
-      colliderDesc.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS)
-      const collider = this.world.createCollider(colliderDesc, rb)
-      this.colliderToEntity.set(collider.handle, entity.id)
-      this.sensorMap.set(entity.id, isSensor)
-    }
-
-    this.rigidBodyMap.set(entity.id, rb)
-    this.manaBodyMap.set(entity.id, createManaBody(rb))
-
-    if (entity.rigidBody.type !== 'fixed') {
-      this.dynamicEntities.push({ id: entity.id, rigidBody: rb })
+    if (result.isDynamic) {
+      this.dynamicEntities.push({ id: entity.id, rigidBody: result.rigidBody })
     }
   }
 

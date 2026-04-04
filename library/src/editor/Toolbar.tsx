@@ -90,6 +90,7 @@ function ToggleButton({
   return (
     <button
       onClick={onClick}
+      className="mana-hover"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -102,12 +103,6 @@ function ToggleButton({
         borderRadius: 3,
         userSelect: 'none',
         fontFamily: 'inherit',
-      }}
-      onMouseEnter={e => {
-        e.currentTarget.style.background = COLORS.hover
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.background = 'transparent'
       }}
     >
       {icon}

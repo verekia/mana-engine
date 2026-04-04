@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { COLORS, INPUT_STYLE } from './colors.ts'
 import { IconClose } from './icons.tsx'
+import { Popover, PopoverItem } from './Popover.tsx'
 import { CheckboxInput, ColorInput, NumberInput, SectionLabel, SelectInput, TextInput, Vec3Input } from './widgets.tsx'
 
 import type { MaterialData, MeshData, SceneEntity } from '../scene-data.ts'
@@ -217,82 +218,19 @@ function AddComponentPopover({
   options: { label: string; action: () => void }[]
   onClose: () => void
 }) {
-  const popoverRef = useRef<HTMLDivElement>(null)
-  const popoverHeight = 250
-  const pos = (() => {
-    if (position) {
-      const spaceBelow = window.innerHeight - position.y
-      const top = spaceBelow < popoverHeight ? position.y - popoverHeight : position.y
-      return { top: Math.max(4, top), left: Math.max(4, position.x) }
-    }
-    if (!anchorRef?.current) return { top: 0, left: 0 }
-    const rect = anchorRef.current.getBoundingClientRect()
-    const spaceBelow = window.innerHeight - rect.bottom
-    const top = spaceBelow < popoverHeight ? rect.top - popoverHeight - 2 : rect.bottom + 2
-    return { top: Math.max(4, top), left: rect.left }
-  })()
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) onClose()
-    }
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('mousedown', handleClick)
-    document.addEventListener('keydown', handleKey)
-    return () => {
-      document.removeEventListener('mousedown', handleClick)
-      document.removeEventListener('keydown', handleKey)
-    }
-  }, [onClose])
-
   return (
-    <div
-      ref={popoverRef}
-      style={{
-        position: 'fixed',
-        top: pos.top,
-        left: pos.left,
-        width: 180,
-        background: COLORS.panel,
-        border: `1px solid ${COLORS.border}`,
-        borderRadius: 6,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-        zIndex: 1001,
-        padding: '4px 0',
-        maxHeight: 250,
-        overflow: 'auto',
-      }}
-    >
+    <Popover anchorRef={anchorRef} position={position} onClose={onClose} maxHeight={250}>
       {options.map(opt => (
-        <button
+        <PopoverItem
           key={opt.label}
+          label={opt.label}
           onClick={() => {
             opt.action()
             onClose()
           }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = COLORS.hover
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'transparent'
-          }}
-          style={{
-            display: 'block',
-            width: '100%',
-            padding: '5px 10px',
-            background: 'transparent',
-            border: 'none',
-            color: COLORS.text,
-            fontSize: 11,
-            textAlign: 'left',
-          }}
-        >
-          {opt.label}
-        </button>
+        />
       ))}
-    </div>
+    </Popover>
   )
 }
 
