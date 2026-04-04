@@ -1,6 +1,6 @@
 import { Audio } from './audio.ts'
 import { Input } from './input.ts'
-import { flattenEntities } from './scene-data.ts'
+import { flattenEntities, generateId } from './scene-data.ts'
 
 import type { PhysicsAdapter } from './adapters/physics-adapter.ts'
 import type { RendererAdapter, EditorCameraState, TransformMode } from './adapters/renderer-adapter.ts'
@@ -66,6 +66,21 @@ export interface CreateSceneOptions {
 }
 
 const FIXED_DT = 1 / 60
+/** Maximum frame delta time (seconds). Caps large gaps (e.g. tab backgrounded) to prevent spiral of death. */
+const MAX_DT = 0.1
+
+/** Add an entity's tags to the tag index. */
+function indexEntityTags(entity: SceneEntity, tagIndex: Map<string, Set<string>>): void {
+  if (!entity.tags) return
+  for (const tag of entity.tags) {
+    let set = tagIndex.get(tag)
+    if (!set) {
+      set = new Set()
+      tagIndex.set(tag, set)
+    }
+    set.add(entity.id)
+  }
+}
 
 /**
  * Resolve prefab references on entities. If an entity has a `prefab` field,
@@ -102,7 +117,7 @@ export function resolvePrefabs(entities: SceneEntity[], prefabs: Record<string, 
 
 /** Assign unique IDs to all entities in a cloned prefab tree (root + children). */
 export function assignUniqueIds(entity: SceneEntity, prefix: string): void {
-  entity.id = `${prefix}_${Math.random().toString(36).slice(2, 10)}`
+  entity.id = `${prefix}_${generateId()}`
   if (entity.children) {
     for (const child of entity.children) {
       assignUniqueIds(child, prefix)
@@ -203,23 +218,16 @@ export async function createScene(
     console.log(`[mana] Renderer: ${rendererName} | Physics: ${physicsName}`)
   }
 
-  // Build name → id lookup for findEntityPosition
+  // Build name ↔ id lookups for findEntityPosition and efficient cleanup
   const nameToId = new Map<string, string>()
+  const idToName = new Map<string, string>()
   // Build tag → entity IDs index for findEntitiesByTag
   const tagIndex = new Map<string, Set<string>>()
   if (processedData) {
     for (const entity of flattenEntities(processedData.entities)) {
       nameToId.set(entity.name, entity.id)
-      if (entity.tags) {
-        for (const tag of entity.tags) {
-          let set = tagIndex.get(tag)
-          if (!set) {
-            set = new Set()
-            tagIndex.set(tag, set)
-          }
-          set.add(entity.id)
-        }
-      }
+      idToName.set(entity.id, entity.name)
+      indexEntityTags(entity, tagIndex)
     }
   }
 
@@ -244,11 +252,10 @@ export async function createScene(
         activeScripts.splice(i, 1)
       }
     }
-    for (const [name, eid] of nameToId) {
-      if (eid === id) {
-        nameToId.delete(name)
-        break
-      }
+    const name = idToName.get(id)
+    if (name) {
+      nameToId.delete(name)
+      idToName.delete(id)
     }
     // Remove from tag index
     for (const set of tagIndex.values()) {
@@ -319,15 +326,15 @@ export async function createScene(
       off(event, callback) {
         eventListeners.get(event)?.delete(callback)
       },
-      playSound(path, opts) {
-        if (!audio) return Promise.resolve('')
+      async playSound(path, opts) {
+        if (!audio) return ''
         return audio.playSound(path, opts)
       },
       stopSound(id) {
         audio?.stopSound(id)
       },
-      playMusic(path, opts) {
-        if (!audio) return Promise.resolve()
+      async playMusic(path, opts) {
+        if (!audio) return
         return audio.playMusic(path, opts)
       },
       stopMusic() {
@@ -387,17 +394,8 @@ export async function createScene(
         const allEntities = flattenEntities([entity])
         for (const ent of allEntities) {
           nameToId.set(ent.name, ent.id)
-          // Index tags for newly instantiated entities
-          if (ent.tags) {
-            for (const tag of ent.tags) {
-              let set = tagIndex.get(tag)
-              if (!set) {
-                set = new Set()
-                tagIndex.set(tag, set)
-              }
-              set.add(ent.id)
-            }
-          }
+          idToName.set(ent.id, ent.name)
+          indexEntityTags(ent, tagIndex)
 
           if (ent.rigidBody && physicsAdapter) {
             physicsAdapter.addEntity(ent, id => renderer.getEntityInitialPhysicsTransform(id))
@@ -478,7 +476,7 @@ export async function createScene(
     animationId = requestAnimationFrame(animate)
 
     const now = performance.now() / 1000
-    const dt = Math.min(now - lastTime, 0.1)
+    const dt = Math.min(now - lastTime, MAX_DT)
     lastTime = now
     elapsed += dt
 

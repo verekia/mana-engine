@@ -1,7 +1,14 @@
 import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ManaContext } from '../scene-context.ts'
-import { cloneEntity, findEntityInTree, flattenEntities, mapEntityTree, removeEntityFromTree } from '../scene-data.ts'
+import {
+  cloneEntity,
+  findEntityInTree,
+  flattenEntities,
+  generateId,
+  mapEntityTree,
+  removeEntityFromTree,
+} from '../scene-data.ts'
 import { BottomPanel } from './BottomPanel.tsx'
 import { COLORS, EDITOR_CSS } from './colors.ts'
 import { UndoHistory } from './history.ts'
@@ -918,8 +925,6 @@ export default function Editor({
 
   const handleAssetDrop = useCallback(
     (path: string, ext: string, hitInfo: string | null) => {
-      const generateId = () => Math.random().toString(36).slice(2, 10)
-
       // Texture drop onto an existing mesh → apply as material map
       if (TEXTURE_EXTS.has(ext) && hitInfo?.startsWith('__ndc:')) {
         const [, nx, ny] = hitInfo.split(':')

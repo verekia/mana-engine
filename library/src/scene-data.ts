@@ -155,6 +155,11 @@ export interface SceneData {
   entities: SceneEntity[]
 }
 
+/** Generate a short random ID (8 alphanumeric chars). Used for entity IDs. */
+export function generateId(): string {
+  return Math.random().toString(36).slice(2, 10)
+}
+
 // ── Entity tree helpers ──────────────────────────────────────────────────────
 
 /** Find an entity by ID anywhere in the tree, returning it and its parent array. */
@@ -192,7 +197,7 @@ export function removeEntityFromTree(entities: SceneEntity[], id: string): Scene
 }
 
 function assignFreshIds(e: SceneEntity) {
-  e.id = Math.random().toString(36).slice(2, 10)
+  e.id = generateId()
   e.children?.forEach(child => assignFreshIds(child))
 }
 

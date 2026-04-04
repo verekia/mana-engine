@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 
-import { findEntityInTree } from '../scene-data.ts'
+import { findEntityInTree, generateId } from '../scene-data.ts'
 import { COLORS, INPUT_STYLE } from './colors.ts'
 import {
   IconAmbientLight,
@@ -62,10 +62,6 @@ function entityTypeIcon(type: SceneEntity['type']): React.ReactNode {
     case 'audio':
       return <IconAudio />
   }
-}
-
-function generateId() {
-  return Math.random().toString(36).slice(2, 10)
 }
 
 const ADD_OBJECT_OPTIONS: { label: string; category: string; icon: React.ReactNode; create: () => SceneEntity }[] = [

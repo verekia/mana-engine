@@ -168,6 +168,7 @@ export class RapierPhysicsAdapter implements PhysicsAdapter {
   getTransforms(): Map<string, PhysicsTransform> {
     const transforms = new Map<string, PhysicsTransform>()
     for (const { id, rigidBody } of this.dynamicEntities) {
+      if (rigidBody.isSleeping()) continue
       const pos = rigidBody.translation()
       const rot = rigidBody.rotation()
       transforms.set(id, {
