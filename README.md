@@ -2,6 +2,33 @@
 
 Game engine that compiles a React + Tailwind game directory into a self-contained ES module, mounted via Shadow DOM for style isolation. The 3D renderer and physics engine are pluggable via **adapters** — pick any combination independently.
 
+⚠️ Disclaimer: Entirely vibe-coded, will likely go unmaintained, only use for testing.
+
+## Quickstart
+
+Create a `package.json`:
+
+```json
+{
+  "name": "my-game",
+  "private": true,
+  "scripts": {
+    "editor": "mana editor",
+    "dev": "mana dev",
+    "build": "mana build",
+    "start": "mana start"
+  }
+}
+```
+
+```sh
+bun i mana-engine
+```
+
+```sh
+bun editor
+```
+
 ## Features
 
 ### Scene System
