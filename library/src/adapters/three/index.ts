@@ -322,7 +322,7 @@ export class ThreeRendererAdapter implements RendererAdapter {
       (obj instanceof DirectionalLight || obj instanceof AmbientLight || obj instanceof PointLight)
     ) {
       if (entity.light?.color) obj.color.set(entity.light.color)
-      if (entity.light?.intensity !== undefined) obj.intensity = entity.light.intensity
+      if (entity.light?.intensity !== undefined) obj.intensity = entity.light.intensity * Math.PI
       if (entity.light?.castShadow !== undefined && (obj instanceof DirectionalLight || obj instanceof PointLight)) {
         obj.castShadow = entity.light.castShadow
       }

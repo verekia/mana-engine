@@ -271,7 +271,9 @@ export function createThreeEntityObject(
       break
     }
     case 'directional-light': {
-      const light = new DirectionalLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 1)
+      // Three.js physically-based lighting divides by PI internally (BRDF_Lambert).
+      // Multiply by PI so YAML intensity values match VoidCore's direct model 1:1.
+      const light = new DirectionalLight(entity.light?.color ?? '#ffffff', (entity.light?.intensity ?? 1) * Math.PI)
       applyTransform(light, entity.transform)
       if (entity.light?.castShadow) {
         light.castShadow = true
@@ -293,7 +295,7 @@ export function createThreeEntityObject(
       break
     }
     case 'point-light': {
-      const light = new PointLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 1)
+      const light = new PointLight(entity.light?.color ?? '#ffffff', (entity.light?.intensity ?? 1) * Math.PI)
       applyTransform(light, entity.transform)
       if (entity.light?.castShadow) {
         light.castShadow = true
@@ -309,7 +311,7 @@ export function createThreeEntityObject(
       break
     }
     case 'ambient-light': {
-      const light = new AmbientLight(entity.light?.color ?? '#ffffff', entity.light?.intensity ?? 0.3)
+      const light = new AmbientLight(entity.light?.color ?? '#ffffff', (entity.light?.intensity ?? 0.3) * Math.PI)
       scene.add(light)
       obj = light
       break
