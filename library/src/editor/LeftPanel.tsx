@@ -364,7 +364,7 @@ const EntityRow = memo(function EntityRow({
   renameValue: string
   isCollapsed: boolean
   hasChildren: boolean
-  onSelect: () => void
+  onSelect: (e?: React.MouseEvent) => void
   onDoubleClick: () => void
   onContextMenu: (e: React.MouseEvent) => void
   onToggleVisibility: () => void
@@ -384,7 +384,7 @@ const EntityRow = memo(function EntityRow({
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      onClick={onSelect}
+      onClick={e => onSelect(e)}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
       style={{
@@ -543,7 +543,7 @@ export function LeftPanel({
   onDeleteScene,
   onRenameScene,
   sceneData,
-  selectedId,
+  selectedIds,
   onSelect,
   onAddEntity,
   onDeleteEntity,
@@ -570,8 +570,8 @@ export function LeftPanel({
   onDeleteScene: (name: string) => void
   onRenameScene: (oldName: string, newName: string) => void
   sceneData: SceneData | null
-  selectedId: string | null
-  onSelect: (id: string) => void
+  selectedIds: string[]
+  onSelect: (id: string, multiSelect?: boolean) => void
   onAddEntity: (entity: SceneEntity) => void
   onDeleteEntity: (id: string) => void
   onRenameEntity: (id: string, name: string) => void
@@ -654,13 +654,13 @@ export function LeftPanel({
           key={entity.id}
           entity={entity}
           depth={depth}
-          isSelected={selectedId === entity.id}
+          isSelected={selectedIds.includes(entity.id)}
           isHidden={hiddenEntities.has(entity.id)}
           isRenaming={renamingId === entity.id}
           renameValue={renamingId === entity.id ? renameValue : ''}
           isCollapsed={isCollapsed}
           hasChildren={hasChildren}
-          onSelect={() => onSelect(entity.id)}
+          onSelect={e => onSelect(entity.id, e?.ctrlKey || e?.metaKey)}
           onDoubleClick={() => {
             setRenamingId(entity.id)
             setRenameValue(entity.name)

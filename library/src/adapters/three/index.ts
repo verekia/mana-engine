@@ -4,6 +4,7 @@ import {
   AmbientLight,
   AnimationClip,
   AnimationMixer,
+  Box3,
   CameraHelper,
   Color,
   DirectionalLight,
@@ -710,6 +711,23 @@ export class ThreeRendererAdapter implements RendererAdapter {
     if (!this.controls) return
     this.camera.position.set(...state.position)
     this.controls.target.set(...state.target)
+    this.controls.update()
+  }
+
+  frameEntity(id: string): void {
+    if (!this.controls) return
+    const obj = this.maps.entityObjects.get(id)
+    if (!obj) return
+    const box = new Box3().setFromObject(obj)
+    if (box.isEmpty()) return
+    const center = box.getCenter(new Vector3())
+    const size = box.getSize(new Vector3())
+    const maxDim = Math.max(size.x, size.y, size.z)
+    const fov = this.camera.fov * (Math.PI / 180)
+    const dist = Math.max(maxDim / (2 * Math.tan(fov / 2)), 2)
+    const dir = new Vector3().subVectors(this.camera.position, this.controls.target as unknown as Vector3).normalize()
+    this.camera.position.copy(center).addScaledVector(dir, dist)
+    ;(this.controls.target as unknown as Vector3).copy(center)
     this.controls.update()
   }
 

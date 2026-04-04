@@ -187,6 +187,9 @@ export interface RendererAdapter {
   /** Restore the editor camera to a previously saved state. */
   setEditorCamera(state: EditorCameraState): void
 
+  /** Frame an entity: fly the camera to center and fit the entity in the viewport. */
+  frameEntity?(id: string): void
+
   /** Switch to an orthographic view. 'perspective' returns to perspective mode. */
   setOrthographicView?(view: 'front' | 'back' | 'right' | 'left' | 'top' | 'bottom' | 'perspective'): void
 

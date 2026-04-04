@@ -61,7 +61,7 @@ export default function Editor({
   const [sceneList, setSceneList] = useState<string[]>([])
   const [activeScene, setActiveScene] = useState(() => localStorage.getItem('mana:activeScene') ?? '')
   const [sceneData, setSceneData] = useState<SceneData | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [savedSceneJson, setSavedSceneJson] = useState('')
   const [clipboard, setClipboard] = useState<SceneEntity | null>(null)
@@ -88,9 +88,12 @@ export default function Editor({
   sceneDataRef.current = sceneData
   const activeSceneRef = useRef('')
   activeSceneRef.current = activeScene
-  const selectedIdRef = useRef<string | null>(null)
-  selectedIdRef.current = selectedId
+  const selectedIdsRef = useRef<string[]>([])
+  selectedIdsRef.current = selectedIds
   const dirtyRef = useRef(false)
+
+  // Primary selection = last element in selectedIds
+  const selectedId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null
 
   const dirty = useMemo(
     () => (sceneData ? JSON.stringify(sceneData) !== savedSceneJson : false),
@@ -102,7 +105,7 @@ export default function Editor({
   const [editingPrefab, setEditingPrefab] = useState<string | null>(null)
   const prePrefabSceneRef = useRef<string>('')
   const prePrefabSceneDataRef = useRef<SceneData | null>(null)
-  const prePrefabSelectedIdRef = useRef<string | null>(null)
+  const prePrefabSelectedIdsRef = useRef<string[]>([])
   const prePrefabCameraRef = useRef<EditorCameraState | null>(null)
   const prePrefabSavedJsonRef = useRef('')
   const editingPrefabRef = useRef<string | null>(null)
@@ -113,7 +116,7 @@ export default function Editor({
 
   const prePlaySceneRef = useRef('')
   const prePlaySceneDataRef = useRef<SceneData | null>(null)
-  const prePlaySelectedIdRef = useRef<string | null>(null)
+  const prePlaySelectedIdsRef = useRef<string[]>([])
   const prePlayCameraRef = useRef<EditorCameraState | null>(null)
 
   useEffect(() => {
@@ -247,7 +250,7 @@ export default function Editor({
     (name: string) => {
       setActiveScene(name)
       localStorage.setItem('mana:activeScene', name)
-      setSelectedId(null)
+      setSelectedIds([])
       historyRef.current.clear()
       forceUpdate(n => n + 1)
 
@@ -336,10 +339,10 @@ export default function Editor({
     if (!data) return
     prePlaySceneRef.current = activeSceneRef.current
     prePlaySceneDataRef.current = data
-    prePlaySelectedIdRef.current = selectedIdRef.current
+    prePlaySelectedIdsRef.current = selectedIdsRef.current
     prePlayCameraRef.current = sceneRef.current?.getEditorCamera() ?? null
     setPlaying(true)
-    setSelectedId(null)
+    setSelectedIds([])
     await recreateScene(data, true)
     canvasRef.current?.focus()
     log('Play mode started')
@@ -354,7 +357,7 @@ export default function Editor({
       setActiveScene(name)
       await recreateScene(data, false, prePlayCameraRef.current ?? undefined)
     }
-    setSelectedId(prePlaySelectedIdRef.current)
+    setSelectedIds(prePlaySelectedIdsRef.current)
     log('Play mode stopped')
   }, [log, recreateScene])
 
@@ -395,7 +398,7 @@ export default function Editor({
       // Save current scene state
       prePrefabSceneRef.current = activeSceneRef.current
       prePrefabSceneDataRef.current = sceneDataRef.current
-      prePrefabSelectedIdRef.current = selectedIdRef.current
+      prePrefabSelectedIdsRef.current = selectedIdsRef.current
       prePrefabCameraRef.current = sceneRef.current?.getEditorCamera() ?? null
       prePrefabSavedJsonRef.current = savedSceneJson
 
@@ -406,7 +409,7 @@ export default function Editor({
         prefabEntityIdRef.current = prefab.entity.id
         setSceneData(sceneFromPrefab)
         setSavedSceneJson(JSON.stringify(sceneFromPrefab))
-        setSelectedId(prefab.entity.id)
+        setSelectedIds([prefab.entity.id])
         historyRef.current.clear()
         forceUpdate(n => n + 1)
         await recreateScene(sceneFromPrefab, false)
@@ -428,7 +431,7 @@ export default function Editor({
       setSavedSceneJson(prePrefabSavedJsonRef.current)
       await recreateScene(data, false, prePrefabCameraRef.current ?? undefined)
     }
-    setSelectedId(prePrefabSelectedIdRef.current)
+    setSelectedIds(prePrefabSelectedIdsRef.current)
     historyRef.current.clear()
     forceUpdate(n => n + 1)
     log('Exited prefab editing')
@@ -493,7 +496,7 @@ export default function Editor({
       removeEntityFromTree(entities, id)
       return { ...prev, entities }
     })
-    setSelectedId(prev => (prev && allIds.includes(prev) ? null : prev))
+    setSelectedIds(prev => prev.filter(sid => !allIds.includes(sid)))
 
     historyRef.current.push({
       description: `Delete ${deleted.name}`,
@@ -523,7 +526,7 @@ export default function Editor({
           removeEntityFromTree(entities, id)
           return { ...prev, entities }
         })
-        setSelectedId(prev => (prev && ids.includes(prev) ? null : prev))
+        setSelectedIds(prev => prev.filter(sid => !ids.includes(sid)))
       },
     })
     forceUpdate(n => n + 1)
@@ -581,7 +584,7 @@ export default function Editor({
       return { ...prev, entities }
     })
     sceneRef.current?.addEntity(entity, prefabRootId ?? undefined)
-    setSelectedId(entity.id)
+    setSelectedIds([entity.id])
 
     historyRef.current.push({
       description: `Add ${entity.name}`,
@@ -594,7 +597,7 @@ export default function Editor({
           removeEntityFromTree(entities, entity.id)
           return { ...prev, entities }
         })
-        setSelectedId(prev => (prev === entity.id ? null : prev))
+        setSelectedIds(prev => prev.filter(id => id !== entity.id))
       },
       redo: () => {
         setSceneData(prev => {
@@ -604,11 +607,28 @@ export default function Editor({
           return { ...prev, entities }
         })
         sceneRef.current?.addEntity(entity, prefabRootId ?? undefined)
-        setSelectedId(entity.id)
+        setSelectedIds([entity.id])
       },
     })
     forceUpdate(n => n + 1)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
+  }, [])
+
+  // Multi-select handler for hierarchy panel (receives modifier key info)
+  const handleSelectEntity = useCallback((id: string, multiSelect?: boolean) => {
+    if (multiSelect) {
+      setSelectedIds(prev => {
+        if (prev.includes(id)) return prev.filter(i => i !== id)
+        return [...prev, id]
+      })
+    } else {
+      setSelectedIds([id])
+    }
+  }, [])
+
+  // Single-select handler for UI entity clicks (no modifier support)
+  const handleSelectEntitySingle = useCallback((id: string) => {
+    setSelectedIds([id])
   }, [])
 
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -617,7 +637,19 @@ export default function Editor({
     const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1
     const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1
     const hitId = sceneRef.current?.raycast(ndcX, ndcY) ?? null
-    setSelectedId(hitId)
+    const multiSelect = e.ctrlKey || e.metaKey
+    if (hitId) {
+      if (multiSelect) {
+        setSelectedIds(prev => {
+          if (prev.includes(hitId)) return prev.filter(id => id !== hitId)
+          return [...prev, hitId]
+        })
+      } else {
+        setSelectedIds([hitId])
+      }
+    } else {
+      setSelectedIds([])
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
   }, [])
 
@@ -625,9 +657,9 @@ export default function Editor({
     sceneData && selectedId ? (findEntityInTree(sceneData.entities, selectedId)?.entity ?? null) : null
 
   useEffect(() => {
-    sceneRef.current?.setSelectedObjects(selectedId ? [selectedId] : [])
+    sceneRef.current?.setSelectedObjects(selectedIds)
     sceneRef.current?.setTransformTarget(selectedId)
-  }, [selectedId, sceneRef])
+  }, [selectedIds, selectedId, sceneRef])
 
   // Apply hidden entity visibility when scene is created/recreated
   const hiddenEntitiesRef = useRef(hiddenEntities)
@@ -711,7 +743,7 @@ export default function Editor({
         return { ...prev, entities }
       })
       sceneRef.current?.addEntity(duped)
-      setSelectedId(duped.id)
+      setSelectedIds([duped.id])
 
       historyRef.current.push({
         description: `Duplicate ${found.entity.name}`,
@@ -724,7 +756,7 @@ export default function Editor({
             removeEntityFromTree(entities, duped.id)
             return { ...prev, entities }
           })
-          setSelectedId(prev => (prev === duped.id ? id : prev))
+          setSelectedIds(prev => (prev.includes(duped.id) ? [id] : prev))
         },
         redo: () => {
           setSceneData(prev => {
@@ -735,7 +767,7 @@ export default function Editor({
             return { ...prev, entities }
           })
           sceneRef.current?.addEntity(duped)
-          setSelectedId(duped.id)
+          setSelectedIds([duped.id])
         },
       })
       forceUpdate(n => n + 1)
@@ -773,7 +805,7 @@ export default function Editor({
         return { ...prev, entities }
       })
       sceneRef.current?.addEntity(pasted)
-      setSelectedId(pasted.id)
+      setSelectedIds([pasted.id])
 
       historyRef.current.push({
         description: `Paste ${pasted.name}`,
@@ -786,7 +818,7 @@ export default function Editor({
             removeEntityFromTree(entities, pasted.id)
             return { ...prev, entities }
           })
-          setSelectedId(prev => (prev === pasted.id ? null : prev))
+          setSelectedIds(prev => prev.filter(id => id !== pasted.id))
         },
         redo: () => {
           setSceneData(prev => {
@@ -806,7 +838,7 @@ export default function Editor({
             return { ...prev, entities }
           })
           sceneRef.current?.addEntity(pasted)
-          setSelectedId(pasted.id)
+          setSelectedIds([pasted.id])
         },
       })
       forceUpdate(n => n + 1)
@@ -1032,20 +1064,23 @@ export default function Editor({
 
       if (mod && e.key === 'c') {
         e.preventDefault()
-        const id = selectedIdRef.current
+        const ids = selectedIdsRef.current
+        const id = ids.length > 0 ? ids[ids.length - 1] : null
         if (id) handleCopyEntity(id)
         return
       }
 
       if (mod && e.key === 'v') {
         e.preventDefault()
-        handlePasteEntity(selectedIdRef.current)
+        const ids = selectedIdsRef.current
+        handlePasteEntity(ids.length > 0 ? ids[ids.length - 1] : null)
         return
       }
 
       if (mod && e.key === 'd') {
         e.preventDefault()
-        const id = selectedIdRef.current
+        const ids = selectedIdsRef.current
+        const id = ids.length > 0 ? ids[ids.length - 1] : null
         if (id) handleDuplicateEntity(id)
         return
       }
@@ -1054,8 +1089,17 @@ export default function Editor({
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
 
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIdRef.current) {
-        handleDeleteEntity(selectedIdRef.current)
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIdsRef.current.length > 0) {
+        // Delete all selected entities
+        const ids = [...selectedIdsRef.current]
+        for (const id of ids) handleDeleteEntity(id)
+        return
+      }
+
+      if (e.key === 'f' && !mod) {
+        const ids = selectedIdsRef.current
+        const id = ids.length > 0 ? ids[ids.length - 1] : null
+        if (id) sceneRef.current?.frameEntity?.(id)
         return
       }
 
@@ -1118,8 +1162,8 @@ export default function Editor({
               onDeleteScene={handleDeleteScene}
               onRenameScene={handleRenameScene}
               sceneData={sceneData}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
+              selectedIds={selectedIds}
+              onSelect={handleSelectEntity}
               onAddEntity={handleAddEntity}
               onDeleteEntity={handleDeleteEntity}
               onRenameEntity={handleRenameEntity}
@@ -1208,7 +1252,7 @@ export default function Editor({
                     showUI={showUI}
                     playing={playing}
                     onCanvasClick={handleCanvasClick}
-                    onSelectEntity={setSelectedId}
+                    onSelectEntity={handleSelectEntitySingle}
                     onAssetDrop={handleAssetDrop}
                     hiddenEntities={hiddenEntities}
                   />

@@ -305,7 +305,8 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
   - Ctrl+C / Cmd+C copies the selected entity (with children) to clipboard
   - Ctrl+V / Cmd+V pastes clipboard as child of selected entity, or at root if nothing selected
   - Ctrl+D / Cmd+D duplicates the selected entity in-place (inserted after original in same parent)
-  - Delete / Backspace deletes the selected entity and all children
+  - Delete / Backspace deletes all selected entities and their children
+  - F key frames/focuses the camera on the selected entity
 - Context menu (right-click entity): Rename, Duplicate, Copy, Paste as Child, Unparent (move to root), Delete
 - Entity tree helpers in `scene-data.ts`: `findEntityInTree`, `removeEntityFromTree`, `cloneEntity`, `mapEntityTree`
 - All entity operations (add, delete, rename, update, transform) are tree-aware via these helpers
@@ -328,6 +329,8 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
   - Gizmo drag fires `onTransformStart`, `onTransformChange`, `onTransformEnd` callbacks
 - Snap-to-grid: toolbar toggle (X key shortcut) that snaps translations to 1-unit grid, rotations to 15° steps, and scale to 0.25 steps; persisted to localStorage
 - Transform space toggle: toolbar button to switch between Local and World coordinate space for gizmo axes; Three.js uses `TransformControls.space`, VoidCore operates in scene-local space
+- Multi-entity selection: Ctrl+click / Cmd+click in viewport or hierarchy to add/remove from selection; last selected entity is the primary (shown in inspector, gets transform gizmo); Delete removes all selected entities
+- Focus/frame entity: F key flies the camera to center and frame the selected entity in the viewport (Three.js uses bounding box, VoidCore targets entity position)
 - Undo/redo: `UndoHistory` class in `history.ts` with stack-based action history
   - Cmd+Z / Ctrl+Z to undo, Cmd+Shift+Z / Ctrl+Shift+Z to redo
   - Toolbar buttons for undo/redo with enabled/disabled state

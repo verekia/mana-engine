@@ -90,7 +90,9 @@ Game engine that compiles a React + Tailwind game directory into a self-containe
 - **Save hotkey** — Cmd+S / Ctrl+S saves the current scene to disk
 - **Add Entity menu** — Presets for empty, camera, box, sphere, plane, cylinder, capsule, lights, and audio
 - **Add Component menu** — Attach rigid body, collider, or scripts to entities
+- **Multi-select** — Ctrl+click / Cmd+click to add/remove entities from selection in viewport or hierarchy; batch delete
 - **Selection outline** — Blue outline highlighting for selected entities
+- **Focus/frame entity** — F key flies the camera to center and frame the selected entity
 - **Gizmo helpers** — Camera, directional light, point light, and audio helpers visible in edit mode
 - **Collider wireframe gizmos** — Visible in editor edit mode
 - **UI overlay toggle** — Show/hide React UI components in the viewport
@@ -390,7 +392,6 @@ Features not yet implemented that would enhance the engine:
 - **Skybox / environment maps** — HDR environment lighting and reflections
 - **Terrain** — Heightmap-based terrain generation
 - **Networking** — Multiplayer state synchronization
-- **Multi-select** — Select and manipulate multiple entities at once in the editor
 - **Editor camera bookmarks** — Save and restore camera positions
 - **Script hot reload** — Update scripts without restarting play mode
 - **Custom shaders** — User-defined shader materials
