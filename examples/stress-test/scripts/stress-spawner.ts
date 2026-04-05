@@ -1,16 +1,11 @@
 import type { ManaScript } from 'mana-engine/game'
 
-let spawned = false
-
 export default {
   params: {
     clusters: { type: 'number', default: 4 },
     prefabsPerCluster: { type: 'number', default: 27 },
   },
-  update(ctx) {
-    if (spawned) return
-    spawned = true
-
+  init(ctx) {
     const clusterCount = ctx.params.clusters as number
     const perCluster = ctx.params.prefabsPerCluster as number
     const cubeSize = Math.ceil(Math.cbrt(perCluster))
