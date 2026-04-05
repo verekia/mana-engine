@@ -89,6 +89,10 @@ export default function Editor({
     }
   })
 
+  const [showCounters, setShowCounters] = useState(() => localStorage.getItem('mana:showCounters') === 'true')
+  const countersRef = useRef<{ fps: number; drawCalls: number; triangles: number } | null>(null)
+  const [counters, setCounters] = useState<{ fps: number; drawCalls: number; triangles: number } | null>(null)
+
   // Panel sizes (persisted to localStorage)
   const [leftWidth, setLeftWidth] = useState(() => Number(localStorage.getItem('mana:leftWidth')) || 220)
   const [rightWidth, setRightWidth] = useState(() => Number(localStorage.getItem('mana:rightWidth')) || 260)
@@ -222,6 +226,38 @@ export default function Editor({
     onTransformChange: handleTransformChange,
     onTransformEnd: handleTransformEnd,
   })
+
+  // Counters overlay: FPS + renderer stats
+  useEffect(() => {
+    if (!showCounters) {
+      setCounters(null)
+      return
+    }
+    let frameCount = 0
+    let lastTime = performance.now()
+    let rafId: number
+
+    const tick = () => {
+      frameCount++
+      const now = performance.now()
+      if (now - lastTime >= 500) {
+        const fps = Math.round((frameCount / (now - lastTime)) * 1000)
+        const stats = sceneRef.current?.getRendererStats?.() ?? null
+        const data = {
+          fps,
+          drawCalls: stats?.drawCalls ?? 0,
+          triangles: stats?.triangles ?? 0,
+        }
+        countersRef.current = data
+        setCounters(data)
+        frameCount = 0
+        lastTime = now
+      }
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [showCounters, sceneRef])
 
   const handleToggleEntityVisibility = useCallback(
     (id: string) => {
@@ -1179,6 +1215,14 @@ export default function Editor({
                 onExitPrefab={handleExitPrefab}
                 compatWarnings={compatWarnings}
                 onSelectWarningEntity={id => setSelectedIds([id])}
+                showCounters={showCounters}
+                onToggleCounters={() =>
+                  setShowCounters(s => {
+                    const next = !s
+                    localStorage.setItem('mana:showCounters', String(next))
+                    return next
+                  })
+                }
               />
               <div style={{ flex: 1, overflow: 'hidden' }}>
                 <ManaContext.Provider value={manaContextValue}>
@@ -1192,6 +1236,8 @@ export default function Editor({
                     onSelectEntity={handleSelectEntitySingle}
                     onAssetDrop={handleAssetDrop}
                     hiddenEntities={hiddenEntities}
+                    showCounters={showCounters}
+                    counters={counters}
                   />
                 </ManaContext.Provider>
               </div>

@@ -19,6 +19,7 @@ import {
   PointLight,
   PointLightHelper,
   SphereGeometry,
+  TetrahedronGeometry,
   TextureLoader,
   type WebGPURenderer,
 } from 'three/webgpu'
@@ -70,6 +71,8 @@ function createGeometry(type?: string) {
       return new CapsuleGeometry()
     case 'cone':
       return new ConeGeometry()
+    case 'tetrahedron':
+      return new TetrahedronGeometry()
     default:
       return new BoxGeometry()
   }

@@ -505,6 +505,16 @@ export class ThreeRendererAdapter implements RendererAdapter {
     return this.threeScene
   }
 
+  // ── Stats ──────────────────────────────────────────────────────────────────
+
+  getRendererStats(): { drawCalls: number; triangles: number } | null {
+    const info = this.renderer.info
+    return {
+      drawCalls: info.render.drawCalls,
+      triangles: info.render.triangles,
+    }
+  }
+
   // ── Editor delegation ──────────────────────────────────────────────────────
 
   setGizmos(enabled: boolean): void {

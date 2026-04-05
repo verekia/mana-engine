@@ -242,6 +242,9 @@ export class WebGPURenderer {
 
   shadowMap = { enabled: false }
 
+  /** Per-frame render statistics, updated after each render() call. */
+  info = { drawCalls: 0, triangles: 0 }
+
   constructor(params: { canvas: HTMLCanvasElement; antialias?: boolean }) {
     this.canvas = params.canvas
     this.colorAtt = {
@@ -514,6 +517,9 @@ export class WebGPURenderer {
   // ── Main render ───────────────────────────────────────────────────
 
   render(scene: Scene, camera: PerspectiveCamera) {
+    this.info.drawCalls = 0
+    this.info.triangles = 0
+
     // Single-pass traversal: compute world matrices + collect renderables
     scene.updateMatrixWorld()
 
@@ -647,6 +653,8 @@ export class WebGPURenderer {
         }
         sp.setBindGroup(1, this.objectBindGroup, [i * this.objectStride])
         sp.drawIndexed(geo._indexCount)
+        this.info.drawCalls++
+        this.info.triangles += (geo._indexCount / 3) | 0
       }
 
       const customBase = solidCount + wireCount
@@ -662,6 +670,8 @@ export class WebGPURenderer {
         }
         sp.setBindGroup(1, this.objectBindGroup, [(customBase + i) * this.objectStride])
         sp.drawIndexed(geo._indexCount)
+        this.info.drawCalls++
+        this.info.triangles += (geo._indexCount / 3) | 0
       }
       sp.end()
     }
@@ -698,6 +708,8 @@ export class WebGPURenderer {
         }
         pass.setBindGroup(1, this.objectBindGroup, [i * this.objectStride])
         pass.drawIndexed(geo._indexCount)
+        this.info.drawCalls++
+        this.info.triangles += (geo._indexCount / 3) | 0
       }
     }
 
@@ -728,6 +740,8 @@ export class WebGPURenderer {
         }
         pass.setBindGroup(1, this.objectBindGroup, [(base + i) * this.objectStride])
         pass.drawIndexed(geo._indexCount)
+        this.info.drawCalls++
+        this.info.triangles += (geo._indexCount / 3) | 0
       }
     }
 
@@ -746,6 +760,7 @@ export class WebGPURenderer {
         }
         pass.setBindGroup(1, this.objectBindGroup, [(base + i) * this.objectStride])
         pass.drawIndexed(geo._wireframeIndexCount)
+        this.info.drawCalls++
       }
     }
 
@@ -778,7 +793,10 @@ export class WebGPURenderer {
         }
         pass.setBindGroup(1, this.objectBindGroup, [(base + i) * this.objectStride])
         if (mat._uniformBindGroup) pass.setBindGroup(2, mat._uniformBindGroup)
-        pass.drawIndexed(mat.wireframe ? geo._wireframeIndexCount : geo._indexCount)
+        const idxCount = mat.wireframe ? geo._wireframeIndexCount : geo._indexCount
+        pass.drawIndexed(idxCount)
+        this.info.drawCalls++
+        if (!mat.wireframe) this.info.triangles += (idxCount / 3) | 0
       }
     }
 
@@ -798,6 +816,7 @@ export class WebGPURenderer {
         pass.setBindGroup(1, this.objectBindGroup, [(base + i) * this.objectStride])
         if (geo._indexCount > 0) pass.drawIndexed(geo._indexCount)
         else pass.draw(geo._vertexCount)
+        this.info.drawCalls++
       }
     }
 

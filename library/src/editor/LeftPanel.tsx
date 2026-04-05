@@ -177,6 +177,18 @@ const ADD_OBJECT_OPTIONS: { label: string; category: string; icon: React.ReactNo
     }),
   },
   {
+    label: 'Tetrahedron',
+    category: 'Mesh',
+    icon: <IconMesh />,
+    create: () => ({
+      id: generateId(),
+      name: 'Tetrahedron',
+      type: 'mesh',
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      mesh: { geometry: 'tetrahedron', material: { color: '#888888' } },
+    }),
+  },
+  {
     label: 'Directional Light',
     category: 'Light',
     icon: <IconDirectionalLight />,

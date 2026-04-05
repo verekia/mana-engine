@@ -43,6 +43,8 @@ export interface ManaScene {
   updateSkybox?(skybox: SkyboxData | undefined): void
   /** Update post-processing settings. */
   updatePostProcessing?(settings: PostProcessingData | undefined): void
+  /** Return renderer statistics (draw calls, triangles) for the current frame. */
+  getRendererStats?(): { drawCalls: number; triangles: number } | null
 }
 
 export interface CreateSceneOptions {
@@ -618,6 +620,9 @@ export async function createScene(
     },
     updatePostProcessing(settings: PostProcessingData | undefined) {
       renderer.updatePostProcessing?.(settings)
+    },
+    getRendererStats() {
+      return renderer.getRendererStats?.() ?? null
     },
   }
 }

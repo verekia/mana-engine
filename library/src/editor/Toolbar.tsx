@@ -7,6 +7,7 @@ import { Popover } from './Popover.tsx'
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
 const MOD_KEY = isMac ? '\u2318' : 'Ctrl'
 import {
+  IconCounters,
   IconCube,
   IconEye,
   IconGlobe,
@@ -139,6 +140,8 @@ export function Toolbar({
   onExitPrefab,
   compatWarnings = [],
   onSelectWarningEntity,
+  showCounters,
+  onToggleCounters,
 }: {
   playing: boolean
   onPlay: () => void
@@ -162,6 +165,8 @@ export function Toolbar({
   onExitPrefab?: () => void
   compatWarnings?: CompatWarning[]
   onSelectWarningEntity?: (entityId: string) => void
+  showCounters: boolean
+  onToggleCounters: () => void
 }) {
   return (
     <div
@@ -272,6 +277,7 @@ export function Toolbar({
           <ToolbarSeparator />
         </>
       )}
+      <ToggleButton icon={<IconCounters />} label="Counters" active={showCounters} onClick={onToggleCounters} />
       {compatWarnings.length > 0 && <CompatWarningButton warnings={compatWarnings} onSelect={onSelectWarningEntity} />}
       <div
         style={{

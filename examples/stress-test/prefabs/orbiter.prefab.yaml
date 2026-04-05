@@ -1,0 +1,31 @@
+entity:
+  id: orbiter
+  name: Orbiter
+  type: mesh
+  transform:
+    position: [0, 0, 0]
+    rotation: [0, 0, 0]
+    scale: [0.4, 0.4, 0.4]
+  mesh:
+    geometry: box
+    material: { color: '#4a9eff' }
+  castShadow: true
+  receiveShadow: true
+  scripts:
+    - { name: spin, params: { speed: 2 } }
+    - { name: cluster-orbit }
+  children:
+    - id: satellite
+      name: Satellite
+      type: mesh
+      transform:
+        position: [2.5, 0, 0]
+        rotation: [0, 0, 0]
+        scale: [0.6, 0.6, 0.6]
+      mesh:
+        geometry: tetrahedron
+        material: { color: '#ff6b35' }
+      castShadow: true
+      receiveShadow: true
+      scripts:
+        - { name: spin, params: { speed: 5 } }

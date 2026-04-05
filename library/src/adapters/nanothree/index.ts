@@ -358,6 +358,11 @@ export class NanothreeRendererAdapter implements RendererAdapter {
     return this.scene
   }
 
+  getRendererStats(): { drawCalls: number; triangles: number } | null {
+    if (!this.renderer) return null
+    return { drawCalls: this.renderer.info.drawCalls, triangles: this.renderer.info.triangles }
+  }
+
   // ── Scene-level settings ─────────────────────────────────────────────
 
   updateBackground(color: string): void {

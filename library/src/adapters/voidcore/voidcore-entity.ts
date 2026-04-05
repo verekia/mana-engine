@@ -47,6 +47,8 @@ export function createGeometry(type?: string) {
       return new CapsuleGeometry({ radius: 0.5, height: 2 })
     case 'cone':
       return new ConeGeometry()
+    case 'tetrahedron':
+      return new ConeGeometry({ radialSegments: 3 })
     default:
       return new BoxGeometry()
   }

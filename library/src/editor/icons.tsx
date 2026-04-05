@@ -313,6 +313,16 @@ export function IconChevronDown() {
   )
 }
 
+export function IconCounters() {
+  return (
+    <svg {...svgProps} viewBox="0 0 16 16">
+      <rect x={2} y={9} width={3} height={5} rx={0.5} fill="currentColor" />
+      <rect x={6.5} y={5} width={3} height={9} rx={0.5} fill="currentColor" />
+      <rect x={11} y={2} width={3} height={12} rx={0.5} fill="currentColor" />
+    </svg>
+  )
+}
+
 export function IconWarning() {
   return (
     <svg {...svgProps} viewBox="0 0 16 16">

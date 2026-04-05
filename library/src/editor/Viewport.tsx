@@ -48,6 +48,12 @@ function renderUIEntities(
     })
 }
 
+export interface CountersData {
+  fps: number
+  drawCalls: number
+  triangles: number
+}
+
 export function Viewport({
   canvasRef,
   uiEntities,
@@ -58,6 +64,8 @@ export function Viewport({
   onSelectEntity,
   onAssetDrop,
   hiddenEntities,
+  showCounters,
+  counters,
 }: {
   canvasRef: React.RefObject<HTMLCanvasElement | null>
   uiEntities: SceneEntity[]
@@ -68,6 +76,8 @@ export function Viewport({
   onSelectEntity?: (id: string) => void
   onAssetDrop?: (path: string, ext: string, hitEntityId: string | null) => void
   hiddenEntities?: Set<string>
+  showCounters?: boolean
+  counters?: CountersData | null
 }) {
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null)
 
@@ -140,6 +150,38 @@ export function Viewport({
         >
           <div style={{ position: 'relative', width: '100%', height: '100%' }}>
             {renderUIEntities(uiEntities, uiComponents, playing, onSelectEntity, hiddenEntities)}
+          </div>
+        </div>
+      )}
+      {showCounters && counters && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            background: 'rgba(0, 0, 0, 0.7)',
+            borderRadius: 4,
+            padding: '6px 10px',
+            fontSize: 11,
+            fontFamily: 'monospace',
+            color: '#fff',
+            pointerEvents: 'none',
+            lineHeight: 1.6,
+          }}
+        >
+          <div>
+            <span style={{ color: COLORS.textMuted }}>FPS </span>
+            <span style={{ color: counters.fps >= 55 ? '#22c55e' : counters.fps >= 30 ? '#f59e0b' : '#ef4444' }}>
+              {counters.fps}
+            </span>
+          </div>
+          <div>
+            <span style={{ color: COLORS.textMuted }}>Draw calls </span>
+            {counters.drawCalls}
+          </div>
+          <div>
+            <span style={{ color: COLORS.textMuted }}>Triangles </span>
+            {counters.triangles.toLocaleString()}
           </div>
         </div>
       )}

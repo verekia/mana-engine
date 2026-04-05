@@ -226,6 +226,14 @@ export interface RendererAdapter {
   /** Switch to an orthographic view. 'perspective' returns to perspective mode. */
   setOrthographicView?(view: 'front' | 'back' | 'right' | 'left' | 'top' | 'bottom' | 'perspective'): void
 
+  // ── Stats ────────────────────────────────────────────────────────────────────
+
+  /**
+   * Return renderer statistics for the current frame.
+   * Returns null if the adapter does not support stats.
+   */
+  getRendererStats?(): { drawCalls: number; triangles: number } | null
+
   // ── Frame loop ──────────────────────────────────────────────────────────────
 
   /**

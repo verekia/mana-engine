@@ -14,6 +14,7 @@ import {
   type Object3D,
   PerspectiveCamera,
   SphereGeometry,
+  TetrahedronGeometry,
 } from '../../nanothree/index.ts'
 import { applyTransform, createColliderWireframe, hexToColor } from './nanothree-utils.ts'
 
@@ -98,6 +99,9 @@ export function createNanothreeEntity(entity: SceneEntity, parent: Object3D, sta
           break
         case 'cone':
           geometry = new ConeGeometry()
+          break
+        case 'tetrahedron':
+          geometry = new TetrahedronGeometry()
           break
         default:
           geometry = new BoxGeometry()

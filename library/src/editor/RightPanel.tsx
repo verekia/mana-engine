@@ -781,7 +781,7 @@ export function RightPanel({
                     <SelectInput
                       label="Geometry"
                       value={entity.mesh.geometry ?? 'box'}
-                      options={['box', 'sphere', 'plane', 'capsule']}
+                      options={['box', 'sphere', 'plane', 'capsule', 'cone', 'tetrahedron']}
                       onChange={v =>
                         onUpdate({ ...entity, mesh: { ...entity.mesh, geometry: v as MeshData['geometry'] } })
                       }
