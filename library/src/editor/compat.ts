@@ -99,16 +99,13 @@ function checkRendererCompat(entity: SceneEntity, renderer: RendererName | strin
         message: `"${entity.name}" uses PBR material properties — only supported with Three.js renderer`,
       })
     }
-    // Nanothree has no texture support
-    if (
-      renderer === 'nanothree' &&
-      (mat.map || mat.emissiveMap || mat.normalMap || mat.roughnessMap || mat.metalnessMap)
-    ) {
+    // Nanothree supports albedo (map) textures but not other texture types
+    if (renderer === 'nanothree' && (mat.emissiveMap || mat.normalMap || mat.roughnessMap || mat.metalnessMap)) {
       warnings.push({
         entityId: entity.id,
         entityName: entity.name,
-        feature: 'Texture Maps',
-        message: `"${entity.name}" uses texture maps — not supported in nanothree renderer`,
+        feature: 'Advanced Texture Maps',
+        message: `"${entity.name}" uses advanced texture maps (emissive/normal/roughness/metalness) — only albedo textures are supported in nanothree renderer`,
       })
     }
   }
@@ -120,17 +117,5 @@ function checkRendererCompat(entity: SceneEntity, renderer: RendererName | strin
       feature: 'Point Light',
       message: `"${entity.name}" is a point light — not supported in ${renderer === 'nanothree' ? 'nanothree' : 'VoidCore'} renderer`,
     })
-  }
-
-  // Nanothree-specific warnings
-  if (renderer === 'nanothree') {
-    if (entity.type === 'model') {
-      warnings.push({
-        entityId: entity.id,
-        entityName: entity.name,
-        feature: 'GLTF Model',
-        message: `"${entity.name}" is a GLTF model — not supported in nanothree renderer`,
-      })
-    }
   }
 }

@@ -20,6 +20,7 @@ export interface BoundingSphere {
 export class BufferGeometry {
   positions: Float32Array | null = null
   normals: Float32Array | null = null
+  uvs: Float32Array | null = null
   indices: Uint16Array | Uint32Array | null = null
 
   /** Bounding sphere in local (geometry) space. Computed lazily on first access. */
@@ -46,6 +47,8 @@ export class BufferGeometry {
       this.boundingSphere = null
     } else if (name === 'normal') {
       this.normals = attribute.array
+    } else if (name === 'uv') {
+      this.uvs = attribute.array
     }
     this._gpuDirty = true
     this._wireframeDirty = true
@@ -102,21 +105,27 @@ export class BufferGeometry {
 
     const positions = this.positions!
     const normals = this.normals
+    const uvs = this.uvs
     const vertexCount = positions.length / 3
     this._vertexCount = vertexCount
 
-    // Interleave position + normal (normals default to 0 if absent)
-    const interleaved = new Float32Array(vertexCount * 6)
+    // Interleave position(3) + normal(3) + uv(2) = 8 floats per vertex
+    const interleaved = new Float32Array(vertexCount * 8)
     for (let i = 0; i < vertexCount; i++) {
       const i3 = i * 3
-      const i6 = i * 6
-      interleaved[i6] = positions[i3]
-      interleaved[i6 + 1] = positions[i3 + 1]
-      interleaved[i6 + 2] = positions[i3 + 2]
+      const i2 = i * 2
+      const i8 = i * 8
+      interleaved[i8] = positions[i3]
+      interleaved[i8 + 1] = positions[i3 + 1]
+      interleaved[i8 + 2] = positions[i3 + 2]
       if (normals) {
-        interleaved[i6 + 3] = normals[i3]
-        interleaved[i6 + 4] = normals[i3 + 1]
-        interleaved[i6 + 5] = normals[i3 + 2]
+        interleaved[i8 + 3] = normals[i3]
+        interleaved[i8 + 4] = normals[i3 + 1]
+        interleaved[i8 + 5] = normals[i3 + 2]
+      }
+      if (uvs) {
+        interleaved[i8 + 6] = uvs[i2]
+        interleaved[i8 + 7] = uvs[i2 + 1]
       }
     }
 
@@ -210,11 +219,10 @@ export class BoxGeometry extends BufferGeometry {
     const indices: number[] = []
     const vertices: number[] = []
     const normals: number[] = []
+    const uvArray: number[] = []
 
     let numberOfVertices = 0
 
-    // Build each side of the box. The u/v/w indices select which axis is which:
-    //   u=0 -> x,  u=1 -> y,  u=2 -> z
     const buildPlane = (
       u: number,
       v: number,
@@ -251,6 +259,8 @@ export class BoxGeometry extends BufferGeometry {
           vec[w] = planeDepth > 0 ? 1 : -1
           normals.push(vec[0], vec[1], vec[2])
 
+          uvArray.push(ix / gridX, 1 - iy / gridY)
+
           vertexCounter++
         }
       }
@@ -269,7 +279,6 @@ export class BoxGeometry extends BufferGeometry {
       numberOfVertices += vertexCounter
     }
 
-    // u, v, w mapped to axis indices: x=0, y=1, z=2
     buildPlane(2, 1, 0, -1, -1, depth, height, width, depthSegments, heightSegments) // px
     buildPlane(2, 1, 0, 1, -1, depth, height, -width, depthSegments, heightSegments) // nx
     buildPlane(0, 2, 1, 1, 1, width, depth, height, widthSegments, depthSegments) // py
@@ -279,6 +288,7 @@ export class BoxGeometry extends BufferGeometry {
 
     this.positions = new Float32Array(vertices)
     this.normals = new Float32Array(normals)
+    this.uvs = new Float32Array(uvArray)
     this.indices = new Uint16Array(indices)
   }
 }
@@ -309,6 +319,7 @@ export class SphereGeometry extends BufferGeometry {
     const indices: number[] = []
     const vertices: number[] = []
     const normals: number[] = []
+    const uvArray: number[] = []
 
     for (let iy = 0; iy <= heightSegments; iy++) {
       const verticesRow: number[] = []
@@ -323,9 +334,10 @@ export class SphereGeometry extends BufferGeometry {
 
         vertices.push(vx, vy, vz)
 
-        // Normal = normalized vertex position
         const len = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1
         normals.push(vx / len, vy / len, vz / len)
+
+        uvArray.push(u, 1 - v)
 
         verticesRow.push(index++)
       }
@@ -347,6 +359,7 @@ export class SphereGeometry extends BufferGeometry {
 
     this.positions = new Float32Array(vertices)
     this.normals = new Float32Array(normals)
+    this.uvs = new Float32Array(uvArray)
     this.indices = new Uint16Array(indices)
   }
 }
@@ -366,6 +379,7 @@ export class CapsuleGeometry extends BufferGeometry {
     const indices: number[] = []
     const vertices: number[] = []
     const normals: number[] = []
+    const uvArray: number[] = []
 
     const halfHeight = height / 2
     const numVerticalSegments = capSegments * 2 + heightSegments
@@ -377,20 +391,17 @@ export class CapsuleGeometry extends BufferGeometry {
       let normalYComponent = 0
 
       if (iy <= capSegments) {
-        // Bottom cap
         const segmentProgress = iy / capSegments
         const angle = (segmentProgress * Math.PI) / 2
         profileY = -halfHeight - radius * Math.cos(angle)
         profileRadius = radius * Math.sin(angle)
         normalYComponent = -radius * Math.cos(angle)
       } else if (iy <= capSegments + heightSegments) {
-        // Middle section
         const segmentProgress = (iy - capSegments) / heightSegments
         profileY = -halfHeight + segmentProgress * height
         profileRadius = radius
         normalYComponent = 0
       } else {
-        // Top cap
         const segmentProgress = (iy - capSegments - heightSegments) / capSegments
         const angle = (segmentProgress * Math.PI) / 2
         profileY = halfHeight + radius * Math.sin(angle)
@@ -406,7 +417,6 @@ export class CapsuleGeometry extends BufferGeometry {
 
         vertices.push(-profileRadius * cosTheta, profileY, profileRadius * sinTheta)
 
-        // Normal
         let nx = -profileRadius * cosTheta
         let ny = normalYComponent
         let nz = profileRadius * sinTheta
@@ -415,6 +425,8 @@ export class CapsuleGeometry extends BufferGeometry {
         ny /= len
         nz /= len
         normals.push(nx, ny, nz)
+
+        uvArray.push(u, 1 - iy / numVerticalSegments)
       }
 
       if (iy > 0) {
@@ -432,6 +444,7 @@ export class CapsuleGeometry extends BufferGeometry {
 
     this.positions = new Float32Array(vertices)
     this.normals = new Float32Array(normals)
+    this.uvs = new Float32Array(uvArray)
     this.indices = new Uint16Array(indices)
   }
 }
@@ -458,6 +471,7 @@ export class CylinderGeometry extends BufferGeometry {
     const indices: number[] = []
     const vertices: number[] = []
     const normals: number[] = []
+    const uvArray: number[] = []
 
     let index = 0
     const indexArray: number[][] = []
@@ -479,7 +493,6 @@ export class CylinderGeometry extends BufferGeometry {
 
         vertices.push(radius * sinTheta, -v * height + halfHeight, radius * cosTheta)
 
-        // Normal
         let nx = sinTheta,
           ny = slope,
           nz = cosTheta
@@ -488,6 +501,8 @@ export class CylinderGeometry extends BufferGeometry {
         ny /= len
         nz /= len
         normals.push(nx, ny, nz)
+
+        uvArray.push(u, 1 - v)
 
         indexRow.push(index++)
       }
@@ -513,16 +528,15 @@ export class CylinderGeometry extends BufferGeometry {
         const radius = top ? radiusTop : radiusBottom
         const sign = top ? 1 : -1
 
-        // Center vertices (one per radial segment for per-face UVs in Three.js)
         const centerIndexStart = index
         for (let x = 1; x <= radialSegments; x++) {
           vertices.push(0, halfHeight * sign, 0)
           normals.push(0, sign, 0)
+          uvArray.push(0.5, 0.5)
           index++
         }
         const centerIndexEnd = index
 
-        // Perimeter vertices
         for (let x = 0; x <= radialSegments; x++) {
           const u = x / radialSegments
           const theta = u * thetaLength + thetaStart
@@ -530,10 +544,10 @@ export class CylinderGeometry extends BufferGeometry {
           const sinTheta = Math.sin(theta)
           vertices.push(radius * sinTheta, halfHeight * sign, radius * cosTheta)
           normals.push(0, sign, 0)
+          uvArray.push(sinTheta * 0.5 + 0.5, cosTheta * 0.5 * sign + 0.5)
           index++
         }
 
-        // Indices
         for (let x = 0; x < radialSegments; x++) {
           const c = centerIndexStart + x
           const i = centerIndexEnd + x
@@ -551,6 +565,7 @@ export class CylinderGeometry extends BufferGeometry {
 
     this.positions = new Float32Array(vertices)
     this.normals = new Float32Array(normals)
+    this.uvs = new Float32Array(uvArray)
     this.indices = new Uint16Array(indices)
   }
 }
@@ -567,16 +582,21 @@ export class CircleGeometry extends BufferGeometry {
     const indices: number[] = []
     const vertices: number[] = []
     const normals: number[] = []
+    const uvArray: number[] = []
 
     // Center point
     vertices.push(0, 0, 0)
     normals.push(0, 0, 1)
+    uvArray.push(0.5, 0.5)
 
     for (let s = 0; s <= segments; s++) {
       const segment = thetaStart + (s / segments) * thetaLength
 
-      vertices.push(radius * Math.cos(segment), radius * Math.sin(segment), 0)
+      const cx = Math.cos(segment)
+      const cy = Math.sin(segment)
+      vertices.push(radius * cx, radius * cy, 0)
       normals.push(0, 0, 1)
+      uvArray.push(cx * 0.5 + 0.5, cy * 0.5 + 0.5)
     }
 
     for (let i = 1; i <= segments; i++) {
@@ -585,6 +605,7 @@ export class CircleGeometry extends BufferGeometry {
 
     this.positions = new Float32Array(vertices)
     this.normals = new Float32Array(normals)
+    this.uvs = new Float32Array(uvArray)
     this.indices = new Uint16Array(indices)
   }
 }
@@ -628,6 +649,7 @@ export class PlaneGeometry extends BufferGeometry {
     const indices: number[] = []
     const vertices: number[] = []
     const normals: number[] = []
+    const uvArray: number[] = []
 
     for (let iy = 0; iy < gridY1; iy++) {
       const y = iy * segmentHeight - heightHalf
@@ -635,6 +657,7 @@ export class PlaneGeometry extends BufferGeometry {
         const x = ix * segmentWidth - widthHalf
         vertices.push(x, -y, 0)
         normals.push(0, 0, 1)
+        uvArray.push(ix / gridX, 1 - iy / gridY)
       }
     }
 
@@ -651,6 +674,7 @@ export class PlaneGeometry extends BufferGeometry {
 
     this.positions = new Float32Array(vertices)
     this.normals = new Float32Array(normals)
+    this.uvs = new Float32Array(uvArray)
     this.indices = new Uint16Array(indices)
   }
 }
@@ -668,6 +692,7 @@ export class TorusGeometry extends BufferGeometry {
     const indices: number[] = []
     const vertices: number[] = []
     const normals: number[] = []
+    const uvArray: number[] = []
 
     for (let j = 0; j <= radialSegments; j++) {
       for (let i = 0; i <= tubularSegments; i++) {
@@ -679,12 +704,13 @@ export class TorusGeometry extends BufferGeometry {
         const cz = tube * Math.sin(v)
         vertices.push(cx, cy, cz)
 
-        // Normal = vertex position - center of tube ring
         const nx = cx - radius * Math.cos(u)
         const ny = cy - radius * Math.sin(u)
         const nz = cz
         const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1
         normals.push(nx / len, ny / len, nz / len)
+
+        uvArray.push(i / tubularSegments, j / radialSegments)
       }
     }
 
@@ -701,6 +727,7 @@ export class TorusGeometry extends BufferGeometry {
 
     this.positions = new Float32Array(vertices)
     this.normals = new Float32Array(normals)
+    this.uvs = new Float32Array(uvArray)
     this.indices = new Uint16Array(indices)
   }
 }
@@ -721,6 +748,7 @@ export class TetrahedronGeometry extends BufferGeometry {
     // Build non-indexed geometry: 4 faces × 3 vertices = 12 vertices
     const positions: number[] = []
     const normals: number[] = []
+    const uvArray: number[] = []
 
     for (let i = 0; i < faceIndices.length; i += 3) {
       const verts: number[][] = []
@@ -729,7 +757,6 @@ export class TetrahedronGeometry extends BufferGeometry {
         let vx = baseVertices[idx]
         let vy = baseVertices[idx + 1]
         let vz = baseVertices[idx + 2]
-        // Project onto sphere of given radius
         const len = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1
         vx = (vx / len) * radius
         vy = (vy / len) * radius
@@ -738,7 +765,9 @@ export class TetrahedronGeometry extends BufferGeometry {
         positions.push(vx, vy, vz)
       }
 
-      // Flat face normal (cross product of two edges)
+      // Per-face triangle UVs
+      uvArray.push(0, 0, 1, 0, 0.5, 1)
+
       const ax = verts[0][0],
         ay = verts[0][1],
         az = verts[0][2]
@@ -764,12 +793,12 @@ export class TetrahedronGeometry extends BufferGeometry {
       normals.push(nx, ny, nz, nx, ny, nz, nx, ny, nz)
     }
 
-    // Non-indexed: sequential indices 0..11
     const indices = new Uint16Array(positions.length / 3)
     for (let i = 0; i < indices.length; i++) indices[i] = i
 
     this.positions = new Float32Array(positions)
     this.normals = new Float32Array(normals)
+    this.uvs = new Float32Array(uvArray)
     this.indices = indices
   }
 }
