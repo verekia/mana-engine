@@ -97,23 +97,26 @@ export class ThreeEditorHelper {
     this.threeScene.add(tc.getHelper())
     this.transformControlsRoot = tc.getHelper()
 
-    tc.addEventListener('dragging-changed', event => {
+    const onDraggingChanged = (event: { value: unknown }) => {
       orbitControls.enabled = !event.value
-    })
+    }
+    tc.addEventListener('dragging-changed', onDraggingChanged)
 
     let attachedEntityId: string | null = null
 
-    tc.addEventListener('mouseDown', () => {
+    const onMouseDown = () => {
       if (attachedEntityId) options.onTransformStart?.(attachedEntityId)
-    })
+    }
+    tc.addEventListener('mouseDown', onMouseDown)
 
-    tc.addEventListener('mouseUp', () => {
+    const onMouseUp = () => {
       if (attachedEntityId && tc.object) {
         options.onTransformEnd?.(attachedEntityId, snapshotTransform(tc.object))
       }
-    })
+    }
+    tc.addEventListener('mouseUp', onMouseUp)
 
-    tc.addEventListener('objectChange', () => {
+    const onObjectChange = () => {
       if (attachedEntityId && tc.object) {
         const wf = this.maps.debugWireframes.get(attachedEntityId)
         if (wf) {
@@ -123,7 +126,8 @@ export class ThreeEditorHelper {
         }
         options.onTransformChange?.(attachedEntityId, snapshotTransform(tc.object))
       }
-    })
+    }
+    tc.addEventListener('objectChange', onObjectChange)
 
     this.transformControls = {
       attach: (obj: Object3D) => {
@@ -149,6 +153,10 @@ export class ThreeEditorHelper {
         tc.space = space
       },
       dispose: () => {
+        tc.removeEventListener('dragging-changed', onDraggingChanged)
+        tc.removeEventListener('mouseDown', onMouseDown)
+        tc.removeEventListener('mouseUp', onMouseUp)
+        tc.removeEventListener('objectChange', onObjectChange)
         tc.detach()
         tc.dispose()
         this.threeScene.remove(tc.getHelper())
