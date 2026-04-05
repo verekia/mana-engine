@@ -12,8 +12,19 @@ export {
   TetrahedronGeometry,
   Float32BufferAttribute,
 } from './geometry'
-export { MeshLambertMaterial, MeshBasicMaterial, LineBasicMaterial, FrontSide, BackSide, DoubleSide } from './material'
+export {
+  MeshLambertMaterial,
+  MeshBasicMaterial,
+  LineBasicMaterial,
+  NanoTexture,
+  FrontSide,
+  BackSide,
+  DoubleSide,
+} from './material'
 export type { Side } from './material'
+export { loadTexture, clearTextureCache } from './texture-loader'
+export { GLTFLoader } from './gltf-loader'
+export type { GLTFResult } from './gltf-loader'
 export { ShaderMaterial, SHADER_PREAMBLE } from './shader-material'
 export { Mesh } from './mesh'
 export { InstancedMesh } from './instanced-mesh'

@@ -35,14 +35,15 @@ import type { NanothreeEntityState } from './nanothree-entity.ts'
  * sceneRoot rotation (same pattern as Three.js adapter).
  *
  * Supported features:
- * - Box geometry (all mesh geometry types rendered as boxes)
- * - Lambert materials (color only, no textures/PBR)
+ * - All geometry types (box, sphere, capsule, cylinder, cone, plane, torus, tetrahedron)
+ * - Lambert materials with albedo texture support
+ * - GLTF/GLB model loading (geometry, materials, textures)
  * - Directional + ambient lights with shadow mapping
  * - Camera, Object3D hierarchy
  * - Editor: transform gizmo (visual), grid, collider wireframes, light helpers
  *
- * Not supported: GLTF models, animations, point lights,
- * textures, PBR materials, skybox, post-processing.
+ * Not supported: animations, point lights,
+ * PBR materials, skybox, post-processing.
  */
 export class NanothreeRendererAdapter implements RendererAdapter {
   private renderer!: WebGPURenderer

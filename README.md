@@ -166,9 +166,9 @@ The engine is decoupled from any specific 3D renderer or physics library. Choose
 | Feature               | Three.js                                       | VoidCore                                       | nanothree                                      |
 | --------------------- | ---------------------------------------------- | ---------------------------------------------- | ---------------------------------------------- |
 | **Geometries**        | box, sphere, plane, capsule, cone, tetrahedron | box, sphere, plane, capsule, cone, tetrahedron | box, sphere, plane, capsule, cone, tetrahedron |
-| **Materials**         | Lambert (color, map, emissiveMap)              | Lambert (color only)                           | Lambert (color only)                           |
-| **Textures**          | PNG, JPG, KTX2 (basis transcoder)              | —                                              | —                                              |
-| **GLTF/GLB models**   | Yes (GLTFLoader)                               | Yes (loadGLTF)                                 | —                                              |
+| **Materials**         | Lambert (color, map, emissiveMap)              | Lambert (color only)                           | Lambert (color, albedo map)                    |
+| **Textures**          | PNG, JPG, KTX2 (basis transcoder)              | —                                              | PNG, JPG (albedo only)                         |
+| **GLTF/GLB models**   | Yes (GLTFLoader)                               | Yes (loadGLTF)                                 | Yes (custom GLTFLoader)                        |
 | **Camera**            | PerspectiveCamera                              | PerspectiveCamera                              | PerspectiveCamera                              |
 | **Directional light** | Yes + shadows                                  | Yes + shadows                                  | Yes + shadows (PCF)                            |
 | **Ambient light**     | Yes                                            | Yes                                            | Yes                                            |

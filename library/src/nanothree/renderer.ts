@@ -9,7 +9,7 @@
 //    d. Lines (line-list, unlit flat color)
 
 import { PlaneGeometry } from './geometry'
-import { BackSide, DoubleSide, MeshBasicMaterial } from './material'
+import { BackSide, DoubleSide, MeshBasicMaterial, type NanoTexture } from './material'
 import { mat4Ortho, mat4LookAt, mat4Multiply } from './math'
 import { ShaderMaterial } from './shader-material'
 import { AdditiveBlending } from './sprite'
@@ -104,6 +104,78 @@ struct VSOut {
 
   let color = in.color * (scene.ambient.rgb + scene.lightColor.rgb * light * shadow);
   return vec4f(color, 1.0);
+}
+`
+
+// ─── Textured mesh shader (Lambert + shadow map + albedo texture) ─────
+
+const TEXTURED_MESH_SHADER = /* wgsl */ `
+struct Scene {
+  viewProj: mat4x4f,
+  lightDir: vec4f,
+  ambient: vec4f,
+  lightColor: vec4f,
+  lightViewProj: mat4x4f,
+  shadowParams: vec4f,
+}
+
+struct ObjectData { model: mat4x4f, color: vec4f }
+
+@group(0) @binding(0) var<uniform> scene: Scene;
+@group(0) @binding(1) var shadowMap: texture_depth_2d;
+@group(0) @binding(2) var shadowSampler: sampler_comparison;
+@group(1) @binding(0) var<storage, read> objectData: ObjectData;
+@group(2) @binding(0) var albedoTexture: texture_2d<f32>;
+@group(2) @binding(1) var albedoSampler: sampler;
+
+struct VSOut {
+  @builtin(position) pos: vec4f,
+  @location(0) normal: vec3f,
+  @location(1) color: vec3f,
+  @location(2) shadowCoord: vec3f,
+  @location(3) uv: vec2f,
+}
+
+@vertex fn vs(
+  @location(0) position: vec3f,
+  @location(1) normal: vec3f,
+  @location(2) uv: vec2f,
+) -> VSOut {
+  let worldPos = objectData.model * vec4f(position, 1.0);
+  let lightClip = scene.lightViewProj * worldPos;
+  var out: VSOut;
+  out.pos = scene.viewProj * worldPos;
+  out.normal = normalize((objectData.model * vec4f(normal, 0.0)).xyz);
+  out.color = objectData.color.rgb;
+  out.shadowCoord = vec3f(
+    lightClip.x * 0.5 + 0.5,
+    lightClip.y * -0.5 + 0.5,
+    lightClip.z,
+  );
+  out.uv = uv;
+  return out;
+}
+
+@fragment fn fs(in: VSOut) -> @location(0) vec4f {
+  let n = normalize(in.normal);
+  let light = max(dot(n, scene.lightDir.xyz), 0.0);
+
+  var shadow = 1.0;
+  if (scene.shadowParams.x > 0.0) {
+    let bias = scene.shadowParams.y;
+    let texel = scene.shadowParams.z;
+    let c = in.shadowCoord;
+    shadow = (
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f(-texel, -texel), c.z - bias) +
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f( texel, -texel), c.z - bias) +
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f(-texel,  texel), c.z - bias) +
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f( texel,  texel), c.z - bias)
+    ) * 0.25;
+  }
+
+  let texColor = textureSample(albedoTexture, albedoSampler, in.uv);
+  let color = in.color * texColor.rgb * (scene.ambient.rgb + scene.lightColor.rgb * light * shadow);
+  return vec4f(color, texColor.a);
 }
 `
 
@@ -335,10 +407,11 @@ const SHADOW_BIAS = 0.003
 const SCENE_FLOATS = 56
 
 const VERTEX_BUFFER_LAYOUT: GPUVertexBufferLayout = {
-  arrayStride: 24,
+  arrayStride: 32,
   attributes: [
     { shaderLocation: 0, offset: 0, format: 'float32x3' as GPUVertexFormat },
     { shaderLocation: 1, offset: 12, format: 'float32x3' as GPUVertexFormat },
+    { shaderLocation: 2, offset: 24, format: 'float32x2' as GPUVertexFormat },
   ],
 }
 
@@ -387,6 +460,19 @@ export class WebGPURenderer {
   // Instanced sprite pipelines (GPU billboard, alpha-blended)
   private instancedSpriteNormalPipeline!: GPURenderPipeline
   private instancedSpriteAdditivePipeline!: GPURenderPipeline
+
+  // Textured mesh pipelines (Lambert + albedo texture)
+  private texturedMeshPipeline!: GPURenderPipeline
+  private texturedMeshPipelineFront!: GPURenderPipeline
+  private texturedMeshPipelineDouble!: GPURenderPipeline
+  private textureLayout!: GPUBindGroupLayout
+  private texturedPipelineLayout!: GPUPipelineLayout
+  private textureSampler!: GPUSampler
+  /** Cache of texture bind groups keyed by GPUTextureView. */
+  private textureBindGroups = new Map<GPUTextureView, GPUBindGroup>()
+  /** 1×1 white texture used as fallback while textures load. */
+  private whiteTexture!: GPUTexture
+  private whiteTextureView!: GPUTextureView
 
   // Main depth buffer
   private depthTexture!: GPUTexture
@@ -490,6 +576,7 @@ export class WebGPURenderer {
 
     this.createBindGroupLayouts()
     this.createShadowResources()
+    this.createTextureResources()
     this.createBuiltinPipelines()
     this.createBuffers(INITIAL_CAPACITY)
     this.createBindGroups()
@@ -530,6 +617,15 @@ export class WebGPURenderer {
     })
     this.shadowPipelineLayout = this.device.createPipelineLayout({
       bindGroupLayouts: [this.shadowSceneLayout, this.objectLayout],
+    })
+    this.textureLayout = this.device.createBindGroupLayout({
+      entries: [
+        { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+        { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+      ],
+    })
+    this.texturedPipelineLayout = this.device.createPipelineLayout({
+      bindGroupLayouts: [this.sceneLayout, this.objectLayout, this.textureLayout],
     })
     this.instanceLayout = this.device.createBindGroupLayout({
       entries: [
@@ -588,6 +684,46 @@ export class WebGPURenderer {
       primitive: { topology: 'triangle-list', cullMode: 'back' },
       depthStencil: SHADOW_DEPTH_STENCIL,
     })
+  }
+
+  private createTextureResources() {
+    this.textureSampler = this.device.createSampler({
+      magFilter: 'linear',
+      minFilter: 'linear',
+      mipmapFilter: 'linear',
+    })
+
+    // 1×1 white fallback texture
+    this.whiteTexture = this.device.createTexture({
+      size: [1, 1],
+      format: 'rgba8unorm',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+    })
+    this.device.queue.writeTexture(
+      { texture: this.whiteTexture },
+      new Uint8Array([255, 255, 255, 255]),
+      { bytesPerRow: 4 },
+      [1, 1],
+    )
+    this.whiteTextureView = this.whiteTexture.createView()
+  }
+
+  /** Get or create a texture bind group for a given NanoTexture. */
+  private getTextureBindGroup(tex: NanoTexture): GPUBindGroup {
+    tex._ensureGPU(this.device)
+    const view = tex._gpuView ?? this.whiteTextureView
+    let bg = this.textureBindGroups.get(view)
+    if (!bg) {
+      bg = this.device.createBindGroup({
+        layout: this.textureLayout,
+        entries: [
+          { binding: 0, resource: view },
+          { binding: 1, resource: this.textureSampler },
+        ],
+      })
+      this.textureBindGroups.set(view, bg)
+    }
+    return bg
   }
 
   private createBuiltinPipelines() {
@@ -696,6 +832,39 @@ export class WebGPURenderer {
         alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
       }),
     )
+
+    // Textured mesh pipelines (Lambert + albedo texture sampling)
+    const texturedShader = this.device.createShaderModule({ code: TEXTURED_MESH_SHADER })
+    const texturedDesc = (cullMode: GPUCullMode) => ({
+      layout: this.texturedPipelineLayout,
+      vertex: { module: texturedShader, entryPoint: 'vs', buffers: [VERTEX_BUFFER_LAYOUT] },
+      fragment: {
+        module: texturedShader,
+        entryPoint: 'fs',
+        targets: [
+          {
+            format: this.format,
+            blend: {
+              color: {
+                srcFactor: 'src-alpha' as GPUBlendFactor,
+                dstFactor: 'one-minus-src-alpha' as GPUBlendFactor,
+                operation: 'add' as GPUBlendOperation,
+              },
+              alpha: {
+                srcFactor: 'one' as GPUBlendFactor,
+                dstFactor: 'one-minus-src-alpha' as GPUBlendFactor,
+                operation: 'add' as GPUBlendOperation,
+              },
+            },
+          },
+        ],
+      },
+      primitive: { topology: 'triangle-list' as GPUPrimitiveTopology, cullMode },
+      depthStencil: DEPTH_STENCIL,
+    })
+    this.texturedMeshPipeline = this.device.createRenderPipeline(texturedDesc('back'))
+    this.texturedMeshPipelineFront = this.device.createRenderPipeline(texturedDesc('front'))
+    this.texturedMeshPipelineDouble = this.device.createRenderPipeline(texturedDesc('none'))
   }
 
   private getOrCreateCustomPipeline(material: ShaderMaterial): GPURenderPipeline {
@@ -818,6 +987,7 @@ export class WebGPURenderer {
     scene.updateMatrixWorld(camera.viewProjection)
 
     const solidMeshes: Mesh[] = []
+    const texturedMeshes: Mesh[] = []
     const basicMeshes: Mesh[] = []
     const wireframeMeshes: Mesh[] = []
     const customMeshes: Mesh[] = []
@@ -830,6 +1000,7 @@ export class WebGPURenderer {
         if (m.material.wireframe) wireframeMeshes.push(m)
         else basicMeshes.push(m)
       } else if ((m.material as any).wireframe) wireframeMeshes.push(m)
+      else if ((m.material as MeshLambertMaterial).hasTexture) texturedMeshes.push(m)
       else solidMeshes.push(m)
     }
     for (let i = 0; i < scene.lines.length; i++) lines.push(scene.lines[i])
@@ -845,6 +1016,7 @@ export class WebGPURenderer {
     }
 
     const solidCount = solidMeshes.length
+    const texturedCount = texturedMeshes.length
     const instancedMeshes = scene.instancedMeshes
     const instancedCount = instancedMeshes.length
     const basicCount = basicMeshes.length
@@ -857,6 +1029,7 @@ export class WebGPURenderer {
     const instancedSpriteCount = instancedSprites.length
     const totalCount =
       solidCount +
+      texturedCount +
       instancedCount +
       basicCount +
       wireCount +
@@ -923,10 +1096,14 @@ export class WebGPURenderer {
     this.device.queue.writeBuffer(this.sceneBuffer, 0, sd)
 
     // ── Stage object data (world matrices already computed by updateMatrixWorld) ──
-    // Order: solid, instanced, basic, wireframe, custom, lines, normalSprites, additiveSprites, instancedSprites
+    // Order: solid, textured, instanced, basic, wireframe, custom, lines, normalSprites, additiveSprites, instancedSprites
     let idx = 0
     for (let i = 0; i < solidCount; i++, idx++) {
       const m = solidMeshes[i]
+      this.writeObjectData(idx, m._worldMatrix, m.material.color.r, m.material.color.g, m.material.color.b)
+    }
+    for (let i = 0; i < texturedCount; i++, idx++) {
+      const m = texturedMeshes[i]
       this.writeObjectData(idx, m._worldMatrix, m.material.color.r, m.material.color.g, m.material.color.b)
     }
     for (let i = 0; i < instancedCount; i++, idx++) {
@@ -1035,10 +1212,26 @@ export class WebGPURenderer {
         this.info.triangles += (geo._indexCount / 3) | 0
       }
 
+      // Textured mesh shadows (same shadow pipeline — depth-only, no textures needed)
+      for (let i = 0; i < texturedCount; i++) {
+        if (!texturedMeshes[i].castShadow) continue
+        const geo = texturedMeshes[i].geometry
+        if (geo !== curGeo) {
+          curGeo = geo
+          geo._ensureGPU(this.device)
+          sp.setVertexBuffer(0, geo._vertexBuffer!)
+          sp.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
+        }
+        sp.setBindGroup(1, this.objectBindGroup, [(solidCount + i) * this.objectStride])
+        sp.drawIndexed(geo._indexCount)
+        this.info.drawCalls++
+        this.info.triangles += (geo._indexCount / 3) | 0
+      }
+
       // Instanced mesh shadows
       if (instancedCount > 0) {
         sp.setPipeline(this.instancedShadowPipeline)
-        const instBase = solidCount
+        const instBase = solidCount + texturedCount
         for (let i = 0; i < instancedCount; i++) {
           const im = instancedMeshes[i]
           if (!im.castShadow) continue
@@ -1058,7 +1251,7 @@ export class WebGPURenderer {
         sp.setPipeline(this.shadowPipeline)
       }
 
-      const customBase = solidCount + instancedCount + basicCount + wireCount
+      const customBase = solidCount + texturedCount + instancedCount + basicCount + wireCount
       for (let i = 0; i < customCount; i++) {
         const mesh = customMeshes[i]
         if (!mesh.castShadow || (mesh.material as ShaderMaterial).wireframe) continue
@@ -1114,9 +1307,42 @@ export class WebGPURenderer {
       }
     }
 
-    // 2: instanced meshes (one draw call per InstancedMesh, N instances each)
-    if (instancedCount > 0) {
+    // 2: textured meshes (Lambert + albedo texture)
+    if (texturedCount > 0) {
+      let curPipeline: GPURenderPipeline | null = null
+      let curGeo: BufferGeometry | null = null
       const base = solidCount
+      for (let i = 0; i < texturedCount; i++) {
+        const mat = texturedMeshes[i].material as MeshLambertMaterial
+        const pipeline =
+          mat.side === BackSide
+            ? this.texturedMeshPipelineFront
+            : mat.side === DoubleSide
+              ? this.texturedMeshPipelineDouble
+              : this.texturedMeshPipeline
+        if (pipeline !== curPipeline) {
+          curPipeline = pipeline
+          pass.setPipeline(pipeline)
+          curGeo = null
+        }
+        const geo = texturedMeshes[i].geometry
+        if (geo !== curGeo) {
+          curGeo = geo
+          geo._ensureGPU(this.device)
+          pass.setVertexBuffer(0, geo._vertexBuffer!)
+          pass.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
+        }
+        pass.setBindGroup(1, this.objectBindGroup, [(base + i) * this.objectStride])
+        pass.setBindGroup(2, this.getTextureBindGroup(mat.map!))
+        pass.drawIndexed(geo._indexCount)
+        this.info.drawCalls++
+        this.info.triangles += (geo._indexCount / 3) | 0
+      }
+    }
+
+    // 3: instanced meshes (one draw call per InstancedMesh, N instances each)
+    if (instancedCount > 0) {
+      const base = solidCount + texturedCount
       for (let i = 0; i < instancedCount; i++) {
         const im = instancedMeshes[i]
         const mat = im.material as MeshLambertMaterial
@@ -1143,7 +1369,7 @@ export class WebGPURenderer {
     if (basicCount > 0) {
       let curPipeline: GPURenderPipeline | null = null
       let curGeo: BufferGeometry | null = null
-      const base = solidCount + instancedCount
+      const base = solidCount + texturedCount + instancedCount
       for (let i = 0; i < basicCount; i++) {
         const mat = basicMeshes[i].material as MeshBasicMaterial
         const pipeline =
@@ -1174,7 +1400,7 @@ export class WebGPURenderer {
     // 4: wireframe meshes
     if (wireCount > 0) {
       pass.setPipeline(this.wireframePipeline)
-      const base = solidCount + instancedCount + basicCount
+      const base = solidCount + texturedCount + instancedCount + basicCount
       let curGeo: BufferGeometry | null = null
       for (let i = 0; i < wireCount; i++) {
         const geo = wireframeMeshes[i].geometry
@@ -1192,7 +1418,7 @@ export class WebGPURenderer {
 
     // 5: custom shader meshes
     if (customCount > 0) {
-      const base = solidCount + instancedCount + basicCount + wireCount
+      const base = solidCount + texturedCount + instancedCount + basicCount + wireCount
       let curPipeline: GPURenderPipeline | null = null
       let curGeo: BufferGeometry | null = null
       for (let i = 0; i < customCount; i++) {
@@ -1229,7 +1455,7 @@ export class WebGPURenderer {
     // 6: lines
     if (lineCount > 0) {
       pass.setPipeline(this.linePipeline)
-      const base = solidCount + instancedCount + basicCount + wireCount + customCount
+      const base = solidCount + texturedCount + instancedCount + basicCount + wireCount + customCount
       let curGeo: BufferGeometry | null = null
       for (let i = 0; i < lineCount; i++) {
         const geo = lines[i].geometry
@@ -1254,7 +1480,7 @@ export class WebGPURenderer {
       pass.setVertexBuffer(0, geo._vertexBuffer!)
       pass.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
 
-      const spriteBase = solidCount + instancedCount + basicCount + wireCount + customCount + lineCount
+      const spriteBase = solidCount + texturedCount + instancedCount + basicCount + wireCount + customCount + lineCount
       if (normalSpriteCount > 0) {
         pass.setPipeline(this.spriteNormalPipeline)
         for (let i = 0; i < normalSpriteCount; i++) {
@@ -1285,6 +1511,7 @@ export class WebGPURenderer {
 
       const iSpriteBase =
         solidCount +
+        texturedCount +
         instancedCount +
         basicCount +
         wireCount +
@@ -1316,7 +1543,9 @@ export class WebGPURenderer {
     this.depthTexture?.destroy()
     this.shadowMapTexture?.destroy()
     this.shadowLightBuffer?.destroy()
+    this.whiteTexture?.destroy()
     this.customPipelineCache.clear()
+    this.textureBindGroups.clear()
     this.device?.destroy()
   }
 }

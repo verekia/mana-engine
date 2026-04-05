@@ -1,3 +1,4 @@
+import { resolveAsset } from '../../assets.ts'
 import {
   AmbientLight,
   BoxGeometry,
@@ -8,6 +9,7 @@ import {
   ConeGeometry,
   DirectionalLight,
   DirectionalLightHelper,
+  GLTFLoader,
   Group,
   Mesh,
   MeshLambertMaterial,
@@ -15,6 +17,7 @@ import {
   PerspectiveCamera,
   SphereGeometry,
   TetrahedronGeometry,
+  loadTexture,
 } from '../../nanothree/index.ts'
 import { applyTransform, createColliderWireframe, hexToColor } from './nanothree-utils.ts'
 
@@ -111,6 +114,14 @@ export function createNanothreeEntity(entity: SceneEntity, parent: Object3D, sta
       }
       const color = entity.mesh?.material?.color ? hexToColor(entity.mesh.material.color) : new Color(0x4a9eff)
       const material = new MeshLambertMaterial({ color })
+      // Load albedo texture if specified
+      if (entity.mesh?.material?.map) {
+        const texUrl = resolveAsset(entity.mesh.material.map)
+        loadTexture(texUrl, tex => {
+          material.map = tex
+          material._textureDirty = true
+        })
+      }
       const mesh = new Mesh(geometry, material)
       mesh.castShadow = entity.castShadow ?? false
       mesh.receiveShadow = entity.receiveShadow ?? false
@@ -119,8 +130,27 @@ export function createNanothreeEntity(entity: SceneEntity, parent: Object3D, sta
     }
 
     case 'model': {
-      // No GLTF support — create an empty Group placeholder
-      obj = new Group()
+      const group = new Group()
+      const modelSrc = entity.model?.src
+      if (modelSrc) {
+        const loader = new GLTFLoader()
+        loader.load(
+          resolveAsset(modelSrc),
+          gltf => {
+            if (!group.parent) return // Entity was removed during load
+            group.add(gltf.scene)
+            // Apply shadow properties to all loaded meshes
+            applyShadowToGroup(group, entity.castShadow ?? true, entity.receiveShadow ?? true)
+            // Apply material color override if specified
+            if (entity.model?.material?.color) {
+              applyColorOverride(group, hexToColor(entity.model.material.color))
+            }
+          },
+          undefined,
+          err => console.warn(`[nanothree] Failed to load model "${modelSrc}":`, err),
+        )
+      }
+      obj = group
       break
     }
 
@@ -234,6 +264,31 @@ export function updateNanothreeEntity(
     }
     if (entity.transform?.rotation) {
       helper.setRotation(entity.transform.rotation[0], entity.transform.rotation[1], entity.transform.rotation[2])
+    }
+  }
+}
+
+/** Apply shadow properties recursively to all meshes in a group. */
+function applyShadowToGroup(group: Group, cast: boolean, receive: boolean): void {
+  for (const child of group.children) {
+    if (child instanceof Mesh) {
+      child.castShadow = cast
+      child.receiveShadow = receive
+    }
+    if ('children' in child && (child as Group).children.length > 0) {
+      applyShadowToGroup(child as Group, cast, receive)
+    }
+  }
+}
+
+/** Apply a color override to all MeshLambertMaterial meshes in a group. */
+function applyColorOverride(group: Group, color: Color): void {
+  for (const child of group.children) {
+    if (child instanceof Mesh && child.material instanceof MeshLambertMaterial) {
+      child.material.color = color
+    }
+    if ('children' in child && (child as Group).children.length > 0) {
+      applyColorOverride(child as Group, color)
     }
   }
 }

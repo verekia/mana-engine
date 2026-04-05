@@ -61,18 +61,22 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
   - Source lives in `library/src/nanothree/` (vendored, not on npm); excluded from oxlint via `.oxlintrc.json`
   - Y-up natively (same as Three.js) — no coordinate conversion needed for Y-up scenes; Z-up scenes use sceneRoot rotation
   - Geometry: `BoxGeometry`, `SphereGeometry`, `CapsuleGeometry`, `CylinderGeometry`, `ConeGeometry`, `CircleGeometry`, `PlaneGeometry`, `TorusGeometry`, `TetrahedronGeometry` — all ported from Three.js with identical vertex output
-  - Materials: `MeshLambertMaterial` (color, wireframe, side: FrontSide/BackSide/DoubleSide) — no textures, no PBR
+  - Materials: `MeshLambertMaterial` (color, wireframe, side: FrontSide/BackSide/DoubleSide, albedo texture via `map`) — no PBR (metalness/roughness ignored)
   - `FrontSide` (default), `BackSide`, `DoubleSide` constants control GPU cullMode per-mesh; renderer creates 3 pipeline variants
   - Lights: `AmbientLight` + `DirectionalLight` with shadow mapping (2048x2048, PCF) — no point lights
   - Raycasting: `Raycaster` class with Möller–Trumbore ray-triangle intersection; supports `setFromCamera(ndc, camera)` (NDC unproject) and `set(origin, direction)` (world-space); tests against mesh geometry using inverse world matrices
   - Particles: `Sprite` + `SpriteMaterial` classes with billboard rendering (camera-facing quads), alpha blending (`NormalBlending`/`AdditiveBlending` numeric constants); `NanothreeParticleHelper` manages CPU-driven emitters identical to VoidCore pattern
   - Frustum culling: enabled by default, bounding-sphere-based (Gribb-Hartmann plane extraction from VP matrix); `BufferGeometry.computeBoundingSphere()` lazily computes from vertex positions; meshes/lines test world-space bounding sphere against 6 frustum planes, sprites test world position; culling integrated into `Scene.updateMatrixWorld(viewProjection)` traversal — objects are only culled when entirely outside the frustum
-  - No GLTF/model loading, no animations
+  - GLTF/GLB model loading via `GLTFLoader`: parses binary GLB and JSON GLTF formats, extracts mesh geometry (positions, normals, UVs, indices), materials (base color factor + albedo texture), and node hierarchy; embedded and external textures supported; no skeletal animation or morph targets
+  - Texture loading via `loadTexture()` + `NanoTexture`: fetches images, decodes via `createImageBitmap`, uploads to GPU as `rgba8unorm` textures with linear filtering; cache by URL; textured meshes use a separate WGSL pipeline with albedo texture sampling in the fragment shader
+  - `TextureLoader` caches textures by URL; `clearTextureCache()` disposes all cached textures
+  - All geometries include UV coordinates for texture mapping
+  - No animations (animation methods are stubs)
   - Editor: `Raycaster`-based click-to-select, invert-hull outline selection (BackSide + 1.06× scale in outline color), interactive `TransformGizmo` (solid mesh handles: cones for translate, tori for rotate, cubes for scale — with raycasting, hover highlight, click-drag, snap support), `CameraHelper`, `DirectionalLightHelper`, grid, collider wireframes (sphere, capsule, box)
   - Manual orbit controls (mouse drag to rotate, right-drag to pan, scroll to zoom) — nanothree has no built-in orbit controls
   - Euler angles throughout (no quaternion storage on Object3D) — quaternion↔euler conversion in physics sync
   - Camera: `lookAt()` sets euler rotation (like Three.js), view matrix = inverse(worldMatrix); standalone cameras auto-compute world matrix in `updateViewProjection()`
-  - `compat.ts` warnings: GLTF models, textures, point lights
+  - `compat.ts` warnings: advanced texture maps (emissive/normal/roughness/metalness), point lights
 - `RapierPhysicsAdapter` wraps Rapier 3D world setup, rigid body/collider creation, and transform readback
 - `CrashcatPhysicsAdapter` wraps Crashcat — a pure-JS physics engine (no WASM, synchronous init)
   - Shapes: box (`halfExtents`), sphere (`radius`), capsule (`halfHeightOfCylinder` + `radius`)
