@@ -83,6 +83,9 @@ export function createRapierBody(
       case 'capsule':
         colliderDesc = RAPIER.ColliderDesc.capsule(entity.collider.halfHeight ?? 0.5, entity.collider.radius ?? 0.5)
         break
+      case 'cylinder':
+        colliderDesc = RAPIER.ColliderDesc.cylinder(entity.collider.halfHeight ?? 0.5, entity.collider.radius ?? 0.5)
+        break
       default: {
         const he = entity.collider.halfExtents ?? [0.5, 0.5, 0.5]
         colliderDesc = RAPIER.ColliderDesc.cuboid(he[0], he[1], he[2])

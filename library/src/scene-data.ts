@@ -106,14 +106,14 @@ export interface RigidBodyData {
 }
 
 export interface ColliderData {
-  /** Supported shapes: box, sphere, capsule.
-   *  Additional shapes (cylinder, convex hull, trimesh, etc.) will be added incrementally. */
-  shape: 'box' | 'sphere' | 'capsule'
+  /** Supported shapes: box, sphere, capsule, cylinder.
+   *  Additional shapes (convex hull, trimesh, etc.) will be added incrementally. */
+  shape: 'box' | 'sphere' | 'capsule' | 'cylinder'
   /** Half-extents for box colliders: [x, y, z] */
   halfExtents?: [number, number, number]
-  /** Radius for sphere and capsule colliders */
+  /** Radius for sphere, capsule, and cylinder colliders */
   radius?: number
-  /** Half-height of the cylindrical part for capsule colliders */
+  /** Half-height of the cylindrical part for capsule and cylinder colliders */
   halfHeight?: number
   /**
    * If true, this collider is a sensor (trigger volume).

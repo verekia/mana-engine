@@ -3,6 +3,7 @@ import {
   BufferGeometry,
   CapsuleGeometry,
   Color,
+  CylinderGeometry,
   Float32BufferAttribute,
   Group,
   Line,
@@ -80,6 +81,12 @@ export function createColliderWireframe(collider: ColliderData): Object3D {
       const r = collider.radius ?? 0.5
       const hh = collider.halfHeight ?? 0.5
       geo = new CapsuleGeometry(r, hh * 2, 4, 8)
+      break
+    }
+    case 'cylinder': {
+      const r = collider.radius ?? 0.5
+      const hh = collider.halfHeight ?? 0.5
+      geo = new CylinderGeometry(r, r, hh * 2, 16)
       break
     }
     default: {
