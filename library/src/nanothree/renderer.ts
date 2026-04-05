@@ -587,8 +587,21 @@ export class WebGPURenderer {
     this.info.drawCalls = 0
     this.info.triangles = 0
 
-    // Single-pass traversal: compute world matrices + collect renderables
-    scene.updateMatrixWorld()
+    // Resize early so VP uses the correct aspect ratio
+    const dpr = window.devicePixelRatio
+    const w = (this.canvas.clientWidth * dpr) | 0
+    const h = (this.canvas.clientHeight * dpr) | 0
+    if (this.canvas.width !== w || this.canvas.height !== h) {
+      this.canvas.width = w
+      this.canvas.height = h
+      this.ensureDepthTexture()
+    }
+
+    // Compute VP before traversal so frustum culling can use it
+    camera.updateViewProjection(w / h)
+
+    // Single-pass traversal: compute world matrices + collect renderables + frustum cull
+    scene.updateMatrixWorld(camera.viewProjection)
 
     const solidMeshes: Mesh[] = []
     const basicMeshes: Mesh[] = []
@@ -628,18 +641,7 @@ export class WebGPURenderer {
       solidCount + basicCount + wireCount + customCount + lineCount + normalSpriteCount + additiveSpriteCount
     if (totalCount === 0) return
 
-    // Resize
-    const dpr = window.devicePixelRatio
-    const w = (this.canvas.clientWidth * dpr) | 0
-    const h = (this.canvas.clientHeight * dpr) | 0
-    if (this.canvas.width !== w || this.canvas.height !== h) {
-      this.canvas.width = w
-      this.canvas.height = h
-      this.ensureDepthTexture()
-    }
     if (totalCount > this.capacity) this.grow(totalCount)
-
-    camera.updateViewProjection(w / h)
 
     // ── Scene uniforms ──────────────────────────────────────────
     const sd = this.sceneData

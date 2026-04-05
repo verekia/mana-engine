@@ -10,10 +10,20 @@ export class Float32BufferAttribute {
   }
 }
 
+export interface BoundingSphere {
+  cx: number
+  cy: number
+  cz: number
+  radius: number
+}
+
 export class BufferGeometry {
   positions: Float32Array | null = null
   normals: Float32Array | null = null
   indices: Uint16Array | Uint32Array | null = null
+
+  /** Bounding sphere in local (geometry) space. Computed lazily on first access. */
+  boundingSphere: BoundingSphere | null = null
 
   // GPU resources (lazily created by renderer)
   _vertexBuffer: GPUBuffer | null = null
@@ -33,6 +43,7 @@ export class BufferGeometry {
   setAttribute(name: string, attribute: Float32BufferAttribute) {
     if (name === 'position') {
       this.positions = attribute.array
+      this.boundingSphere = null
     } else if (name === 'normal') {
       this.normals = attribute.array
     }
@@ -52,6 +63,37 @@ export class BufferGeometry {
     this._gpuDirty = true
     this._wireframeDirty = true
     return this
+  }
+
+  computeBoundingSphere(): void {
+    const pos = this.positions
+    if (!pos || pos.length === 0) {
+      this.boundingSphere = { cx: 0, cy: 0, cz: 0, radius: 0 }
+      return
+    }
+    const count = pos.length / 3
+    // Compute centroid
+    let cx = 0,
+      cy = 0,
+      cz = 0
+    for (let i = 0; i < count; i++) {
+      cx += pos[i * 3]
+      cy += pos[i * 3 + 1]
+      cz += pos[i * 3 + 2]
+    }
+    cx /= count
+    cy /= count
+    cz /= count
+    // Compute max distance from centroid
+    let maxDistSq = 0
+    for (let i = 0; i < count; i++) {
+      const dx = pos[i * 3] - cx
+      const dy = pos[i * 3 + 1] - cy
+      const dz = pos[i * 3 + 2] - cz
+      const distSq = dx * dx + dy * dy + dz * dz
+      if (distSq > maxDistSq) maxDistSq = distSq
+    }
+    this.boundingSphere = { cx, cy, cz, radius: Math.sqrt(maxDistSq) }
   }
 
   _ensureGPU(device: GPUDevice) {

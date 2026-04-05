@@ -175,6 +175,7 @@ The engine is decoupled from any specific 3D renderer or physics library. Choose
 | **Point light**       | Yes + shadows                                  | — (placeholder)                                | — (placeholder)                                |
 | **Shadow mapping**    | castShadow / receiveShadow                     | castShadow only                                | castShadow / receiveShadow                     |
 | **Coordinate system** | Y-up native, Z-up via sceneRoot rotation       | Y-up and Z-up                                  | Y-up native, Z-up via sceneRoot                |
+| **Frustum culling**   | Yes (per-object)                               | —                                              | Yes (bounding sphere, enabled by default)      |
 | **GPU backend**       | WebGPU (WebGPURenderer)                        | WebGPU with WebGL2 fallback                    | WebGPU only                                    |
 
 #### Editor Features (per renderer)
