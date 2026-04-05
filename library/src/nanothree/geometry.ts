@@ -21,6 +21,7 @@ export class BufferGeometry {
   positions: Float32Array | null = null
   normals: Float32Array | null = null
   uvs: Float32Array | null = null
+  colors: Float32Array | null = null
   indices: Uint16Array | Uint32Array | null = null
 
   /** Bounding sphere in local (geometry) space. Computed lazily on first access. */
@@ -34,6 +35,8 @@ export class BufferGeometry {
   _vertexCount = 0
   _gpuDirty = true
   _device: GPUDevice | null = null
+  /** Whether the GPU vertex buffer includes per-vertex color data. */
+  _hasVertexColors = false
 
   // Wireframe index buffer (lazily generated from triangle indices)
   _wireframeIndexBuffer: GPUBuffer | null = null
@@ -49,6 +52,8 @@ export class BufferGeometry {
       this.normals = attribute.array
     } else if (name === 'uv') {
       this.uvs = attribute.array
+    } else if (name === 'color') {
+      this.colors = attribute.array
     }
     this._gpuDirty = true
     this._wireframeDirty = true
@@ -106,26 +111,34 @@ export class BufferGeometry {
     const positions = this.positions!
     const normals = this.normals
     const uvs = this.uvs
+    const colors = this.colors
     const vertexCount = positions.length / 3
     this._vertexCount = vertexCount
+    this._hasVertexColors = colors !== null && colors.length >= vertexCount * 3
 
-    // Interleave position(3) + normal(3) + uv(2) = 8 floats per vertex
-    const interleaved = new Float32Array(vertexCount * 8)
+    // Interleave: position(3) + normal(3) + uv(2) [+ color(3)] = 8 or 11 floats per vertex
+    const stride = this._hasVertexColors ? 11 : 8
+    const interleaved = new Float32Array(vertexCount * stride)
     for (let i = 0; i < vertexCount; i++) {
       const i3 = i * 3
       const i2 = i * 2
-      const i8 = i * 8
-      interleaved[i8] = positions[i3]
-      interleaved[i8 + 1] = positions[i3 + 1]
-      interleaved[i8 + 2] = positions[i3 + 2]
+      const base = i * stride
+      interleaved[base] = positions[i3]
+      interleaved[base + 1] = positions[i3 + 1]
+      interleaved[base + 2] = positions[i3 + 2]
       if (normals) {
-        interleaved[i8 + 3] = normals[i3]
-        interleaved[i8 + 4] = normals[i3 + 1]
-        interleaved[i8 + 5] = normals[i3 + 2]
+        interleaved[base + 3] = normals[i3]
+        interleaved[base + 4] = normals[i3 + 1]
+        interleaved[base + 5] = normals[i3 + 2]
       }
       if (uvs) {
-        interleaved[i8 + 6] = uvs[i2]
-        interleaved[i8 + 7] = uvs[i2 + 1]
+        interleaved[base + 6] = uvs[i2]
+        interleaved[base + 7] = uvs[i2 + 1]
+      }
+      if (this._hasVertexColors) {
+        interleaved[base + 8] = colors![i3]
+        interleaved[base + 9] = colors![i3 + 1]
+        interleaved[base + 10] = colors![i3 + 2]
       }
     }
 

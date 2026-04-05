@@ -107,6 +107,113 @@ struct VSOut {
 }
 `
 
+// ─── Vertex-colored mesh shader (Lambert + shadow map + per-vertex color) ─
+
+const VERTEX_COLOR_MESH_SHADER = /* wgsl */ `
+struct Scene {
+  viewProj: mat4x4f,
+  lightDir: vec4f,
+  ambient: vec4f,
+  lightColor: vec4f,
+  lightViewProj: mat4x4f,
+  shadowParams: vec4f,
+}
+
+struct ObjectData { model: mat4x4f, color: vec4f }
+
+@group(0) @binding(0) var<uniform> scene: Scene;
+@group(0) @binding(1) var shadowMap: texture_depth_2d;
+@group(0) @binding(2) var shadowSampler: sampler_comparison;
+@group(1) @binding(0) var<storage, read> objectData: ObjectData;
+
+struct VSOut {
+  @builtin(position) pos: vec4f,
+  @location(0) normal: vec3f,
+  @location(1) color: vec3f,
+  @location(2) shadowCoord: vec3f,
+}
+
+@vertex fn vs(
+  @location(0) position: vec3f,
+  @location(1) normal: vec3f,
+  @location(2) _uv: vec2f,
+  @location(3) vertexColor: vec3f,
+) -> VSOut {
+  let worldPos = objectData.model * vec4f(position, 1.0);
+  let lightClip = scene.lightViewProj * worldPos;
+  var out: VSOut;
+  out.pos = scene.viewProj * worldPos;
+  out.normal = normalize((objectData.model * vec4f(normal, 0.0)).xyz);
+  out.color = objectData.color.rgb * vertexColor;
+  out.shadowCoord = vec3f(
+    lightClip.x * 0.5 + 0.5,
+    lightClip.y * -0.5 + 0.5,
+    lightClip.z,
+  );
+  return out;
+}
+
+@fragment fn fs(in: VSOut) -> @location(0) vec4f {
+  let n = normalize(in.normal);
+  let light = max(dot(n, scene.lightDir.xyz), 0.0);
+
+  var shadow = 1.0;
+  if (scene.shadowParams.x > 0.0) {
+    let bias = scene.shadowParams.y;
+    let texel = scene.shadowParams.z;
+    let c = in.shadowCoord;
+    shadow = (
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f(-texel, -texel), c.z - bias) +
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f( texel, -texel), c.z - bias) +
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f(-texel,  texel), c.z - bias) +
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f( texel,  texel), c.z - bias)
+    ) * 0.25;
+  }
+
+  let color = in.color * (scene.ambient.rgb + scene.lightColor.rgb * light * shadow);
+  return vec4f(color, 1.0);
+}
+`
+
+// ─── Vertex-colored unlit mesh shader (per-vertex color, no lighting) ─
+
+const VERTEX_COLOR_BASIC_SHADER = /* wgsl */ `
+struct Scene {
+  viewProj: mat4x4f,
+  lightDir: vec4f,
+  ambient: vec4f,
+  lightColor: vec4f,
+}
+
+struct ObjectData { model: mat4x4f, color: vec4f }
+
+@group(0) @binding(0) var<uniform> scene: Scene;
+@group(0) @binding(1) var shadowMap: texture_depth_2d;
+@group(0) @binding(2) var shadowSampler: sampler_comparison;
+@group(1) @binding(0) var<storage, read> objectData: ObjectData;
+
+struct VSOut {
+  @builtin(position) pos: vec4f,
+  @location(0) color: vec3f,
+}
+
+@vertex fn vs(
+  @location(0) position: vec3f,
+  @location(1) _normal: vec3f,
+  @location(2) _uv: vec2f,
+  @location(3) vertexColor: vec3f,
+) -> VSOut {
+  var out: VSOut;
+  out.pos = scene.viewProj * objectData.model * vec4f(position, 1.0);
+  out.color = objectData.color.rgb * vertexColor;
+  return out;
+}
+
+@fragment fn fs(in: VSOut) -> @location(0) vec4f {
+  return vec4f(in.color, 1.0);
+}
+`
+
 // ─── Textured mesh shader (Lambert + shadow map + albedo texture) ─────
 
 const TEXTURED_MESH_SHADER = /* wgsl */ `
@@ -415,6 +522,17 @@ const VERTEX_BUFFER_LAYOUT: GPUVertexBufferLayout = {
   ],
 }
 
+// Vertex buffer layout with per-vertex color: position(3) + normal(3) + uv(2) + color(3) = 11 floats = 44 bytes
+const VERTEX_COLOR_BUFFER_LAYOUT: GPUVertexBufferLayout = {
+  arrayStride: 44,
+  attributes: [
+    { shaderLocation: 0, offset: 0, format: 'float32x3' as GPUVertexFormat },
+    { shaderLocation: 1, offset: 12, format: 'float32x3' as GPUVertexFormat },
+    { shaderLocation: 2, offset: 24, format: 'float32x2' as GPUVertexFormat },
+    { shaderLocation: 3, offset: 32, format: 'float32x3' as GPUVertexFormat },
+  ],
+}
+
 const DEPTH_STENCIL: GPUDepthStencilState = {
   format: 'depth24plus',
   depthWriteEnabled: true,
@@ -460,6 +578,17 @@ export class WebGPURenderer {
   // Instanced sprite pipelines (GPU billboard, alpha-blended)
   private instancedSpriteNormalPipeline!: GPURenderPipeline
   private instancedSpriteAdditivePipeline!: GPURenderPipeline
+
+  // Vertex-colored mesh pipelines (Lambert + per-vertex color)
+  private vertexColorMeshPipeline!: GPURenderPipeline
+  private vertexColorMeshPipelineFront!: GPURenderPipeline
+  private vertexColorMeshPipelineDouble!: GPURenderPipeline
+  // Vertex-colored basic (unlit) mesh pipelines
+  private vertexColorBasicPipeline!: GPURenderPipeline
+  private vertexColorBasicPipelineFront!: GPURenderPipeline
+  private vertexColorBasicPipelineDouble!: GPURenderPipeline
+  // Vertex-colored shadow pipeline
+  private vertexColorShadowPipeline!: GPURenderPipeline
 
   // Textured mesh pipelines (Lambert + albedo texture)
   private texturedMeshPipeline!: GPURenderPipeline
@@ -767,6 +896,55 @@ export class WebGPURenderer {
       depthStencil: DEPTH_STENCIL,
     })
 
+    // Vertex-colored mesh pipelines (Lambert + per-vertex color, different vertex stride)
+    const vcMeshShader = this.device.createShaderModule({ code: VERTEX_COLOR_MESH_SHADER })
+    const vcMeshDesc = (cullMode: GPUCullMode) => ({
+      layout: this.standardPipelineLayout,
+      vertex: { module: vcMeshShader, entryPoint: 'vs', buffers: [VERTEX_COLOR_BUFFER_LAYOUT] },
+      fragment: { module: vcMeshShader, entryPoint: 'fs', targets: [{ format: this.format }] },
+      primitive: { topology: 'triangle-list' as GPUPrimitiveTopology, cullMode },
+      depthStencil: DEPTH_STENCIL,
+    })
+    this.vertexColorMeshPipeline = this.device.createRenderPipeline(vcMeshDesc('back'))
+    this.vertexColorMeshPipelineFront = this.device.createRenderPipeline(vcMeshDesc('front'))
+    this.vertexColorMeshPipelineDouble = this.device.createRenderPipeline(vcMeshDesc('none'))
+
+    // Vertex-colored basic (unlit) pipelines
+    const vcBasicShader = this.device.createShaderModule({ code: VERTEX_COLOR_BASIC_SHADER })
+    const vcBasicDesc = (cullMode: GPUCullMode) => ({
+      layout: this.standardPipelineLayout,
+      vertex: { module: vcBasicShader, entryPoint: 'vs', buffers: [VERTEX_COLOR_BUFFER_LAYOUT] },
+      fragment: { module: vcBasicShader, entryPoint: 'fs', targets: [{ format: this.format }] },
+      primitive: { topology: 'triangle-list' as GPUPrimitiveTopology, cullMode },
+      depthStencil: DEPTH_STENCIL,
+    })
+    this.vertexColorBasicPipeline = this.device.createRenderPipeline(vcBasicDesc('back'))
+    this.vertexColorBasicPipelineFront = this.device.createRenderPipeline(vcBasicDesc('front'))
+    this.vertexColorBasicPipelineDouble = this.device.createRenderPipeline(vcBasicDesc('none'))
+
+    // Vertex-colored shadow pipeline (depth-only, uses vertex color buffer layout)
+    const vcShadowShader = this.device.createShaderModule({
+      code: /* wgsl */ `
+@group(0) @binding(0) var<uniform> lightViewProj: mat4x4f;
+struct ObjectData { model: mat4x4f, color: vec4f }
+@group(1) @binding(0) var<storage, read> objectData: ObjectData;
+@vertex fn vs(
+  @location(0) position: vec3f,
+  @location(1) _normal: vec3f,
+  @location(2) _uv: vec2f,
+  @location(3) _color: vec3f,
+) -> @builtin(position) vec4f {
+  return lightViewProj * objectData.model * vec4f(position, 1.0);
+}
+`,
+    })
+    this.vertexColorShadowPipeline = this.device.createRenderPipeline({
+      layout: this.shadowPipelineLayout,
+      vertex: { module: vcShadowShader, entryPoint: 'vs', buffers: [VERTEX_COLOR_BUFFER_LAYOUT] },
+      primitive: { topology: 'triangle-list', cullMode: 'back' },
+      depthStencil: SHADOW_DEPTH_STENCIL,
+    })
+
     // Sprite pipelines: alpha-blended, depth-write disabled, double-sided
     const spriteShader = this.device.createShaderModule({ code: SPRITE_SHADER })
     const SPRITE_DEPTH: GPUDepthStencilState = { format: 'depth24plus', depthWriteEnabled: false, depthCompare: 'less' }
@@ -988,6 +1166,8 @@ export class WebGPURenderer {
 
     const solidMeshes: Mesh[] = []
     const texturedMeshes: Mesh[] = []
+    const vertexColorMeshes: Mesh[] = []
+    const vertexColorBasicMeshes: Mesh[] = []
     const basicMeshes: Mesh[] = []
     const wireframeMeshes: Mesh[] = []
     const customMeshes: Mesh[] = []
@@ -998,8 +1178,11 @@ export class WebGPURenderer {
       if (m.material instanceof ShaderMaterial) customMeshes.push(m)
       else if (m.material instanceof MeshBasicMaterial) {
         if (m.material.wireframe) wireframeMeshes.push(m)
+        else if (m.material.vertexColors && m.geometry._hasVertexColors) vertexColorBasicMeshes.push(m)
         else basicMeshes.push(m)
       } else if ((m.material as any).wireframe) wireframeMeshes.push(m)
+      else if ((m.material as MeshLambertMaterial).vertexColors && m.geometry._hasVertexColors)
+        vertexColorMeshes.push(m)
       else if ((m.material as MeshLambertMaterial).hasTexture) texturedMeshes.push(m)
       else solidMeshes.push(m)
     }
@@ -1017,6 +1200,8 @@ export class WebGPURenderer {
 
     const solidCount = solidMeshes.length
     const texturedCount = texturedMeshes.length
+    const vcCount = vertexColorMeshes.length
+    const vcBasicCount = vertexColorBasicMeshes.length
     const instancedMeshes = scene.instancedMeshes
     const instancedCount = instancedMeshes.length
     const basicCount = basicMeshes.length
@@ -1030,6 +1215,8 @@ export class WebGPURenderer {
     const totalCount =
       solidCount +
       texturedCount +
+      vcCount +
+      vcBasicCount +
       instancedCount +
       basicCount +
       wireCount +
@@ -1096,7 +1283,7 @@ export class WebGPURenderer {
     this.device.queue.writeBuffer(this.sceneBuffer, 0, sd)
 
     // ── Stage object data (world matrices already computed by updateMatrixWorld) ──
-    // Order: solid, textured, instanced, basic, wireframe, custom, lines, normalSprites, additiveSprites, instancedSprites
+    // Order: solid, textured, vcMeshes, vcBasicMeshes, instanced, basic, wireframe, custom, lines, normalSprites, additiveSprites, instancedSprites
     let idx = 0
     for (let i = 0; i < solidCount; i++, idx++) {
       const m = solidMeshes[i]
@@ -1104,6 +1291,14 @@ export class WebGPURenderer {
     }
     for (let i = 0; i < texturedCount; i++, idx++) {
       const m = texturedMeshes[i]
+      this.writeObjectData(idx, m._worldMatrix, m.material.color.r, m.material.color.g, m.material.color.b)
+    }
+    for (let i = 0; i < vcCount; i++, idx++) {
+      const m = vertexColorMeshes[i]
+      this.writeObjectData(idx, m._worldMatrix, m.material.color.r, m.material.color.g, m.material.color.b)
+    }
+    for (let i = 0; i < vcBasicCount; i++, idx++) {
+      const m = vertexColorBasicMeshes[i]
       this.writeObjectData(idx, m._worldMatrix, m.material.color.r, m.material.color.g, m.material.color.b)
     }
     for (let i = 0; i < instancedCount; i++, idx++) {
@@ -1228,10 +1423,47 @@ export class WebGPURenderer {
         this.info.triangles += (geo._indexCount / 3) | 0
       }
 
+      // Vertex-colored mesh shadows (different vertex buffer layout)
+      if (vcCount + vcBasicCount > 0) {
+        sp.setPipeline(this.vertexColorShadowPipeline)
+        curGeo = null
+        const vcBase = solidCount + texturedCount
+        for (let i = 0; i < vcCount; i++) {
+          if (!vertexColorMeshes[i].castShadow) continue
+          const geo = vertexColorMeshes[i].geometry
+          if (geo !== curGeo) {
+            curGeo = geo
+            geo._ensureGPU(this.device)
+            sp.setVertexBuffer(0, geo._vertexBuffer!)
+            sp.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
+          }
+          sp.setBindGroup(1, this.objectBindGroup, [(vcBase + i) * this.objectStride])
+          sp.drawIndexed(geo._indexCount)
+          this.info.drawCalls++
+          this.info.triangles += (geo._indexCount / 3) | 0
+        }
+        for (let i = 0; i < vcBasicCount; i++) {
+          if (!vertexColorBasicMeshes[i].castShadow) continue
+          const geo = vertexColorBasicMeshes[i].geometry
+          if (geo !== curGeo) {
+            curGeo = geo
+            geo._ensureGPU(this.device)
+            sp.setVertexBuffer(0, geo._vertexBuffer!)
+            sp.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
+          }
+          sp.setBindGroup(1, this.objectBindGroup, [(vcBase + vcCount + i) * this.objectStride])
+          sp.drawIndexed(geo._indexCount)
+          this.info.drawCalls++
+          this.info.triangles += (geo._indexCount / 3) | 0
+        }
+        sp.setPipeline(this.shadowPipeline)
+        curGeo = null
+      }
+
       // Instanced mesh shadows
       if (instancedCount > 0) {
         sp.setPipeline(this.instancedShadowPipeline)
-        const instBase = solidCount + texturedCount
+        const instBase = solidCount + texturedCount + vcCount + vcBasicCount
         for (let i = 0; i < instancedCount; i++) {
           const im = instancedMeshes[i]
           if (!im.castShadow) continue
@@ -1251,7 +1483,7 @@ export class WebGPURenderer {
         sp.setPipeline(this.shadowPipeline)
       }
 
-      const customBase = solidCount + texturedCount + instancedCount + basicCount + wireCount
+      const customBase = solidCount + texturedCount + vcCount + vcBasicCount + instancedCount + basicCount + wireCount
       for (let i = 0; i < customCount; i++) {
         const mesh = customMeshes[i]
         if (!mesh.castShadow || (mesh.material as ShaderMaterial).wireframe) continue
@@ -1340,9 +1572,73 @@ export class WebGPURenderer {
       }
     }
 
+    // 2b: vertex-colored meshes (Lambert + per-vertex color)
+    if (vcCount > 0) {
+      let curPipeline: GPURenderPipeline | null = null
+      let curGeo: BufferGeometry | null = null
+      const base = solidCount + texturedCount
+      for (let i = 0; i < vcCount; i++) {
+        const mat = vertexColorMeshes[i].material as MeshLambertMaterial
+        const pipeline =
+          mat.side === BackSide
+            ? this.vertexColorMeshPipelineFront
+            : mat.side === DoubleSide
+              ? this.vertexColorMeshPipelineDouble
+              : this.vertexColorMeshPipeline
+        if (pipeline !== curPipeline) {
+          curPipeline = pipeline
+          pass.setPipeline(pipeline)
+          curGeo = null
+        }
+        const geo = vertexColorMeshes[i].geometry
+        if (geo !== curGeo) {
+          curGeo = geo
+          geo._ensureGPU(this.device)
+          pass.setVertexBuffer(0, geo._vertexBuffer!)
+          pass.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
+        }
+        pass.setBindGroup(1, this.objectBindGroup, [(base + i) * this.objectStride])
+        pass.drawIndexed(geo._indexCount)
+        this.info.drawCalls++
+        this.info.triangles += (geo._indexCount / 3) | 0
+      }
+    }
+
+    // 2c: vertex-colored basic (unlit) meshes
+    if (vcBasicCount > 0) {
+      let curPipeline: GPURenderPipeline | null = null
+      let curGeo: BufferGeometry | null = null
+      const base = solidCount + texturedCount + vcCount
+      for (let i = 0; i < vcBasicCount; i++) {
+        const mat = vertexColorBasicMeshes[i].material as MeshBasicMaterial
+        const pipeline =
+          mat.side === BackSide
+            ? this.vertexColorBasicPipelineFront
+            : mat.side === DoubleSide
+              ? this.vertexColorBasicPipelineDouble
+              : this.vertexColorBasicPipeline
+        if (pipeline !== curPipeline) {
+          curPipeline = pipeline
+          pass.setPipeline(pipeline)
+          curGeo = null
+        }
+        const geo = vertexColorBasicMeshes[i].geometry
+        if (geo !== curGeo) {
+          curGeo = geo
+          geo._ensureGPU(this.device)
+          pass.setVertexBuffer(0, geo._vertexBuffer!)
+          pass.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
+        }
+        pass.setBindGroup(1, this.objectBindGroup, [(base + i) * this.objectStride])
+        pass.drawIndexed(geo._indexCount)
+        this.info.drawCalls++
+        this.info.triangles += (geo._indexCount / 3) | 0
+      }
+    }
+
     // 3: instanced meshes (one draw call per InstancedMesh, N instances each)
     if (instancedCount > 0) {
-      const base = solidCount + texturedCount
+      const base = solidCount + texturedCount + vcCount + vcBasicCount
       for (let i = 0; i < instancedCount; i++) {
         const im = instancedMeshes[i]
         const mat = im.material as MeshLambertMaterial
@@ -1369,7 +1665,7 @@ export class WebGPURenderer {
     if (basicCount > 0) {
       let curPipeline: GPURenderPipeline | null = null
       let curGeo: BufferGeometry | null = null
-      const base = solidCount + texturedCount + instancedCount
+      const base = solidCount + texturedCount + vcCount + vcBasicCount + instancedCount
       for (let i = 0; i < basicCount; i++) {
         const mat = basicMeshes[i].material as MeshBasicMaterial
         const pipeline =
@@ -1400,7 +1696,7 @@ export class WebGPURenderer {
     // 4: wireframe meshes
     if (wireCount > 0) {
       pass.setPipeline(this.wireframePipeline)
-      const base = solidCount + texturedCount + instancedCount + basicCount
+      const base = solidCount + texturedCount + vcCount + vcBasicCount + instancedCount + basicCount
       let curGeo: BufferGeometry | null = null
       for (let i = 0; i < wireCount; i++) {
         const geo = wireframeMeshes[i].geometry
@@ -1418,7 +1714,7 @@ export class WebGPURenderer {
 
     // 5: custom shader meshes
     if (customCount > 0) {
-      const base = solidCount + texturedCount + instancedCount + basicCount + wireCount
+      const base = solidCount + texturedCount + vcCount + vcBasicCount + instancedCount + basicCount + wireCount
       let curPipeline: GPURenderPipeline | null = null
       let curGeo: BufferGeometry | null = null
       for (let i = 0; i < customCount; i++) {
@@ -1455,7 +1751,8 @@ export class WebGPURenderer {
     // 6: lines
     if (lineCount > 0) {
       pass.setPipeline(this.linePipeline)
-      const base = solidCount + texturedCount + instancedCount + basicCount + wireCount + customCount
+      const base =
+        solidCount + texturedCount + vcCount + vcBasicCount + instancedCount + basicCount + wireCount + customCount
       let curGeo: BufferGeometry | null = null
       for (let i = 0; i < lineCount; i++) {
         const geo = lines[i].geometry
@@ -1480,7 +1777,16 @@ export class WebGPURenderer {
       pass.setVertexBuffer(0, geo._vertexBuffer!)
       pass.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
 
-      const spriteBase = solidCount + texturedCount + instancedCount + basicCount + wireCount + customCount + lineCount
+      const spriteBase =
+        solidCount +
+        texturedCount +
+        vcCount +
+        vcBasicCount +
+        instancedCount +
+        basicCount +
+        wireCount +
+        customCount +
+        lineCount
       if (normalSpriteCount > 0) {
         pass.setPipeline(this.spriteNormalPipeline)
         for (let i = 0; i < normalSpriteCount; i++) {

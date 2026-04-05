@@ -48,6 +48,8 @@ export class MeshLambertMaterial {
   color: Color
   wireframe: boolean
   side: Side
+  /** When true, per-vertex colors from the geometry are used (multiplied with material color). */
+  vertexColors: boolean
   /** Albedo/diffuse texture map. When set, texture color is multiplied with material color. */
   map: NanoTexture | null = null
 
@@ -55,7 +57,13 @@ export class MeshLambertMaterial {
   _textureBindGroup: GPUBindGroup | null = null
   _textureDirty = true
 
-  constructor(params?: { color?: Color | number; wireframe?: boolean; side?: Side; map?: NanoTexture }) {
+  constructor(params?: {
+    color?: Color | number
+    wireframe?: boolean
+    side?: Side
+    map?: NanoTexture
+    vertexColors?: boolean
+  }) {
     if (params?.color instanceof Color) {
       this.color = params.color
     } else if (typeof params?.color === 'number') {
@@ -65,6 +73,7 @@ export class MeshLambertMaterial {
     }
     this.wireframe = params?.wireframe ?? false
     this.side = params?.side ?? FrontSide
+    this.vertexColors = params?.vertexColors ?? false
     if (params?.map) this.map = params.map
   }
 
@@ -83,8 +92,10 @@ export class MeshBasicMaterial {
   color: Color
   wireframe: boolean
   side: Side
+  /** When true, per-vertex colors from the geometry are used (multiplied with material color). */
+  vertexColors: boolean
 
-  constructor(params?: { color?: Color | number; wireframe?: boolean; side?: Side }) {
+  constructor(params?: { color?: Color | number; wireframe?: boolean; side?: Side; vertexColors?: boolean }) {
     if (params?.color instanceof Color) {
       this.color = params.color
     } else if (typeof params?.color === 'number') {
@@ -94,6 +105,7 @@ export class MeshBasicMaterial {
     }
     this.wireframe = params?.wireframe ?? false
     this.side = params?.side ?? FrontSide
+    this.vertexColors = params?.vertexColors ?? false
   }
 
   dispose() {}
