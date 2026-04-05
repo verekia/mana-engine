@@ -58,9 +58,13 @@ export class Audio {
 
     const id = `snd_${++this.idCounter}`
     this.activeSounds.set(id, source)
-    source.addEventListener('ended', () => {
-      this.activeSounds.delete(id)
-    })
+    source.addEventListener(
+      'ended',
+      () => {
+        this.activeSounds.delete(id)
+      },
+      { once: true },
+    )
     source.start()
     return id
   }
@@ -100,11 +104,15 @@ export class Audio {
     gain.connect(this.masterGain)
 
     this.music = { source, gain, path }
-    source.addEventListener('ended', () => {
-      if (this.music?.source === source) {
-        this.music = null
-      }
-    })
+    source.addEventListener(
+      'ended',
+      () => {
+        if (this.music?.source === source) {
+          this.music = null
+        }
+      },
+      { once: true },
+    )
     source.start()
   }
 

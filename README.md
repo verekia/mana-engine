@@ -437,3 +437,26 @@ Features not yet implemented that would enhance the engine:
 - **Editor camera bookmarks** — Save and restore camera positions
 - **Script hot reload** — Update scripts without restarting play mode
 - **Custom shaders** — User-defined shader materials
+
+## VoidCore Feature Parity with Three.js
+
+Features that the Three.js adapter supports today but VoidCore does not yet implement. This serves as the priority roadmap for bringing VoidCore to feature parity.
+
+### Rendering
+
+- **PBR materials** — Metalness, roughness, emissive color (VoidCore only has Lambert diffuse)
+- **Texture maps** — Albedo map, normal map, emissive map, roughness map, metalness map (VoidCore supports color only, no texture loading)
+- **KTX2 compressed textures** — GPU-compressed texture format with basis transcoder
+- **Point lights** — Localized light sources with color, intensity, and shadows (VoidCore creates an empty Group placeholder)
+- **Skybox / environment maps** — HDR equirectangular environment maps for image-based lighting, background display, intensity control, and background blur
+- **Post-processing** — Bloom effect with configurable intensity, threshold, and radius (requires a render pipeline)
+
+### Editor
+
+- **Light helper gizmos** — Visual helpers for directional lights (DirectionalLightHelper), point lights (PointLightHelper), and cameras (CameraHelper) in the viewport
+- **Audio entity visualization** — Speaker-icon helper (center sphere + concentric rings) for audio entities in the viewport (VoidCore skips audio entities entirely)
+- **Local/World transform space toggle** — Switch transform gizmo between local and world coordinate space (VoidCore gizmo always operates in scene-local space)
+
+### Performance
+
+- **Instanced particle rendering** — Three.js renders all particles in a single draw call using `Points` + `BufferGeometry` with per-particle GPU attributes; VoidCore uses individual `Sprite` objects with CPU-driven updates (N draw calls vs 1)
