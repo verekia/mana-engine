@@ -338,6 +338,8 @@ function getAddComponentOptions(
           return { shape: 'capsule', radius: 0.5, halfHeight: 0.5 }
         case 'cone':
           return { shape: 'cylinder', radius: 0.5, halfHeight: 0.5 }
+        case 'plane':
+          return { shape: 'box', halfExtents: [0.5, 0.01, 0.5] }
         default:
           return { shape: 'box', halfExtents: [0.5, 0.5, 0.5] }
       }
