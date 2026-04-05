@@ -22,6 +22,7 @@ import {
   SphereGeometry,
   TetrahedronGeometry,
   TextureLoader,
+  TorusGeometry,
   type WebGPURenderer,
 } from 'three/webgpu'
 
@@ -72,6 +73,10 @@ function createGeometry(type?: string) {
       return new CapsuleGeometry()
     case 'cone':
       return new ConeGeometry()
+    case 'cylinder':
+      return new CylinderGeometry()
+    case 'torus':
+      return new TorusGeometry()
     case 'tetrahedron':
       return new TetrahedronGeometry()
     default:

@@ -12,6 +12,7 @@ import {
   TransformGizmo,
   WebGPURenderer,
 } from '../../nanothree/index.ts'
+import { NanothreeAnimationHelper } from './nanothree-animation.ts'
 import { createNanothreeEntity, updateNanothreeEntity } from './nanothree-entity.ts'
 import { NanothreeParticleHelper } from './nanothree-particles.ts'
 import { createGridGroup, hexToColor } from './nanothree-utils.ts'
@@ -42,8 +43,7 @@ import type { NanothreeEntityState } from './nanothree-entity.ts'
  * - Camera, Object3D hierarchy
  * - Editor: transform gizmo (visual), grid, collider wireframes, light helpers
  *
- * Not supported: animations, point lights,
- * PBR materials, skybox, post-processing.
+ * Not supported: point lights, PBR materials, skybox, post-processing.
  */
 export class NanothreeRendererAdapter implements RendererAdapter {
   private renderer!: WebGPURenderer
@@ -67,6 +67,12 @@ export class NanothreeRendererAdapter implements RendererAdapter {
   /** Invert-hull outline meshes per selected entity (BackSide, scaled up). */
   private outlineMeshes = new Map<string, Mesh>()
   private particleHelper = new NanothreeParticleHelper()
+  private animation!: NanothreeAnimationHelper
+
+  // Orthographic view state
+  private isOrtho = false
+  private orthoAzimuth = 0
+  private orthoPolar = 0
 
   // Simple orbit camera state (manual implementation since nanothree has no built-in orbit controls)
   private orbitTarget = { x: 0, y: 0, z: 0 }
@@ -97,6 +103,8 @@ export class NanothreeRendererAdapter implements RendererAdapter {
     this.scene = new Scene()
     this.sceneRoot = new Group()
     this.scene.add(this.sceneRoot)
+
+    this.animation = new NanothreeAnimationHelper(this.entityObjects)
 
     // Editor camera with manual orbit controls
     if (this.enableOrbitControls) {
@@ -246,6 +254,7 @@ export class NanothreeRendererAdapter implements RendererAdapter {
       debugWireframes: this.debugWireframes,
       lightHelpers: this.lightHelpers,
       particleHelper: this.particleHelper,
+      onAnimationClips: this.animation.onAnimationClips,
     }
   }
 
@@ -262,6 +271,7 @@ export class NanothreeRendererAdapter implements RendererAdapter {
   removeEntity(id: string): void {
     this.removeOutline(id)
     this.particleHelper.removeEmitter(id)
+    this.animation.removeEntity(id)
     const obj = this.entityObjects.get(id)
     if (obj) {
       this.selectedIds.delete(id)
@@ -378,14 +388,20 @@ export class NanothreeRendererAdapter implements RendererAdapter {
     }
   }
 
-  // ── Animation stubs (nanothree has no animation support) ─────────────
+  // ── Animation ────────────────────────────────────────────────────────
 
-  playAnimation(_entityId: string, _name: string, _options?: { loop?: boolean; crossFadeDuration?: number }): void {}
-  stopAnimation(_entityId: string): void {}
-  getAnimationNames(_entityId: string): string[] {
-    return []
+  playAnimation(entityId: string, name: string, options?: { loop?: boolean; crossFadeDuration?: number }): void {
+    this.animation.playAnimation(entityId, name, options)
   }
-  updateAnimations(_dt: number): void {}
+  stopAnimation(entityId: string): void {
+    this.animation.stopAnimation(entityId)
+  }
+  getAnimationNames(entityId: string): string[] {
+    return this.animation.getAnimationNames(entityId)
+  }
+  updateAnimations(dt: number): void {
+    this.animation.updateAnimations(dt)
+  }
 
   // ── Particles ────────────────────────────────────────────────────────
 
@@ -512,6 +528,36 @@ export class NanothreeRendererAdapter implements RendererAdapter {
     // Nanothree gizmo is visual-only
   }
 
+  setOrthographicView(view: 'front' | 'back' | 'right' | 'left' | 'top' | 'bottom' | 'perspective'): void {
+    if (!this.enableOrbitControls) return
+
+    if (view === 'perspective') {
+      this.isOrtho = false
+      return
+    }
+
+    // View direction offsets (Y-up)
+    const offsets: Record<string, [number, number, number]> = {
+      front: [0, 0, 1],
+      back: [0, 0, -1],
+      right: [1, 0, 0],
+      left: [-1, 0, 0],
+      top: [0, 1, 0],
+      bottom: [0, -1, 0],
+    }
+    const [ox, oy, oz] = offsets[view]
+
+    // Compute azimuth and elevation from the offset direction
+    this.orbitAzimuth = Math.atan2(ox, oz)
+    this.orbitElevation = Math.asin(Math.max(-1, Math.min(1, oy)))
+    this.updateOrbitCamera()
+
+    // Store spherical coords to detect user rotation later
+    this.orthoAzimuth = this.orbitAzimuth
+    this.orthoPolar = this.orbitElevation
+    this.isOrtho = true
+  }
+
   getEditorCamera(): EditorCameraState | null {
     if (!this.enableOrbitControls) return null
     // Compute camera position from orbit params
@@ -553,10 +599,29 @@ export class NanothreeRendererAdapter implements RendererAdapter {
       this.transformGizmo.update()
     }
     this.updateOutlines()
+
+    // Detect orbit rotation while in ortho mode — return to perspective
+    if (this.isOrtho) {
+      if (
+        Math.abs(this.orbitAzimuth - this.orthoAzimuth) > 0.01 ||
+        Math.abs(this.orbitElevation - this.orthoPolar) > 0.01
+      ) {
+        this.isOrtho = false
+      }
+    }
   }
 
   render(): void {
     if (!this.renderer || !this.camera) return
+    if (this.isOrtho) {
+      // Override projection to orthographic based on distance to target
+      const dist = this.orbitDistance
+      const halfH = dist * Math.tan(((this.camera.fov / 2) * Math.PI) / 180)
+      const halfW = halfH * this.camera.aspect
+      this.camera.orthoOverride = { left: -halfW, right: halfW, bottom: -halfH, top: halfH }
+    } else {
+      this.camera.orthoOverride = null
+    }
     this.renderer.render(this.scene, this.camera)
   }
 
