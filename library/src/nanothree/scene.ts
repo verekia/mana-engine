@@ -6,6 +6,8 @@ import { mat4Identity } from './math'
 
 import type { FrustumPlanes } from './frustum'
 import type { BoundingSphere } from './geometry'
+import type { InstancedMesh } from './instanced-mesh'
+import type { InstancedSprite } from './instanced-sprite'
 import type { AmbientLight, DirectionalLight } from './light'
 import type { Line } from './line'
 import type { Mesh } from './mesh'
@@ -14,6 +16,8 @@ import type { Sprite } from './sprite'
 export class Scene extends Object3D {
   // Flat lists rebuilt each frame by updateMatrixWorld()
   readonly meshes: Mesh[] = []
+  readonly instancedMeshes: InstancedMesh[] = []
+  readonly instancedSprites: InstancedSprite[] = []
   readonly lines: Line[] = []
   readonly sprites: Sprite[] = []
   readonly ambientLights: AmbientLight[] = []
@@ -41,6 +45,8 @@ export class Scene extends Object3D {
    */
   updateMatrixWorld(viewProjection?: Float32Array) {
     this.meshes.length = 0
+    this.instancedMeshes.length = 0
+    this.instancedSprites.length = 0
     this.lines.length = 0
     this.sprites.length = 0
     this.ambientLights.length = 0
@@ -63,8 +69,12 @@ export class Scene extends Object3D {
 
       child._updateWorldMatrix(parentWorld)
 
-      // Classify
-      if ((child as any).isSprite) {
+      // Classify (check instanced types first to avoid double-classification)
+      if ((child as any).isInstancedSprite) {
+        this.instancedSprites.push(child as unknown as InstancedSprite)
+      } else if ((child as any).isInstancedMesh) {
+        this.instancedMeshes.push(child as unknown as InstancedMesh)
+      } else if ((child as any).isSprite) {
         if (this._frustumCulling) {
           // Cull sprites by world position (they're small billboard quads)
           const m = child._worldMatrix

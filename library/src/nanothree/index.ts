@@ -16,6 +16,8 @@ export { MeshLambertMaterial, MeshBasicMaterial, LineBasicMaterial, FrontSide, B
 export type { Side } from './material'
 export { ShaderMaterial, SHADER_PREAMBLE } from './shader-material'
 export { Mesh } from './mesh'
+export { InstancedMesh } from './instanced-mesh'
+export { InstancedSprite } from './instanced-sprite'
 export type { MeshMaterial } from './mesh'
 export { Line } from './line'
 export { Scene } from './scene'

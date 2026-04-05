@@ -1,16 +1,8 @@
-import {
-  AdditiveBlending,
-  Group,
-  NormalBlending,
-  type Object3D,
-  Sprite,
-  SpriteMaterial,
-} from '../../nanothree/index.ts'
+import { AdditiveBlending, Group, InstancedSprite, NormalBlending, type Object3D } from '../../nanothree/index.ts'
 
 import type { ParticleData } from '../../scene-data.ts'
 
 interface Particle {
-  sprite: Sprite
   age: number
   lifetime: number
   vx: number
@@ -26,6 +18,7 @@ interface ParticleEmitter {
   entityId: string
   config: ParticleEmitterConfig
   particles: Particle[]
+  sprite: InstancedSprite
   container: Group
   emitAccumulator: number
   startColor: [number, number, number]
@@ -82,7 +75,7 @@ function lerp(a: number, b: number, t: number): number {
 
 /**
  * Manages particle emitters for the nanothree adapter.
- * Uses individual Sprite objects (billboard quads) with SpriteMaterial. CPU-driven updates.
+ * Uses InstancedSprite for GPU-billboarded instanced rendering — one draw call per emitter.
  */
 export class NanothreeParticleHelper {
   private emitters = new Map<string, ParticleEmitter>()
@@ -95,25 +88,14 @@ export class NanothreeParticleHelper {
     const startColor = hexToRgb(config.startColor)
     const endColor = hexToRgb(config.endColor)
 
+    const blending = config.blending === 'additive' ? AdditiveBlending : NormalBlending
+    const sprite = new InstancedSprite(config.maxParticles, blending)
+    sprite.count = 0 // No visible particles initially
+    container.add(sprite)
+
     const particles: Particle[] = []
     for (let i = 0; i < config.maxParticles; i++) {
-      const material = new SpriteMaterial({
-        color: 0xffffff,
-        opacity: 0,
-        transparent: true,
-        blending: config.blending === 'additive' ? AdditiveBlending : NormalBlending,
-      })
-      material.color.r = startColor[0]
-      material.color.g = startColor[1]
-      material.color.b = startColor[2]
-      const sprite = new Sprite(material)
-      sprite.visible = false
-      sprite.castShadow = false
-      sprite.scale.set(0, 0, 0)
-      container.add(sprite)
-
       particles.push({
-        sprite,
         age: 0,
         lifetime: 0,
         vx: 0,
@@ -130,6 +112,7 @@ export class NanothreeParticleHelper {
       entityId,
       config,
       particles,
+      sprite,
       container,
       emitAccumulator: 0,
       startColor,
@@ -147,6 +130,7 @@ export class NanothreeParticleHelper {
   removeEmitter(entityId: string): void {
     const emitter = this.emitters.get(entityId)
     if (!emitter) return
+    emitter.sprite.dispose()
     emitter.container.parent?.remove(emitter.container)
     this.emitters.delete(entityId)
   }
@@ -168,14 +152,14 @@ export class NanothreeParticleHelper {
     if (!emitter) return
     for (const p of emitter.particles) {
       p.active = false
-      p.sprite.visible = false
     }
+    emitter.sprite.count = 0
     emitter.emitAccumulator = 0
     emitter.active = true
   }
 
   private updateEmitter(emitter: ParticleEmitter, dt: number): void {
-    const { config, particles, startColor, endColor } = emitter
+    const { config, particles, sprite, startColor, endColor } = emitter
     const gravity = config.gravity * -9.81
 
     // Continuous emission
@@ -191,14 +175,15 @@ export class NanothreeParticleHelper {
       }
     }
 
-    // Update each particle
-    for (const p of particles) {
+    // Update particles and pack active ones into the InstancedSprite arrays
+    let activeCount = 0
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i]
       if (!p.active) continue
 
       p.age += dt
       if (p.age >= p.lifetime) {
         p.active = false
-        p.sprite.visible = false
         continue
       }
 
@@ -211,20 +196,23 @@ export class NanothreeParticleHelper {
       p.ox += p.vx * dt
       p.oy += p.vy * dt
       p.oz += p.vz * dt
-      p.sprite.position.set(p.ox, p.oy, p.oz)
 
-      // Size
-      const size = lerp(config.startSize, config.endSize, t)
-      p.sprite.scale.set(size, size, size)
+      // Pack into InstancedSprite arrays (active particles are tightly packed at front)
+      const off3 = activeCount * 3
+      sprite.positions[off3] = p.ox
+      sprite.positions[off3 + 1] = p.oy
+      sprite.positions[off3 + 2] = p.oz
+      sprite.sizes[activeCount] = lerp(config.startSize, config.endSize, t)
+      sprite.colors[off3] = lerp(startColor[0], endColor[0], t)
+      sprite.colors[off3 + 1] = lerp(startColor[1], endColor[1], t)
+      sprite.colors[off3 + 2] = lerp(startColor[2], endColor[2], t)
+      sprite.alphas[activeCount] = lerp(config.startOpacity, config.endOpacity, t)
 
-      // Opacity
-      p.sprite.material.opacity = lerp(config.startOpacity, config.endOpacity, t)
-
-      // Color
-      p.sprite.material.color.r = lerp(startColor[0], endColor[0], t)
-      p.sprite.material.color.g = lerp(startColor[1], endColor[1], t)
-      p.sprite.material.color.b = lerp(startColor[2], endColor[2], t)
+      activeCount++
     }
+
+    sprite.count = activeCount
+    sprite._instanceDirty = true
   }
 
   private emitOne(emitter: ParticleEmitter): void {
@@ -238,8 +226,6 @@ export class NanothreeParticleHelper {
     p.ox = 0
     p.oy = 0
     p.oz = 0
-    p.sprite.position.set(0, 0, 0)
-    p.sprite.visible = true
 
     // Random direction within cone
     const spreadRad = (config.spread * Math.PI) / 180

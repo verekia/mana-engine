@@ -16,6 +16,8 @@ import { AdditiveBlending } from './sprite'
 
 import type { PerspectiveCamera } from './core'
 import type { BufferGeometry } from './geometry'
+import type { InstancedMesh } from './instanced-mesh'
+import type { InstancedSprite } from './instanced-sprite'
 import type { Line } from './line'
 import type { MeshLambertMaterial } from './material'
 import type { Mesh } from './mesh'
@@ -179,6 +181,148 @@ struct VSOut {
 }
 `
 
+// ─── Instanced mesh shader (Lambert + shadow + per-instance transform/color) ─
+
+const INSTANCED_MESH_SHADER = /* wgsl */ `
+struct Scene {
+  viewProj: mat4x4f,
+  lightDir: vec4f,
+  ambient: vec4f,
+  lightColor: vec4f,
+  lightViewProj: mat4x4f,
+  shadowParams: vec4f,
+}
+
+struct ObjectData { model: mat4x4f, color: vec4f }
+struct InstanceData { model: mat4x4f, color: vec4f }
+
+@group(0) @binding(0) var<uniform> scene: Scene;
+@group(0) @binding(1) var shadowMap: texture_depth_2d;
+@group(0) @binding(2) var shadowSampler: sampler_comparison;
+@group(1) @binding(0) var<storage, read> objectData: ObjectData;
+@group(2) @binding(0) var<storage, read> instances: array<InstanceData>;
+
+struct VSOut {
+  @builtin(position) pos: vec4f,
+  @location(0) normal: vec3f,
+  @location(1) color: vec3f,
+  @location(2) shadowCoord: vec3f,
+}
+
+@vertex fn vs(
+  @location(0) position: vec3f,
+  @location(1) normal: vec3f,
+  @builtin(instance_index) iid: u32,
+) -> VSOut {
+  let inst = instances[iid];
+  let worldModel = objectData.model * inst.model;
+  let worldPos = worldModel * vec4f(position, 1.0);
+  let lightClip = scene.lightViewProj * worldPos;
+  var out: VSOut;
+  out.pos = scene.viewProj * worldPos;
+  out.normal = normalize((worldModel * vec4f(normal, 0.0)).xyz);
+  out.color = select(objectData.color.rgb, inst.color.rgb, inst.color.a > 0.0);
+  out.shadowCoord = vec3f(
+    lightClip.x * 0.5 + 0.5,
+    lightClip.y * -0.5 + 0.5,
+    lightClip.z,
+  );
+  return out;
+}
+
+@fragment fn fs(in: VSOut) -> @location(0) vec4f {
+  let n = normalize(in.normal);
+  let light = max(dot(n, scene.lightDir.xyz), 0.0);
+
+  var shadow = 1.0;
+  if (scene.shadowParams.x > 0.0) {
+    let bias = scene.shadowParams.y;
+    let texel = scene.shadowParams.z;
+    let c = in.shadowCoord;
+    shadow = (
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f(-texel, -texel), c.z - bias) +
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f( texel, -texel), c.z - bias) +
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f(-texel,  texel), c.z - bias) +
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f( texel,  texel), c.z - bias)
+    ) * 0.25;
+  }
+
+  let color = in.color * (scene.ambient.rgb + scene.lightColor.rgb * light * shadow);
+  return vec4f(color, 1.0);
+}
+`
+
+// ─── Instanced shadow shader ─────────────────────────────────────────
+
+const INSTANCED_SHADOW_SHADER = /* wgsl */ `
+struct ObjectData { model: mat4x4f, color: vec4f }
+struct InstanceData { model: mat4x4f, color: vec4f }
+
+@group(0) @binding(0) var<uniform> lightViewProj: mat4x4f;
+@group(1) @binding(0) var<storage, read> objectData: ObjectData;
+@group(2) @binding(0) var<storage, read> instances: array<InstanceData>;
+
+@vertex fn vs(
+  @location(0) position: vec3f,
+  @location(1) _normal: vec3f,
+  @builtin(instance_index) iid: u32,
+) -> @builtin(position) vec4f {
+  return lightViewProj * objectData.model * instances[iid].model * vec4f(position, 1.0);
+}
+`
+
+// ─── Instanced sprite shader (GPU billboard + per-instance pos/size/color) ───
+
+const INSTANCED_SPRITE_SHADER = /* wgsl */ `
+struct Scene {
+  viewProj: mat4x4f,
+  lightDir: vec4f,
+  ambient: vec4f,
+  lightColor: vec4f,
+  lightViewProj: mat4x4f,
+  shadowParams: vec4f,
+  cameraRight: vec4f,
+  cameraUp: vec4f,
+}
+
+struct ObjectData { model: mat4x4f, color: vec4f }
+struct SpriteInstance { position: vec3f, size: f32, color: vec3f, alpha: f32 }
+
+@group(0) @binding(0) var<uniform> scene: Scene;
+@group(0) @binding(1) var shadowMap: texture_depth_2d;
+@group(0) @binding(2) var shadowSampler: sampler_comparison;
+@group(1) @binding(0) var<storage, read> objectData: ObjectData;
+@group(2) @binding(0) var<storage, read> instances: array<SpriteInstance>;
+
+struct VSOut {
+  @builtin(position) pos: vec4f,
+  @location(0) color: vec4f,
+}
+
+@vertex fn vs(
+  @location(0) quadPos: vec3f,
+  @location(1) _normal: vec3f,
+  @builtin(instance_index) iid: u32,
+) -> VSOut {
+  let inst = instances[iid];
+  // Extract uniform scale from model matrix (length of first column)
+  let col0 = objectData.model[0].xyz;
+  let parentScale = length(col0);
+  let worldSize = inst.size * parentScale;
+  let worldPos = (objectData.model * vec4f(inst.position, 1.0)).xyz
+    + scene.cameraRight.xyz * quadPos.x * worldSize
+    + scene.cameraUp.xyz    * quadPos.y * worldSize;
+  var out: VSOut;
+  out.pos = scene.viewProj * vec4f(worldPos, 1.0);
+  out.color = vec4f(inst.color, inst.alpha);
+  return out;
+}
+
+@fragment fn fs(in: VSOut) -> @location(0) vec4f {
+  return in.color;
+}
+`
+
 // ─── Constants ────────────────────────────────────────────────────────
 
 const OBJECT_FLOATS = 20
@@ -186,8 +330,9 @@ const INITIAL_CAPACITY = 1024
 const SHADOW_MAP_SIZE = 2048
 const SHADOW_BIAS = 0.003
 
-// viewProj(16) + lightDir(4) + ambient(4) + lightColor(4) + lightViewProj(16) + shadowParams(4) = 48
-const SCENE_FLOATS = 48
+// viewProj(16) + lightDir(4) + ambient(4) + lightColor(4) + lightViewProj(16) + shadowParams(4)
+// + cameraRight(4) + cameraUp(4) = 56
+const SCENE_FLOATS = 56
 
 const VERTEX_BUFFER_LAYOUT: GPUVertexBufferLayout = {
   arrayStride: 24,
@@ -231,6 +376,17 @@ export class WebGPURenderer {
   private spriteNormalPipeline!: GPURenderPipeline
   private spriteAdditivePipeline!: GPURenderPipeline
   private spriteGeometry: PlaneGeometry | null = null
+  // Instanced mesh pipelines
+  private instancedMeshPipeline!: GPURenderPipeline
+  private instancedMeshPipelineFront!: GPURenderPipeline
+  private instancedMeshPipelineDouble!: GPURenderPipeline
+  private instancedShadowPipeline!: GPURenderPipeline
+  private instanceLayout!: GPUBindGroupLayout
+  private instancedPipelineLayout!: GPUPipelineLayout
+  private instancedShadowPipelineLayout!: GPUPipelineLayout
+  // Instanced sprite pipelines (GPU billboard, alpha-blended)
+  private instancedSpriteNormalPipeline!: GPURenderPipeline
+  private instancedSpriteAdditivePipeline!: GPURenderPipeline
 
   // Main depth buffer
   private depthTexture!: GPUTexture
@@ -375,6 +531,21 @@ export class WebGPURenderer {
     this.shadowPipelineLayout = this.device.createPipelineLayout({
       bindGroupLayouts: [this.shadowSceneLayout, this.objectLayout],
     })
+    this.instanceLayout = this.device.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.VERTEX,
+          buffer: { type: 'read-only-storage' },
+        },
+      ],
+    })
+    this.instancedPipelineLayout = this.device.createPipelineLayout({
+      bindGroupLayouts: [this.sceneLayout, this.objectLayout, this.instanceLayout],
+    })
+    this.instancedShadowPipelineLayout = this.device.createPipelineLayout({
+      bindGroupLayouts: [this.shadowSceneLayout, this.objectLayout, this.instanceLayout],
+    })
   }
 
   private createShadowResources() {
@@ -478,6 +649,49 @@ export class WebGPURenderer {
     )
     this.spriteAdditivePipeline = this.device.createRenderPipeline(
       spriteDesc({
+        color: { srcFactor: 'src-alpha', dstFactor: 'one', operation: 'add' },
+        alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
+      }),
+    )
+
+    // Instanced mesh pipelines (Lambert + per-instance transform/color)
+    const instancedShader = this.device.createShaderModule({ code: INSTANCED_MESH_SHADER })
+    const instancedDesc = (cullMode: GPUCullMode) => ({
+      layout: this.instancedPipelineLayout,
+      vertex: { module: instancedShader, entryPoint: 'vs', buffers: [VERTEX_BUFFER_LAYOUT] },
+      fragment: { module: instancedShader, entryPoint: 'fs', targets: [{ format: this.format }] },
+      primitive: { topology: 'triangle-list' as GPUPrimitiveTopology, cullMode },
+      depthStencil: DEPTH_STENCIL,
+    })
+    this.instancedMeshPipeline = this.device.createRenderPipeline(instancedDesc('back'))
+    this.instancedMeshPipelineFront = this.device.createRenderPipeline(instancedDesc('front'))
+    this.instancedMeshPipelineDouble = this.device.createRenderPipeline(instancedDesc('none'))
+
+    const instancedShadowShader = this.device.createShaderModule({ code: INSTANCED_SHADOW_SHADER })
+    this.instancedShadowPipeline = this.device.createRenderPipeline({
+      layout: this.instancedShadowPipelineLayout,
+      vertex: { module: instancedShadowShader, entryPoint: 'vs', buffers: [VERTEX_BUFFER_LAYOUT] },
+      primitive: { topology: 'triangle-list', cullMode: 'back' },
+      depthStencil: SHADOW_DEPTH_STENCIL,
+    })
+
+    // Instanced sprite pipelines (GPU billboard, alpha-blended, depth-write off)
+    const iSpriteShader = this.device.createShaderModule({ code: INSTANCED_SPRITE_SHADER })
+    const iSpriteDesc = (blend: GPUBlendState) => ({
+      layout: this.instancedPipelineLayout,
+      vertex: { module: iSpriteShader, entryPoint: 'vs', buffers: [VERTEX_BUFFER_LAYOUT] },
+      fragment: { module: iSpriteShader, entryPoint: 'fs', targets: [{ format: this.format, blend }] },
+      primitive: { topology: 'triangle-list' as GPUPrimitiveTopology, cullMode: 'none' as GPUCullMode },
+      depthStencil: SPRITE_DEPTH,
+    })
+    this.instancedSpriteNormalPipeline = this.device.createRenderPipeline(
+      iSpriteDesc({
+        color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+        alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+      }),
+    )
+    this.instancedSpriteAdditivePipeline = this.device.createRenderPipeline(
+      iSpriteDesc({
         color: { srcFactor: 'src-alpha', dstFactor: 'one', operation: 'add' },
         alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
       }),
@@ -631,14 +845,26 @@ export class WebGPURenderer {
     }
 
     const solidCount = solidMeshes.length
+    const instancedMeshes = scene.instancedMeshes
+    const instancedCount = instancedMeshes.length
     const basicCount = basicMeshes.length
     const wireCount = wireframeMeshes.length
     const customCount = customMeshes.length
     const lineCount = lines.length
     const normalSpriteCount = normalSprites.length
     const additiveSpriteCount = additiveSprites.length
+    const instancedSprites = scene.instancedSprites
+    const instancedSpriteCount = instancedSprites.length
     const totalCount =
-      solidCount + basicCount + wireCount + customCount + lineCount + normalSpriteCount + additiveSpriteCount
+      solidCount +
+      instancedCount +
+      basicCount +
+      wireCount +
+      customCount +
+      lineCount +
+      normalSpriteCount +
+      additiveSpriteCount +
+      instancedSpriteCount
     if (totalCount === 0) return
 
     if (totalCount > this.capacity) this.grow(totalCount)
@@ -684,13 +910,27 @@ export class WebGPURenderer {
     sd[45] = SHADOW_BIAS
     sd[46] = 1 / SHADOW_MAP_SIZE
     sd[47] = 0
+    // Camera right/up vectors for GPU billboard (from camera world matrix, column-major)
+    const cm = camera._worldMatrix
+    sd[48] = cm[0]
+    sd[49] = cm[1]
+    sd[50] = cm[2]
+    sd[51] = 0
+    sd[52] = cm[4]
+    sd[53] = cm[5]
+    sd[54] = cm[6]
+    sd[55] = 0
     this.device.queue.writeBuffer(this.sceneBuffer, 0, sd)
 
     // ── Stage object data (world matrices already computed by updateMatrixWorld) ──
-    // Order: solid, basic, wireframe, custom, lines, normalSprites, additiveSprites
+    // Order: solid, instanced, basic, wireframe, custom, lines, normalSprites, additiveSprites, instancedSprites
     let idx = 0
     for (let i = 0; i < solidCount; i++, idx++) {
       const m = solidMeshes[i]
+      this.writeObjectData(idx, m._worldMatrix, m.material.color.r, m.material.color.g, m.material.color.b)
+    }
+    for (let i = 0; i < instancedCount; i++, idx++) {
+      const m = instancedMeshes[i]
       this.writeObjectData(idx, m._worldMatrix, m.material.color.r, m.material.color.g, m.material.color.b)
     }
     for (let i = 0; i < basicCount; i++, idx++) {
@@ -758,10 +998,17 @@ export class WebGPURenderer {
         this.objectStaging[off + 19] = s.material.opacity
       }
     }
+    // Stage instanced sprite world matrices (one slot per InstancedSprite)
+    for (let i = 0; i < instancedSpriteCount; i++, idx++) {
+      const is = instancedSprites[i]
+      this.writeObjectData(idx, is._worldMatrix, 1, 1, 1)
+    }
     this.device.queue.writeBuffer(this.objectBuffer, 0, this.objectStaging.buffer, 0, totalCount * this.objectStride)
 
     for (let i = 0; i < customCount; i++)
       (customMeshes[i].material as ShaderMaterial)._ensureGPU(this.device, this.customUniformLayout)
+    for (let i = 0; i < instancedCount; i++) instancedMeshes[i]._ensureGPU(this.device, this.instanceLayout)
+    for (let i = 0; i < instancedSpriteCount; i++) instancedSprites[i]._ensureGPU(this.device, this.instanceLayout)
 
     const encoder = this.device.createCommandEncoder()
 
@@ -788,7 +1035,30 @@ export class WebGPURenderer {
         this.info.triangles += (geo._indexCount / 3) | 0
       }
 
-      const customBase = solidCount + wireCount
+      // Instanced mesh shadows
+      if (instancedCount > 0) {
+        sp.setPipeline(this.instancedShadowPipeline)
+        const instBase = solidCount
+        for (let i = 0; i < instancedCount; i++) {
+          const im = instancedMeshes[i]
+          if (!im.castShadow) continue
+          const geo = im.geometry
+          if (geo !== curGeo) {
+            curGeo = geo
+            geo._ensureGPU(this.device)
+            sp.setVertexBuffer(0, geo._vertexBuffer!)
+            sp.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
+          }
+          sp.setBindGroup(1, this.objectBindGroup, [(instBase + i) * this.objectStride])
+          sp.setBindGroup(2, im._instanceBindGroup!)
+          sp.drawIndexed(geo._indexCount, im.count)
+          this.info.drawCalls++
+          this.info.triangles += ((geo._indexCount / 3) | 0) * im.count
+        }
+        sp.setPipeline(this.shadowPipeline)
+      }
+
+      const customBase = solidCount + instancedCount + basicCount + wireCount
       for (let i = 0; i < customCount; i++) {
         const mesh = customMeshes[i]
         if (!mesh.castShadow || (mesh.material as ShaderMaterial).wireframe) continue
@@ -844,11 +1114,36 @@ export class WebGPURenderer {
       }
     }
 
-    // 2: basic (unlit) meshes
+    // 2: instanced meshes (one draw call per InstancedMesh, N instances each)
+    if (instancedCount > 0) {
+      const base = solidCount
+      for (let i = 0; i < instancedCount; i++) {
+        const im = instancedMeshes[i]
+        const mat = im.material as MeshLambertMaterial
+        const pipeline =
+          mat.side === BackSide
+            ? this.instancedMeshPipelineFront
+            : mat.side === DoubleSide
+              ? this.instancedMeshPipelineDouble
+              : this.instancedMeshPipeline
+        pass.setPipeline(pipeline)
+        const geo = im.geometry
+        geo._ensureGPU(this.device)
+        pass.setVertexBuffer(0, geo._vertexBuffer!)
+        pass.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
+        pass.setBindGroup(1, this.objectBindGroup, [(base + i) * this.objectStride])
+        pass.setBindGroup(2, im._instanceBindGroup!)
+        pass.drawIndexed(geo._indexCount, im.count)
+        this.info.drawCalls++
+        this.info.triangles += ((geo._indexCount / 3) | 0) * im.count
+      }
+    }
+
+    // 3: basic (unlit) meshes
     if (basicCount > 0) {
       let curPipeline: GPURenderPipeline | null = null
       let curGeo: BufferGeometry | null = null
-      const base = solidCount
+      const base = solidCount + instancedCount
       for (let i = 0; i < basicCount; i++) {
         const mat = basicMeshes[i].material as MeshBasicMaterial
         const pipeline =
@@ -876,10 +1171,10 @@ export class WebGPURenderer {
       }
     }
 
-    // 3: wireframe meshes
+    // 4: wireframe meshes
     if (wireCount > 0) {
       pass.setPipeline(this.wireframePipeline)
-      const base = solidCount + basicCount
+      const base = solidCount + instancedCount + basicCount
       let curGeo: BufferGeometry | null = null
       for (let i = 0; i < wireCount; i++) {
         const geo = wireframeMeshes[i].geometry
@@ -895,9 +1190,9 @@ export class WebGPURenderer {
       }
     }
 
-    // 4: custom shader meshes
+    // 5: custom shader meshes
     if (customCount > 0) {
-      const base = solidCount + basicCount + wireCount
+      const base = solidCount + instancedCount + basicCount + wireCount
       let curPipeline: GPURenderPipeline | null = null
       let curGeo: BufferGeometry | null = null
       for (let i = 0; i < customCount; i++) {
@@ -931,10 +1226,10 @@ export class WebGPURenderer {
       }
     }
 
-    // 5: lines
+    // 6: lines
     if (lineCount > 0) {
       pass.setPipeline(this.linePipeline)
-      const base = solidCount + basicCount + wireCount + customCount
+      const base = solidCount + instancedCount + basicCount + wireCount + customCount
       let curGeo: BufferGeometry | null = null
       for (let i = 0; i < lineCount; i++) {
         const geo = lines[i].geometry
@@ -951,7 +1246,7 @@ export class WebGPURenderer {
       }
     }
 
-    // 6: sprites (alpha-blended, rendered after all opaque geometry)
+    // 7: sprites (alpha-blended, rendered after all opaque geometry)
     if (normalSpriteCount + additiveSpriteCount > 0) {
       if (!this.spriteGeometry) this.spriteGeometry = new PlaneGeometry(1, 1)
       const geo = this.spriteGeometry
@@ -959,7 +1254,7 @@ export class WebGPURenderer {
       pass.setVertexBuffer(0, geo._vertexBuffer!)
       pass.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
 
-      const spriteBase = solidCount + basicCount + wireCount + customCount + lineCount
+      const spriteBase = solidCount + instancedCount + basicCount + wireCount + customCount + lineCount
       if (normalSpriteCount > 0) {
         pass.setPipeline(this.spriteNormalPipeline)
         for (let i = 0; i < normalSpriteCount; i++) {
@@ -977,6 +1272,37 @@ export class WebGPURenderer {
           this.info.drawCalls++
           this.info.triangles += 2
         }
+      }
+    }
+
+    // 8: instanced sprites (GPU billboard, one draw call per InstancedSprite)
+    if (instancedSpriteCount > 0) {
+      if (!this.spriteGeometry) this.spriteGeometry = new PlaneGeometry(1, 1)
+      const geo = this.spriteGeometry
+      geo._ensureGPU(this.device)
+      pass.setVertexBuffer(0, geo._vertexBuffer!)
+      pass.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
+
+      const iSpriteBase =
+        solidCount +
+        instancedCount +
+        basicCount +
+        wireCount +
+        customCount +
+        lineCount +
+        normalSpriteCount +
+        additiveSpriteCount
+      for (let i = 0; i < instancedSpriteCount; i++) {
+        const is = instancedSprites[i]
+        if (is.count === 0) continue
+        const pipeline =
+          is.blending === AdditiveBlending ? this.instancedSpriteAdditivePipeline : this.instancedSpriteNormalPipeline
+        pass.setPipeline(pipeline)
+        pass.setBindGroup(1, this.objectBindGroup, [(iSpriteBase + i) * this.objectStride])
+        pass.setBindGroup(2, is._instanceBindGroup!)
+        pass.drawIndexed(geo._indexCount, is.count)
+        this.info.drawCalls++
+        this.info.triangles += 2 * is.count
       }
     }
 
