@@ -2,6 +2,8 @@ import { flattenEntities } from '../scene-data.ts'
 
 import type { SceneData, SceneEntity } from '../scene-data.ts'
 
+export const SCENE_ENTITY_ID = '__scene'
+
 export interface CompatWarning {
   entityId: string
   entityName: string
@@ -9,42 +11,27 @@ export interface CompatWarning {
   message: string
 }
 
+type RendererName = 'three' | 'voidcore'
+type PhysicsName = 'rapier' | 'crashcat' | 'none'
+
 /**
  * Checks a scene for features that are not supported by the current adapter configuration.
  * Returns a list of warnings for entities using unsupported features.
  */
-export function checkCompatibility(sceneData: SceneData | null, renderer: string, physics: string): CompatWarning[] {
+export function checkCompatibility(
+  sceneData: SceneData | null,
+  renderer: RendererName | string,
+  physics: PhysicsName | string,
+): CompatWarning[] {
   if (!sceneData) return []
   const warnings: CompatWarning[] = []
-  const entities = flattenEntities(sceneData.entities)
 
-  for (const entity of entities) {
-    checkEntityCompat(entity, renderer, physics, warnings)
-  }
-
-  // Scene-level checks
-  if (renderer !== 'three') {
-    if (sceneData.skybox?.source) {
-      warnings.push({
-        entityId: '__scene',
-        entityName: 'Scene',
-        feature: 'Skybox',
-        message: 'Skybox / environment maps are only supported with Three.js renderer',
-      })
+  // Entity-level checks (single pass)
+  for (const entity of flattenEntities(sceneData.entities)) {
+    if (renderer !== 'three') {
+      checkRendererCompat(entity, warnings)
     }
-    if (sceneData.postProcessing?.bloom) {
-      warnings.push({
-        entityId: '__scene',
-        entityName: 'Scene',
-        feature: 'Post-Processing',
-        message: 'Bloom post-processing is only supported with Three.js renderer',
-      })
-    }
-  }
-
-  // Physics-level checks
-  if (physics === 'none') {
-    for (const entity of entities) {
+    if (physics === 'none') {
       if (entity.rigidBody) {
         warnings.push({
           entityId: entity.id,
@@ -62,61 +49,64 @@ export function checkCompatibility(sceneData: SceneData | null, renderer: string
         })
       }
     }
+    if (physics === 'crashcat' && entity.collider?.sensor) {
+      warnings.push({
+        entityId: entity.id,
+        entityName: entity.name,
+        feature: 'Sensor',
+        message: `"${entity.name}" uses sensor collider — Crashcat has no native sensor support (body will still collide physically)`,
+      })
+    }
   }
 
-  if (physics === 'crashcat') {
-    for (const entity of entities) {
-      if (entity.collider?.sensor) {
-        warnings.push({
-          entityId: entity.id,
-          entityName: entity.name,
-          feature: 'Sensor',
-          message: `"${entity.name}" uses sensor collider — Crashcat has no native sensor support (body will still collide physically)`,
-        })
-      }
+  // Scene-level checks
+  if (renderer !== 'three') {
+    if (sceneData.skybox?.source) {
+      warnings.push({
+        entityId: SCENE_ENTITY_ID,
+        entityName: 'Scene',
+        feature: 'Skybox',
+        message: 'Skybox / environment maps are only supported with Three.js renderer',
+      })
+    }
+    if (sceneData.postProcessing?.bloom) {
+      warnings.push({
+        entityId: SCENE_ENTITY_ID,
+        entityName: 'Scene',
+        feature: 'Post-Processing',
+        message: 'Bloom post-processing is only supported with Three.js renderer',
+      })
     }
   }
 
   return warnings
 }
 
-function checkEntityCompat(entity: SceneEntity, renderer: string, _physics: string, warnings: CompatWarning[]): void {
-  if (renderer !== 'three') {
-    // PBR material properties (VoidCore only supports Lambert)
-    const mat = entity.mesh?.material ?? entity.model?.material
-    if (mat) {
-      if (mat.metalness !== undefined && mat.metalness !== 0) {
-        warnings.push({
-          entityId: entity.id,
-          entityName: entity.name,
-          feature: 'PBR Material',
-          message: `"${entity.name}" uses metalness — PBR materials are only supported with Three.js renderer`,
-        })
-      } else if (mat.roughness !== undefined && mat.roughness !== 0.5) {
-        warnings.push({
-          entityId: entity.id,
-          entityName: entity.name,
-          feature: 'PBR Material',
-          message: `"${entity.name}" uses custom roughness — PBR materials are only supported with Three.js renderer`,
-        })
-      } else if (mat.normalMap || mat.roughnessMap || mat.metalnessMap) {
-        warnings.push({
-          entityId: entity.id,
-          entityName: entity.name,
-          feature: 'PBR Material',
-          message: `"${entity.name}" uses PBR texture maps — only supported with Three.js renderer`,
-        })
-      }
-    }
-
-    // Point lights (VoidCore has no point light)
-    if (entity.type === 'point-light') {
+function checkRendererCompat(entity: SceneEntity, warnings: CompatWarning[]): void {
+  const mat = entity.mesh?.material ?? entity.model?.material
+  if (mat) {
+    const hasPBR =
+      (mat.metalness !== undefined && mat.metalness !== 0) ||
+      (mat.roughness !== undefined && mat.roughness !== 0.5) ||
+      mat.normalMap ||
+      mat.roughnessMap ||
+      mat.metalnessMap
+    if (hasPBR) {
       warnings.push({
         entityId: entity.id,
         entityName: entity.name,
-        feature: 'Point Light',
-        message: `"${entity.name}" is a point light — not supported in VoidCore renderer`,
+        feature: 'PBR Material',
+        message: `"${entity.name}" uses PBR material properties — only supported with Three.js renderer`,
       })
     }
+  }
+
+  if (entity.type === 'point-light') {
+    warnings.push({
+      entityId: entity.id,
+      entityName: entity.name,
+      feature: 'Point Light',
+      message: `"${entity.name}" is a point light — not supported in VoidCore renderer`,
+    })
   }
 }

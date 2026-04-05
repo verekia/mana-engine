@@ -124,17 +124,23 @@ function loadTexture(
   }
 }
 
+type TextureSlot = 'map' | 'emissiveMap' | 'normalMap' | 'roughnessMap' | 'metalnessMap'
+
+const TEXTURE_SLOTS: TextureSlot[] = ['map', 'emissiveMap', 'normalMap', 'roughnessMap', 'metalnessMap']
+
+function loadMaterialTextures(material: MeshStandardMaterial, mat: MaterialData, renderer?: WebGPURenderer) {
+  for (const slot of TEXTURE_SLOTS) {
+    const path = mat[slot]
+    if (path) loadTexture(path, material, slot, renderer)
+  }
+}
+
 export function applyMaterialData(material: MeshStandardMaterial, mat?: MaterialData, renderer?: WebGPURenderer) {
   material.color.set(mat?.color ?? '#4488ff')
   material.metalness = mat?.metalness ?? 0
   material.roughness = mat?.roughness ?? 0.5
   if (mat?.emissiveColor) material.emissive.set(mat.emissiveColor)
-  if (!mat) return
-  if (mat.map) loadTexture(mat.map, material, 'map', renderer)
-  if (mat.emissiveMap) loadTexture(mat.emissiveMap, material, 'emissiveMap', renderer)
-  if (mat.normalMap) loadTexture(mat.normalMap, material, 'normalMap', renderer)
-  if (mat.roughnessMap) loadTexture(mat.roughnessMap, material, 'roughnessMap', renderer)
-  if (mat.metalnessMap) loadTexture(mat.metalnessMap, material, 'metalnessMap', renderer)
+  if (mat) loadMaterialTextures(material, mat, renderer)
 }
 
 /** Apply a material override to all meshes in a model group — only overrides fields that are explicitly set. */
@@ -146,21 +152,13 @@ export function applyModelMaterialOverride(group: Group, mat: MaterialData, rend
       if (mat.metalness !== undefined) m.metalness = mat.metalness
       if (mat.roughness !== undefined) m.roughness = mat.roughness
       if (mat.emissiveColor) m.emissive.set(mat.emissiveColor)
-      if (mat.map) loadTexture(mat.map, m, 'map', renderer)
-      if (mat.emissiveMap) loadTexture(mat.emissiveMap, m, 'emissiveMap', renderer)
-      if (mat.normalMap) loadTexture(mat.normalMap, m, 'normalMap', renderer)
-      if (mat.roughnessMap) loadTexture(mat.roughnessMap, m, 'roughnessMap', renderer)
-      if (mat.metalnessMap) loadTexture(mat.metalnessMap, m, 'metalnessMap', renderer)
+      loadMaterialTextures(m, mat, renderer)
     }
   })
 }
 
 function disposeMaterial(material: MeshStandardMaterial) {
-  material.map?.dispose()
-  material.emissiveMap?.dispose()
-  material.normalMap?.dispose()
-  material.roughnessMap?.dispose()
-  material.metalnessMap?.dispose()
+  for (const slot of TEXTURE_SLOTS) (material[slot] as { dispose(): void } | null)?.dispose()
   material.dispose()
 }
 

@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
 
 import { COLORS } from './colors.ts'
-
-import type { CompatWarning } from './compat.ts'
+import { SCENE_ENTITY_ID, type CompatWarning } from './compat.ts'
+import { Popover } from './Popover.tsx'
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
 const MOD_KEY = isMac ? '\u2318' : 'Ctrl'
@@ -307,7 +307,7 @@ function CompatWarningButton({
   const btnRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <div style={{ position: 'relative' }}>
+    <>
       <button
         ref={btnRef}
         onClick={() => setOpen(v => !v)}
@@ -336,71 +336,48 @@ function CompatWarningButton({
         {warnings.length}
       </button>
       {open && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={() => setOpen(false)} />
+        <Popover anchorRef={btnRef} onClose={() => setOpen(false)} width={340}>
           <div
             style={{
-              position: 'absolute',
-              top: '100%',
-              right: 0,
-              marginTop: 4,
-              background: COLORS.panel,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: 6,
-              width: 340,
-              maxHeight: 300,
-              overflow: 'auto',
-              zIndex: 1000,
-              boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+              padding: '6px 10px',
+              fontSize: 10,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              color: '#f59e0b',
+              borderBottom: `1px solid ${COLORS.border}`,
             }}
           >
-            <div
+            Compatibility Warnings ({warnings.length})
+          </div>
+          {warnings.map(w => (
+            <button
+              key={`${w.entityId}-${w.feature}`}
+              onClick={() => {
+                if (w.entityId !== SCENE_ENTITY_ID) onSelect?.(w.entityId)
+                setOpen(false)
+              }}
+              className="mana-hover"
               style={{
-                padding: '6px 10px',
-                fontSize: 10,
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                color: '#f59e0b',
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                background: 'none',
+                border: 'none',
                 borderBottom: `1px solid ${COLORS.border}`,
+                padding: '6px 10px',
+                color: COLORS.text,
+                fontSize: 11,
+                fontFamily: 'inherit',
+                cursor: w.entityId !== SCENE_ENTITY_ID ? 'pointer' : 'default',
               }}
             >
-              Compatibility Warnings ({warnings.length})
-            </div>
-            {warnings.map(w => (
-              <button
-                key={`${w.entityId}-${w.feature}`}
-                onClick={() => {
-                  if (w.entityId !== '__scene') onSelect?.(w.entityId)
-                  setOpen(false)
-                }}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  textAlign: 'left',
-                  background: 'none',
-                  border: 'none',
-                  borderBottom: `1px solid ${COLORS.border}`,
-                  padding: '6px 10px',
-                  color: COLORS.text,
-                  fontSize: 11,
-                  fontFamily: 'inherit',
-                  cursor: w.entityId !== '__scene' ? 'pointer' : 'default',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = COLORS.hover
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = 'none'
-                }}
-              >
-                <div style={{ fontWeight: 600, fontSize: 10, color: '#f59e0b', marginBottom: 2 }}>{w.feature}</div>
-                <div style={{ color: COLORS.textMuted }}>{w.message}</div>
-              </button>
-            ))}
-          </div>
-        </>
+              <div style={{ fontWeight: 600, fontSize: 10, color: '#f59e0b', marginBottom: 2 }}>{w.feature}</div>
+              <div style={{ color: COLORS.textMuted }}>{w.message}</div>
+            </button>
+          ))}
+        </Popover>
       )}
-    </div>
+    </>
   )
 }

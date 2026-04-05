@@ -80,11 +80,9 @@ export class ThreeRendererAdapter implements RendererAdapter {
 
   // Skybox / environment map
   private envTexture: Texture | null = null
+  private envSource: string | null = null
 
-  // Post-processing (play mode bloom)
-  private bloomPass: any = null
-  private postProcessingPipeline: any = null
-  private postProcessingSettings: PostProcessingData | undefined = undefined
+  private postProcessingPipeline: RenderPipeline | null = null
 
   // Composed helpers
   private animation!: ThreeAnimationHelper
@@ -181,7 +179,6 @@ export class ThreeRendererAdapter implements RendererAdapter {
     if (this.postProcessingPipeline) {
       this.postProcessingPipeline.dispose()
       this.postProcessingPipeline = null
-      this.bloomPass = null
     }
 
     for (const wireframe of this.maps.debugWireframes.values()) {
@@ -229,11 +226,8 @@ export class ThreeRendererAdapter implements RendererAdapter {
       this.sceneRoot.add(this.editor.gridHelper)
     }
 
-    // Skybox / environment map
-    this.applySkybox(sceneData.skybox)
+    if (sceneData.skybox?.source) this.loadSkyboxHDR(sceneData.skybox)
 
-    // Post-processing (play mode only — editor uses its own outline pipeline)
-    this.postProcessingSettings = sceneData.postProcessing
     if (!this.editor) {
       this.setupPostProcessing(sceneData.postProcessing)
     }
@@ -279,31 +273,38 @@ export class ThreeRendererAdapter implements RendererAdapter {
 
   // ── Skybox / Environment Map ───��──────────────────────────────────────────
 
-  private applySkybox(skybox?: SkyboxData): void {
-    // Clean up previous env texture
+  private applySkyboxParams(skybox: SkyboxData): void {
+    this.threeScene.environmentIntensity = skybox.intensity ?? 1
+    if (skybox.showBackground !== false && this.envTexture) {
+      this.threeScene.background = this.envTexture
+      this.threeScene.backgroundBlurriness = skybox.backgroundBlur ?? 0
+    } else if (skybox.showBackground === false) {
+      if (this.threeScene.background === this.envTexture) {
+        this.threeScene.background = new Color('#111111')
+      }
+    }
+  }
+
+  private loadSkyboxHDR(skybox: SkyboxData): void {
     if (this.envTexture) {
       this.envTexture.dispose()
       this.envTexture = null
       this.threeScene.environment = null
     }
+    this.envSource = skybox.source ?? null
 
-    if (!skybox?.source) return
+    if (!skybox.source) return
 
     const url = resolveAsset(skybox.source)
     import('three/examples/jsm/loaders/RGBELoader.js')
       .then(({ RGBELoader }) => {
-        const loader = new RGBELoader()
-        loader.load(
+        new RGBELoader().load(
           url,
           texture => {
             texture.mapping = EquirectangularReflectionMapping
             this.envTexture = texture
             this.threeScene.environment = texture
-            this.threeScene.environmentIntensity = skybox.intensity ?? 1
-            if (skybox.showBackground !== false) {
-              this.threeScene.background = texture
-              this.threeScene.backgroundBlurriness = skybox.backgroundBlur ?? 0
-            }
+            this.applySkyboxParams(skybox)
           },
           undefined,
           err => console.warn(`[mana] Failed to load skybox HDR "${skybox.source}":`, err),
@@ -313,29 +314,39 @@ export class ThreeRendererAdapter implements RendererAdapter {
   }
 
   updateBackground(color: string): void {
-    // Only update if no skybox is showing as background
     if (!this.envTexture || !this.threeScene.background || this.threeScene.background instanceof Color) {
       this.threeScene.background = new Color(color)
     }
   }
 
   updateSkybox(skybox: SkyboxData | undefined): void {
-    this.applySkybox(skybox)
+    if (!skybox?.source) {
+      if (this.envTexture) {
+        this.envTexture.dispose()
+        this.envTexture = null
+        this.threeScene.environment = null
+      }
+      this.envSource = null
+      return
+    }
+    // Only reload the HDR file when the source path changed
+    if (skybox.source !== this.envSource) {
+      this.loadSkyboxHDR(skybox)
+    } else {
+      this.applySkyboxParams(skybox)
+    }
   }
 
   // ── Post-processing (bloom) ─────────────────────���────────────────────────���
 
   private setupPostProcessing(settings?: PostProcessingData): void {
-    // Dispose previous pipeline
     if (this.postProcessingPipeline) {
       this.postProcessingPipeline.dispose()
       this.postProcessingPipeline = null
-      this.bloomPass = null
     }
 
     if (!settings?.bloom) return
 
-    // Three.js WebGPU TSL-based bloom post-processing
     Promise.all([import('three/tsl'), import('three/examples/jsm/tsl/display/BloomNode.js')])
       .then(([{ pass }, { bloom }]) => {
         const scenePass = pass(this.threeScene, this.camera)
@@ -349,13 +360,11 @@ export class ThreeRendererAdapter implements RendererAdapter {
         const pipeline = new RenderPipeline(this.renderer)
         pipeline.outputNode = scenePassColor.add(bloomResult)
         this.postProcessingPipeline = pipeline
-        this.bloomPass = bloomResult
       })
       .catch(err => console.warn('[mana] Failed to setup bloom post-processing:', err))
   }
 
   updatePostProcessing(settings: PostProcessingData | undefined): void {
-    this.postProcessingSettings = settings
     if (!this.editor) {
       this.setupPostProcessing(settings)
     }
