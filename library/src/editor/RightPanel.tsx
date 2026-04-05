@@ -8,13 +8,26 @@ import { CheckboxInput, ColorInput, NumberInput, SectionLabel, SelectInput, Text
 import type { MaterialData, MeshData, SceneData, SceneEntity } from '../scene-data.ts'
 import type { ManaScript } from '../script.ts'
 
-const TEXTURE_MAP_FIELDS: { label: string; key: keyof MaterialData }[] = [
-  { label: 'Albedo Map', key: 'map' },
-  { label: 'Emissive Map', key: 'emissiveMap' },
-  { label: 'Normal Map', key: 'normalMap' },
-  { label: 'Roughness Map', key: 'roughnessMap' },
-  { label: 'Metalness Map', key: 'metalnessMap' },
-]
+function AdapterBadge({ label }: { label: string }) {
+  return (
+    <span
+      style={{
+        fontSize: 8,
+        fontWeight: 600,
+        color: '#6b7280',
+        background: '#374151',
+        padding: '1px 4px',
+        borderRadius: 3,
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+        marginLeft: 4,
+        verticalAlign: 'middle',
+      }}
+    >
+      {label}
+    </span>
+  )
+}
 
 const LS_KEY = 'mana:inspectorCollapsed'
 
@@ -140,6 +153,35 @@ function MaterialEditor({ material, onChange }: { material: MaterialData; onChan
         value={material.color ?? '#888888'}
         onChange={v => onChange({ ...material, color: v })}
       />
+      <TextInput
+        label="Albedo Map"
+        value={material.map ?? ''}
+        onChange={v => onChange({ ...material, map: v || undefined })}
+      />
+      <TextInput
+        label="Emissive Map"
+        value={material.emissiveMap ?? ''}
+        onChange={v => onChange({ ...material, emissiveMap: v || undefined })}
+      />
+      <ColorInput
+        label="Emissive"
+        value={material.emissiveColor ?? '#000000'}
+        onChange={v => onChange({ ...material, emissiveColor: v === '#000000' ? undefined : v })}
+      />
+      <div
+        style={{
+          color: '#6b7280',
+          fontSize: 9,
+          fontWeight: 600,
+          marginTop: 6,
+          marginBottom: 2,
+          display: 'flex',
+          alignItems: 'center',
+        }}
+      >
+        PBR
+        <AdapterBadge label="Three.js" />
+      </div>
       <NumberInput
         label="Metalness"
         value={material.metalness ?? 0}
@@ -152,19 +194,21 @@ function MaterialEditor({ material, onChange }: { material: MaterialData; onChan
         step={0.05}
         onChange={v => onChange({ ...material, roughness: v })}
       />
-      <ColorInput
-        label="Emissive"
-        value={material.emissiveColor ?? '#000000'}
-        onChange={v => onChange({ ...material, emissiveColor: v === '#000000' ? undefined : v })}
+      <TextInput
+        label="Normal Map"
+        value={material.normalMap ?? ''}
+        onChange={v => onChange({ ...material, normalMap: v || undefined })}
       />
-      {TEXTURE_MAP_FIELDS.map(({ label, key }) => (
-        <TextInput
-          key={key}
-          label={label}
-          value={(material[key] as string) ?? ''}
-          onChange={v => onChange({ ...material, [key]: v || undefined })}
-        />
-      ))}
+      <TextInput
+        label="Roughness Map"
+        value={material.roughnessMap ?? ''}
+        onChange={v => onChange({ ...material, roughnessMap: v || undefined })}
+      />
+      <TextInput
+        label="Metalness Map"
+        value={material.metalnessMap ?? ''}
+        onChange={v => onChange({ ...material, metalnessMap: v || undefined })}
+      />
     </>
   )
 }
@@ -445,6 +489,7 @@ function SceneSettingsEditor({
 
       <SectionLabel collapsed={false} onToggle={() => {}}>
         Skybox / Environment
+        <AdapterBadge label="Three.js" />
       </SectionLabel>
       <TextInput
         label="HDR Source"
@@ -471,6 +516,7 @@ function SceneSettingsEditor({
 
       <SectionLabel collapsed={false} onToggle={() => {}}>
         Post-Processing
+        <AdapterBadge label="Three.js" />
       </SectionLabel>
       <CheckboxInput
         label="Bloom"

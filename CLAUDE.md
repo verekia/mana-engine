@@ -325,7 +325,7 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 ## Editor
 
 - `mana editor` launches a full editor with hierarchy, inspector, viewport, and asset browser panels
-- Editor source is split into modular components: `Editor.tsx` (main), `Toolbar.tsx`, `Viewport.tsx`, `LeftPanel.tsx`, `RightPanel.tsx`, `BottomPanel.tsx`, `widgets.tsx`, `colors.ts`, `icons.tsx`, `ResizeHandle.tsx`, `scene-api.ts`, `history.ts`
+- Editor source is split into modular components: `Editor.tsx` (main), `Toolbar.tsx`, `Viewport.tsx`, `LeftPanel.tsx`, `RightPanel.tsx`, `BottomPanel.tsx`, `widgets.tsx`, `colors.ts`, `icons.tsx`, `ResizeHandle.tsx`, `scene-api.ts`, `history.ts`, `compat.ts`
 - Editor reads/writes scene YAML files via a Vite middleware API (`/__mana/scenes/:name`) — the API speaks JSON over the wire, the server converts to/from YAML at the file I/O boundary
 - Asset browser in bottom panel browses `game/assets/` via `/__mana/assets?path=` API
 - `assetsApiPlugin` lists files/folders with type detection, path traversal prevention, and sorted output (folders first)
@@ -377,6 +377,11 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - The editor entry auto-imports discovered `uiComponents`, `scripts`, and `prefabs` (no `game/index.tsx` needed)
 - Left panel has two tabs: "Scenes" (scene list + entity hierarchy) and "Prefabs" (prefab list with create/rename/delete)
 - Prefab editing mode: green toolbar with "PREFAB: name" label, "Back" button, auto-generated camera/lights, Cmd+S saves prefab data
+- Adapter compatibility warnings: `compat.ts` checks scene data against the active renderer/physics adapter and produces warnings for unsupported features (e.g. PBR materials with VoidCore, sensor colliders with Crashcat, skybox/bloom without Three.js)
+  - Toolbar shows an amber warning triangle with count when incompatibilities exist; clicking it opens a popover listing all warnings
+  - Clicking a warning selects the offending entity in the hierarchy
+  - Inspector shows `AdapterBadge` labels (e.g. "THREE.JS") on adapter-specific sections (Skybox, Post-Processing, PBR)
+  - `rendererName` and `physicsName` strings are passed from the CLI-generated entry file to the Editor component
 
 ## Scene Switching API
 

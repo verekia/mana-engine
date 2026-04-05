@@ -312,3 +312,13 @@ export function IconChevronDown() {
     </svg>
   )
 }
+
+export function IconWarning() {
+  return (
+    <svg {...svgProps} viewBox="0 0 16 16">
+      <path d="M8 1.5L1 14h14L8 1.5z" fill="currentColor" stroke="none" />
+      <path d="M8 6v4" stroke="#000" strokeWidth={2} />
+      <circle cx={8} cy={12} r={0.8} fill="#000" stroke="none" />
+    </svg>
+  )
+}

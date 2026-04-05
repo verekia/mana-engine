@@ -109,6 +109,10 @@ function generateAdapterCode(config: ManaConfig): string {
   const renderer = config.renderer ?? 'three'
   const physics = config.physics ?? 'rapier'
 
+  // Adapter name strings (for editor compatibility warnings)
+  lines.push(`const rendererName = ${JSON.stringify(renderer)}`)
+  lines.push(`const physicsName = ${JSON.stringify(physics)}`)
+
   // Renderer import + factory
   if (renderer === 'three') {
     lines.push(`import { ThreeRendererAdapter } from 'mana-engine/game'`)
@@ -392,7 +396,7 @@ async function runEditor() {
       ``,
       generateGameImports({ ...game, scenes: [] }),
       ``,
-      `createRoot(document.getElementById('editor')!).render(createElement(Editor, { uiComponents, scripts, prefabs, createRenderer, createPhysics, coordinateSystem }))`,
+      `createRoot(document.getElementById('editor')!).render(createElement(Editor, { uiComponents, scripts, prefabs, createRenderer, createPhysics, coordinateSystem, rendererName, physicsName }))`,
     ].join('\n'),
   )
 
