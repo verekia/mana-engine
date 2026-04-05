@@ -65,12 +65,13 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
   - `FrontSide` (default), `BackSide`, `DoubleSide` constants control GPU cullMode per-mesh; renderer creates 3 pipeline variants
   - Lights: `AmbientLight` + `DirectionalLight` with shadow mapping (2048x2048, PCF) — no point lights
   - Raycasting: `Raycaster` class with Möller–Trumbore ray-triangle intersection; supports `setFromCamera(ndc, camera)` (NDC unproject) and `set(origin, direction)` (world-space); tests against mesh geometry using inverse world matrices
-  - No GLTF/model loading, no animations, no particles
+  - Particles: `Sprite` + `SpriteMaterial` classes with billboard rendering (camera-facing quads), alpha blending (normal + additive), soft circle fragment shader; `NanothreeParticleHelper` manages CPU-driven emitters identical to VoidCore pattern
+  - No GLTF/model loading, no animations
   - Editor: `Raycaster`-based click-to-select, invert-hull outline selection (BackSide + 1.06× scale in outline color), interactive `TransformGizmo` (solid mesh handles: cones for translate, tori for rotate, cubes for scale — with raycasting, hover highlight, click-drag, snap support), `CameraHelper`, `DirectionalLightHelper`, grid, collider wireframes (sphere, capsule, box)
   - Manual orbit controls (mouse drag to rotate, right-drag to pan, scroll to zoom) — nanothree has no built-in orbit controls
   - Euler angles throughout (no quaternion storage on Object3D) — quaternion↔euler conversion in physics sync
   - Camera: `lookAt()` sets euler rotation (like Three.js), view matrix = inverse(worldMatrix); standalone cameras auto-compute world matrix in `updateViewProjection()`
-  - `compat.ts` warnings: GLTF models, particles, textures, point lights
+  - `compat.ts` warnings: GLTF models, textures, point lights
 - `RapierPhysicsAdapter` wraps Rapier 3D world setup, rigid body/collider creation, and transform readback
 - `CrashcatPhysicsAdapter` wraps Crashcat — a pure-JS physics engine (no WASM, synchronous init)
   - Shapes: box (`halfExtents`), sphere (`radius`), capsule (`halfHeightOfCylinder` + `radius`)

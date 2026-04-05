@@ -132,13 +132,5 @@ function checkRendererCompat(entity: SceneEntity, renderer: RendererName | strin
         message: `"${entity.name}" is a GLTF model — not supported in nanothree renderer`,
       })
     }
-    if (entity.type === 'particles') {
-      warnings.push({
-        entityId: entity.id,
-        entityName: entity.name,
-        feature: 'Particles',
-        message: `"${entity.name}" uses particles — not supported in nanothree renderer`,
-      })
-    }
   }
 }

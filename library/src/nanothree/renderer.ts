@@ -8,9 +8,11 @@
 //    c. Custom shader meshes (per-ShaderMaterial WGSL)
 //    d. Lines (line-list, unlit flat color)
 
+import { PlaneGeometry } from './geometry'
 import { BackSide, DoubleSide, MeshBasicMaterial } from './material'
 import { mat4Ortho, mat4LookAt, mat4Multiply } from './math'
 import { ShaderMaterial } from './shader-material'
+import { AdditiveBlending } from './sprite'
 
 import type { PerspectiveCamera } from './core'
 import type { BufferGeometry } from './geometry'
@@ -18,6 +20,7 @@ import type { Line } from './line'
 import type { MeshLambertMaterial } from './material'
 import type { Mesh } from './mesh'
 import type { Scene } from './scene'
+import type { Sprite } from './sprite'
 
 // ─── Shadow depth pass shader (vertex-only) ───────────────────────────
 
@@ -139,6 +142,43 @@ struct VSOut {
 }
 `
 
+// ─── Sprite shader (unlit, alpha blending) ───────────────────────────
+
+const SPRITE_SHADER = /* wgsl */ `
+struct Scene {
+  viewProj: mat4x4f,
+  lightDir: vec4f,
+  ambient: vec4f,
+  lightColor: vec4f,
+}
+
+struct ObjectData { model: mat4x4f, color: vec4f }
+
+@group(0) @binding(0) var<uniform> scene: Scene;
+@group(0) @binding(1) var shadowMap: texture_depth_2d;
+@group(0) @binding(2) var shadowSampler: sampler_comparison;
+@group(1) @binding(0) var<storage, read> objectData: ObjectData;
+
+struct VSOut {
+  @builtin(position) pos: vec4f,
+  @location(0) color: vec4f,
+}
+
+@vertex fn vs(
+  @location(0) position: vec3f,
+  @location(1) _normal: vec3f,
+) -> VSOut {
+  var out: VSOut;
+  out.pos = scene.viewProj * objectData.model * vec4f(position, 1.0);
+  out.color = objectData.color;
+  return out;
+}
+
+@fragment fn fs(in: VSOut) -> @location(0) vec4f {
+  return in.color;
+}
+`
+
 // ─── Constants ────────────────────────────────────────────────────────
 
 const OBJECT_FLOATS = 20
@@ -187,6 +227,10 @@ export class WebGPURenderer {
   private basicPipelineDouble!: GPURenderPipeline
   private wireframePipeline!: GPURenderPipeline
   private linePipeline!: GPURenderPipeline
+  // Sprite pipelines (alpha-blended, depth-write off)
+  private spriteNormalPipeline!: GPURenderPipeline
+  private spriteAdditivePipeline!: GPURenderPipeline
+  private spriteGeometry: PlaneGeometry | null = null
 
   // Main depth buffer
   private depthTexture!: GPUTexture
@@ -415,6 +459,29 @@ export class WebGPURenderer {
       primitive: { topology: 'line-list', cullMode: 'none' },
       depthStencil: DEPTH_STENCIL,
     })
+
+    // Sprite pipelines: alpha-blended, depth-write disabled, double-sided
+    const spriteShader = this.device.createShaderModule({ code: SPRITE_SHADER })
+    const SPRITE_DEPTH: GPUDepthStencilState = { format: 'depth24plus', depthWriteEnabled: false, depthCompare: 'less' }
+    const spriteDesc = (blend: GPUBlendState) => ({
+      layout: this.standardPipelineLayout,
+      vertex: { module: spriteShader, entryPoint: 'vs', buffers: [VERTEX_BUFFER_LAYOUT] },
+      fragment: { module: spriteShader, entryPoint: 'fs', targets: [{ format: this.format, blend }] },
+      primitive: { topology: 'triangle-list' as GPUPrimitiveTopology, cullMode: 'none' as GPUCullMode },
+      depthStencil: SPRITE_DEPTH,
+    })
+    this.spriteNormalPipeline = this.device.createRenderPipeline(
+      spriteDesc({
+        color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+        alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+      }),
+    )
+    this.spriteAdditivePipeline = this.device.createRenderPipeline(
+      spriteDesc({
+        color: { srcFactor: 'src-alpha', dstFactor: 'one', operation: 'add' },
+        alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
+      }),
+    )
   }
 
   private getOrCreateCustomPipeline(material: ShaderMaterial): GPURenderPipeline {
@@ -540,12 +607,25 @@ export class WebGPURenderer {
     }
     for (let i = 0; i < scene.lines.length; i++) lines.push(scene.lines[i])
 
+    // Split transparent sprites by blending mode (opaque sprites are ignored for now)
+    const normalSprites: Sprite[] = []
+    const additiveSprites: Sprite[] = []
+    for (let i = 0; i < scene.sprites.length; i++) {
+      const s = scene.sprites[i]
+      if (!s.material.transparent) continue
+      if (s.material.blending === AdditiveBlending) additiveSprites.push(s)
+      else normalSprites.push(s)
+    }
+
     const solidCount = solidMeshes.length
     const basicCount = basicMeshes.length
     const wireCount = wireframeMeshes.length
     const customCount = customMeshes.length
     const lineCount = lines.length
-    const totalCount = solidCount + basicCount + wireCount + customCount + lineCount
+    const normalSpriteCount = normalSprites.length
+    const additiveSpriteCount = additiveSprites.length
+    const totalCount =
+      solidCount + basicCount + wireCount + customCount + lineCount + normalSpriteCount + additiveSpriteCount
     if (totalCount === 0) return
 
     // Resize
@@ -605,7 +685,7 @@ export class WebGPURenderer {
     this.device.queue.writeBuffer(this.sceneBuffer, 0, sd)
 
     // ── Stage object data (world matrices already computed by updateMatrixWorld) ──
-    // Order: solid, basic, wireframe, custom, lines
+    // Order: solid, basic, wireframe, custom, lines, normalSprites, additiveSprites
     let idx = 0
     for (let i = 0; i < solidCount; i++, idx++) {
       const m = solidMeshes[i]
@@ -626,6 +706,55 @@ export class WebGPURenderer {
     for (let i = 0; i < lineCount; i++, idx++) {
       const l = lines[i]
       this.writeObjectData(idx, l._worldMatrix, l.material.color.r, l.material.color.g, l.material.color.b)
+    }
+    // Stage sprite data with billboard matrices
+    const spriteList = normalSprites.concat(additiveSprites)
+    if (spriteList.length > 0) {
+      // Camera right/up/forward from camera world matrix (column-major)
+      const cm = camera._worldMatrix
+      const crx = cm[0],
+        cry = cm[1],
+        crz = cm[2] // right
+      const cux = cm[4],
+        cuy = cm[5],
+        cuz = cm[6] // up
+      const cfx = cm[8],
+        cfy = cm[9],
+        cfz = cm[10] // forward
+
+      for (let i = 0; i < spriteList.length; i++, idx++) {
+        const s = spriteList[i]
+        const m = s._worldMatrix
+        // Extract world position
+        const px = m[12],
+          py = m[13],
+          pz = m[14]
+        // Extract uniform scale (length of first column)
+        const sx = Math.sqrt(m[0] * m[0] + m[1] * m[1] + m[2] * m[2])
+        const sy = Math.sqrt(m[4] * m[4] + m[5] * m[5] + m[6] * m[6])
+        // Build billboard matrix (column-major)
+        const off = idx * this.objectFloatStride
+        this.objectStaging[off] = crx * sx
+        this.objectStaging[off + 1] = cry * sx
+        this.objectStaging[off + 2] = crz * sx
+        this.objectStaging[off + 3] = 0
+        this.objectStaging[off + 4] = cux * sy
+        this.objectStaging[off + 5] = cuy * sy
+        this.objectStaging[off + 6] = cuz * sy
+        this.objectStaging[off + 7] = 0
+        this.objectStaging[off + 8] = cfx
+        this.objectStaging[off + 9] = cfy
+        this.objectStaging[off + 10] = cfz
+        this.objectStaging[off + 11] = 0
+        this.objectStaging[off + 12] = px
+        this.objectStaging[off + 13] = py
+        this.objectStaging[off + 14] = pz
+        this.objectStaging[off + 15] = 1
+        this.objectStaging[off + 16] = s.material.color.r
+        this.objectStaging[off + 17] = s.material.color.g
+        this.objectStaging[off + 18] = s.material.color.b
+        this.objectStaging[off + 19] = s.material.opacity
+      }
     }
     this.device.queue.writeBuffer(this.objectBuffer, 0, this.objectStaging.buffer, 0, totalCount * this.objectStride)
 
@@ -817,6 +946,35 @@ export class WebGPURenderer {
         if (geo._indexCount > 0) pass.drawIndexed(geo._indexCount)
         else pass.draw(geo._vertexCount)
         this.info.drawCalls++
+      }
+    }
+
+    // 6: sprites (alpha-blended, rendered after all opaque geometry)
+    if (normalSpriteCount + additiveSpriteCount > 0) {
+      if (!this.spriteGeometry) this.spriteGeometry = new PlaneGeometry(1, 1)
+      const geo = this.spriteGeometry
+      geo._ensureGPU(this.device)
+      pass.setVertexBuffer(0, geo._vertexBuffer!)
+      pass.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
+
+      const spriteBase = solidCount + basicCount + wireCount + customCount + lineCount
+      if (normalSpriteCount > 0) {
+        pass.setPipeline(this.spriteNormalPipeline)
+        for (let i = 0; i < normalSpriteCount; i++) {
+          pass.setBindGroup(1, this.objectBindGroup, [(spriteBase + i) * this.objectStride])
+          pass.drawIndexed(geo._indexCount)
+          this.info.drawCalls++
+          this.info.triangles += 2
+        }
+      }
+      if (additiveSpriteCount > 0) {
+        pass.setPipeline(this.spriteAdditivePipeline)
+        for (let i = 0; i < additiveSpriteCount; i++) {
+          pass.setBindGroup(1, this.objectBindGroup, [(spriteBase + normalSpriteCount + i) * this.objectStride])
+          pass.drawIndexed(geo._indexCount)
+          this.info.drawCalls++
+          this.info.triangles += 2
+        }
       }
     }
 

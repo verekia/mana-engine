@@ -98,6 +98,7 @@ bun editor
 - **Color & opacity interpolation** — Start/end values linearly interpolated over particle lifetime
 - **Three.js adapter** — GPU-friendly `Points` + `BufferGeometry` with TSL `SpriteNodeMaterial` for size attenuation and alpha blending
 - **VoidCore adapter** — Pool of `Sprite` billboard objects with CPU-driven updates
+- **nanothree adapter** — Billboard `Sprite` quads with alpha-blended WebGPU pipelines (normal + additive), soft circle shader, CPU-driven updates
 - **Script API** — `ctx.emitParticleBurst(count?)` for triggering bursts, `ctx.resetParticles()` for restarting emitters
 - **Editor support** — Full inspector panel with all particle properties, "Particles" entry in Add Entity menu
 
@@ -461,4 +462,4 @@ Features that the Three.js adapter supports today but VoidCore does not yet impl
 
 ### Performance
 
-- **Instanced particle rendering** — Three.js renders all particles in a single draw call using `Points` + `BufferGeometry` with per-particle GPU attributes; VoidCore uses individual `Sprite` objects with CPU-driven updates (N draw calls vs 1)
+- **Instanced particle rendering** — Three.js renders all particles in a single draw call using `Points` + `BufferGeometry` with per-particle GPU attributes; VoidCore and nanothree use individual `Sprite` objects with CPU-driven updates (N draw calls vs 1)

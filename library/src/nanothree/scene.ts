@@ -6,11 +6,13 @@ import { mat4Identity } from './math'
 import type { AmbientLight, DirectionalLight } from './light'
 import type { Line } from './line'
 import type { Mesh } from './mesh'
+import type { Sprite } from './sprite'
 
 export class Scene extends Object3D {
   // Flat lists rebuilt each frame by updateMatrixWorld()
   readonly meshes: Mesh[] = []
   readonly lines: Line[] = []
+  readonly sprites: Sprite[] = []
   readonly ambientLights: AmbientLight[] = []
   readonly directionalLights: DirectionalLight[] = []
 
@@ -30,6 +32,7 @@ export class Scene extends Object3D {
   updateMatrixWorld() {
     this.meshes.length = 0
     this.lines.length = 0
+    this.sprites.length = 0
     this.ambientLights.length = 0
     this.directionalLights.length = 0
     this._traverseChildren(this._worldMatrix, this.children)
@@ -43,7 +46,9 @@ export class Scene extends Object3D {
       child._updateWorldMatrix(parentWorld)
 
       // Classify
-      if ((child as any).isMesh) {
+      if ((child as any).isSprite) {
+        this.sprites.push(child as unknown as Sprite)
+      } else if ((child as any).isMesh) {
         this.meshes.push(child as Mesh)
       } else if ((child as any).isLine) {
         this.lines.push(child as Line)

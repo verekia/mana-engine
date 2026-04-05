@@ -13,6 +13,7 @@ import {
   WebGPURenderer,
 } from '../../nanothree/index.ts'
 import { createNanothreeEntity, updateNanothreeEntity } from './nanothree-entity.ts'
+import { NanothreeParticleHelper } from './nanothree-particles.ts'
 import { createGridGroup, hexToColor } from './nanothree-utils.ts'
 
 import type { SceneData, SceneEntity } from '../../scene-data.ts'
@@ -40,8 +41,8 @@ import type { NanothreeEntityState } from './nanothree-entity.ts'
  * - Camera, Object3D hierarchy
  * - Editor: transform gizmo (visual), grid, collider wireframes, light helpers
  *
- * Not supported: GLTF models, animations, particles, raycasting, point lights,
- * textures, PBR materials, skybox, post-processing, sphere/plane/capsule geometry.
+ * Not supported: GLTF models, animations, point lights,
+ * textures, PBR materials, skybox, post-processing.
  */
 export class NanothreeRendererAdapter implements RendererAdapter {
   private renderer!: WebGPURenderer
@@ -64,6 +65,7 @@ export class NanothreeRendererAdapter implements RendererAdapter {
   private raycaster = new Raycaster()
   /** Invert-hull outline meshes per selected entity (BackSide, scaled up). */
   private outlineMeshes = new Map<string, Mesh>()
+  private particleHelper = new NanothreeParticleHelper()
 
   // Simple orbit camera state (manual implementation since nanothree has no built-in orbit controls)
   private orbitTarget = { x: 0, y: 0, z: 0 }
@@ -242,6 +244,7 @@ export class NanothreeRendererAdapter implements RendererAdapter {
       },
       debugWireframes: this.debugWireframes,
       lightHelpers: this.lightHelpers,
+      particleHelper: this.particleHelper,
     }
   }
 
@@ -257,6 +260,7 @@ export class NanothreeRendererAdapter implements RendererAdapter {
 
   removeEntity(id: string): void {
     this.removeOutline(id)
+    this.particleHelper.removeEmitter(id)
     const obj = this.entityObjects.get(id)
     if (obj) {
       this.selectedIds.delete(id)
@@ -382,11 +386,17 @@ export class NanothreeRendererAdapter implements RendererAdapter {
   }
   updateAnimations(_dt: number): void {}
 
-  // ── Particle stubs (nanothree has no particle support) ───────────────
+  // ── Particles ────────────────────────────────────────────────────────
 
-  updateParticles(_dt: number): void {}
-  emitParticleBurst(_entityId: string, _count?: number): void {}
-  resetParticles(_entityId: string): void {}
+  updateParticles(dt: number): void {
+    this.particleHelper.update(dt)
+  }
+  emitParticleBurst(entityId: string, count?: number): void {
+    this.particleHelper.emitParticleBurst(entityId, count)
+  }
+  resetParticles(entityId: string): void {
+    this.particleHelper.resetParticles(entityId)
+  }
 
   // ── Raycasting ──────────────────────────────────────────────────────
 

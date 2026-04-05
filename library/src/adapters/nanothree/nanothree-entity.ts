@@ -19,6 +19,7 @@ import {
 import { applyTransform, createColliderWireframe, hexToColor } from './nanothree-utils.ts'
 
 import type { SceneEntity } from '../../scene-data.ts'
+import type { NanothreeParticleHelper } from './nanothree-particles.ts'
 
 /** Shared state passed from the adapter to entity creation functions. */
 export interface NanothreeEntityState {
@@ -30,6 +31,7 @@ export interface NanothreeEntityState {
   setGameCam: (cam: PerspectiveCamera) => void
   debugWireframes: Map<string, Object3D>
   lightHelpers: Map<string, DirectionalLightHelper | CameraHelper>
+  particleHelper: NanothreeParticleHelper
 }
 
 /**
@@ -148,9 +150,13 @@ export function createNanothreeEntity(entity: SceneEntity, parent: Object3D, sta
       break
     }
 
-    case 'point-light':
-    case 'particles': {
+    case 'point-light': {
       // Not supported — empty Group placeholder
+      obj = new Group()
+      break
+    }
+
+    case 'particles': {
       obj = new Group()
       break
     }
@@ -168,6 +174,11 @@ export function createNanothreeEntity(entity: SceneEntity, parent: Object3D, sta
   applyTransform(obj, entity.transform)
   parent.add(obj)
   state.entityObjects.set(entity.id, obj)
+
+  // Particle emitter
+  if (entity.type === 'particles') {
+    state.particleHelper.addEmitter(entity.id, entity.particles, obj)
+  }
 
   // Collider wireframe (editor mode only)
   if (entity.collider && state.enableOrbitControls) {
