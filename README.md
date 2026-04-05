@@ -77,7 +77,7 @@ bun editor
 
 - **Pluggable physics** — Choose between Rapier 3D (WASM) or Crashcat (pure JS) via `mana.json`
 - **3 rigid body types** — `dynamic`, `fixed`, `kinematic`
-- **3 collider shapes** — `box`, `sphere`, `capsule`
+- **4 collider shapes** — `box`, `sphere`, `capsule`, `cylinder`
 - **Sensor/trigger volumes** — Colliders with `sensor: true` detect overlaps without physical response
 - **Collision events** — `onCollisionEnter`/`onCollisionExit` callbacks on scripts, works with both adapters
 - **Rotation locking** — Per-axis `[x, y, z]` rotation lock on rigid bodies
@@ -191,14 +191,14 @@ The engine is decoupled from any specific 3D renderer or physics library. Choose
 
 ### Physics Adapters
 
-| Feature              | Rapier 3D                 | Crashcat                           |
-| -------------------- | ------------------------- | ---------------------------------- |
-| **Runtime**          | WASM (async init)         | Pure JS (sync init)                |
-| **Body types**       | dynamic, fixed, kinematic | dynamic, fixed (static), kinematic |
-| **Collider shapes**  | box, sphere, capsule      | box, sphere, capsule               |
-| **Rotation locking** | Per-axis [x, y, z]        | Per-axis [x, y, z]                 |
-| **Sleeping bodies**  | Handled by Rapier         | Skipped in getTransforms           |
-| **Gravity**          | -9.81 Y (hardcoded)       | Default world gravity              |
+| Feature              | Rapier 3D                      | Crashcat                           |
+| -------------------- | ------------------------------ | ---------------------------------- |
+| **Runtime**          | WASM (async init)              | Pure JS (sync init)                |
+| **Body types**       | dynamic, fixed, kinematic      | dynamic, fixed (static), kinematic |
+| **Collider shapes**  | box, sphere, capsule, cylinder | box, sphere, capsule, cylinder     |
+| **Rotation locking** | Per-axis [x, y, z]             | Per-axis [x, y, z]                 |
+| **Sleeping bodies**  | Handled by Rapier              | Skipped in getTransforms           |
+| **Gravity**          | -9.81 Y (hardcoded)            | Default world gravity              |
 
 ### Adapter-Agnostic Script API (`ScriptContext`)
 
@@ -259,7 +259,6 @@ Exposed via `ctx.rigidBody` — works with both Rapier and Crashcat:
 These features are not yet implemented in the shared abstraction or any adapter:
 
 - **Joint/constraint system** — Hinge, ball, fixed, prismatic joints between bodies
-- **Cylinder collider** — Supported as a geometry but not as a collider shape
 - **Standard/PBR material** — Roughness, metalness, normal maps (only Lambert exists)
 - **Spot light** — Cone-shaped light source
 - **Positional audio** — 3D spatialized sound sources attached to entities

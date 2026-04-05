@@ -5,6 +5,7 @@ import {
   CameraHelper,
   CapsuleGeometry,
   ConeGeometry,
+  CylinderGeometry,
   DirectionalLight,
   DirectionalLightHelper,
   EdgesGeometry,
@@ -90,6 +91,12 @@ export function createColliderWireframe(collider: ColliderData): LineSegments {
       const r = collider.radius ?? 0.5
       const hh = collider.halfHeight ?? 0.5
       geometry = new EdgesGeometry(new CapsuleGeometry(r, hh * 2, 8, 16))
+      break
+    }
+    case 'cylinder': {
+      const r = collider.radius ?? 0.5
+      const hh = collider.halfHeight ?? 0.5
+      geometry = new EdgesGeometry(new CylinderGeometry(r, r, hh * 2, 16))
       break
     }
     default: {

@@ -2,6 +2,7 @@ import {
   BasicMaterial,
   BoxGeometry,
   CapsuleGeometry,
+  CylinderGeometry,
   Engine,
   Geometry,
   Group,
@@ -182,7 +183,7 @@ export function addQuad(
 
 /** Create a transparent green wireframe-style mesh for a collider shape. */
 export function createColliderWireframe(collider: ColliderData, isYUp: boolean): Node {
-  let geometry: BoxGeometry | SphereGeometry | CapsuleGeometry
+  let geometry: BoxGeometry | SphereGeometry | CapsuleGeometry | CylinderGeometry
   let needsCapsuleRotation = false
 
   switch (collider.shape) {
@@ -196,6 +197,12 @@ export function createColliderWireframe(collider: ColliderData, isYUp: boolean):
       const hh = collider.halfHeight ?? 0.5
       geometry = new CapsuleGeometry({ radius: r, height: hh * 2 })
       needsCapsuleRotation = true
+      break
+    }
+    case 'cylinder': {
+      const r = collider.radius ?? 0.5
+      const hh = collider.halfHeight ?? 0.5
+      geometry = new CylinderGeometry({ radiusTop: r, radiusBottom: r, height: hh * 2, radialSegments: 16 })
       break
     }
     default: {

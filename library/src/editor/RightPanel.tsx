@@ -336,6 +336,8 @@ function getAddComponentOptions(
           return { shape: 'sphere', radius: 0.5 }
         case 'capsule':
           return { shape: 'capsule', radius: 0.5, halfHeight: 0.5 }
+        case 'cone':
+          return { shape: 'cylinder', radius: 0.5, halfHeight: 0.5 }
         default:
           return { shape: 'box', halfExtents: [0.5, 0.5, 0.5] }
       }
@@ -1202,13 +1204,13 @@ export function RightPanel({
                     <SelectInput
                       label="Shape"
                       value={entity.collider.shape}
-                      options={['box', 'sphere', 'capsule']}
+                      options={['box', 'sphere', 'capsule', 'cylinder']}
                       onChange={v =>
                         onUpdate({
                           ...entity,
                           collider: {
                             ...entity.collider,
-                            shape: v as 'box' | 'sphere' | 'capsule',
+                            shape: v as 'box' | 'sphere' | 'capsule' | 'cylinder',
                           },
                         })
                       }
@@ -1234,7 +1236,7 @@ export function RightPanel({
                         }}
                       />
                     )}
-                    {entity.collider.shape === 'capsule' && (
+                    {(entity.collider.shape === 'capsule' || entity.collider.shape === 'cylinder') && (
                       <NumberInput
                         label="Half Height"
                         value={entity.collider.halfHeight ?? 0.5}

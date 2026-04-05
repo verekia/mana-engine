@@ -54,7 +54,7 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
     - Screen-constant sizing, axis hover highlighting, click capture to prevent deselection
     - Drag uses ray-axis/ray-plane intersection in scene-local space (sceneRoot inverse transform)
     - Snap-to-grid support: translate snaps to grid increments, rotate snaps to angle steps, scale snaps to scale steps
-  - Collider wireframe gizmos: semi-transparent green meshes (box, sphere, capsule) shown when gizmos are enabled, synced with entity transforms
+  - Collider wireframe gizmos: semi-transparent green meshes (box, sphere, capsule, cylinder) shown when gizmos are enabled, synced with entity transforms
   - No light helper gizmos
   - Uses `Engine.create()` for async WebGPU init with WebGL2 fallback
 - `NanothreeRendererAdapter` wraps nanothree — a lightweight pure-WebGPU renderer with Three.js-compatible API
@@ -72,14 +72,14 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
   - `TextureLoader` caches textures by URL; `clearTextureCache()` disposes all cached textures
   - All geometries include UV coordinates for texture mapping
   - No animations (animation methods are stubs)
-  - Editor: `Raycaster`-based click-to-select, invert-hull outline selection (BackSide + 1.06× scale in outline color), interactive `TransformGizmo` (solid mesh handles: cones for translate, tori for rotate, cubes for scale — with raycasting, hover highlight, click-drag, snap support), `CameraHelper`, `DirectionalLightHelper`, grid, collider wireframes (sphere, capsule, box)
+  - Editor: `Raycaster`-based click-to-select, invert-hull outline selection (BackSide + 1.06× scale in outline color), interactive `TransformGizmo` (solid mesh handles: cones for translate, tori for rotate, cubes for scale — with raycasting, hover highlight, click-drag, snap support), `CameraHelper`, `DirectionalLightHelper`, grid, collider wireframes (sphere, capsule, box, cylinder)
   - Manual orbit controls (mouse drag to rotate, right-drag to pan, scroll to zoom) — nanothree has no built-in orbit controls
   - Euler angles throughout (no quaternion storage on Object3D) — quaternion↔euler conversion in physics sync
   - Camera: `lookAt()` sets euler rotation (like Three.js), view matrix = inverse(worldMatrix); standalone cameras auto-compute world matrix in `updateViewProjection()`
   - `compat.ts` warnings: advanced texture maps (emissive/normal/roughness/metalness), point lights
 - `RapierPhysicsAdapter` wraps Rapier 3D world setup, rigid body/collider creation, and transform readback
 - `CrashcatPhysicsAdapter` wraps Crashcat — a pure-JS physics engine (no WASM, synchronous init)
-  - Shapes: box (`halfExtents`), sphere (`radius`), capsule (`halfHeightOfCylinder` + `radius`)
+  - Shapes: box (`halfExtents`), sphere (`radius`), capsule (`halfHeightOfCylinder` + `radius`), cylinder (`halfHeight` + `radius`)
   - Motion types: static, kinematic, dynamic; DOF rotation locking via `lockRotation`
   - `getTransforms()` skips sleeping bodies for efficiency
   - Uses two-layer broadphase: static and dynamic object layers

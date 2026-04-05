@@ -1,4 +1,4 @@
-import { box, capsule, dof, MotionType, rigidBody, sphere } from 'crashcat'
+import { box, capsule, cylinder, dof, MotionType, rigidBody, sphere } from 'crashcat'
 
 import type { RigidBody, World } from 'crashcat'
 
@@ -69,6 +69,11 @@ export function createShape(entity: SceneEntity) {
       case 'capsule':
         return capsule.create({
           halfHeightOfCylinder: entity.collider.halfHeight ?? 0.5,
+          radius: entity.collider.radius ?? 0.5,
+        })
+      case 'cylinder':
+        return cylinder.create({
+          halfHeight: entity.collider.halfHeight ?? 0.5,
           radius: entity.collider.radius ?? 0.5,
         })
       default: {
