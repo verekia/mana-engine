@@ -1,6 +1,6 @@
 // Core scene graph types for nanothree
 
-import { mat4Perspective, mat4Multiply, mat4ComposeTRS, mat4Invert } from './math'
+import { mat4Perspective, mat4Ortho, mat4Multiply, mat4ComposeTRS, mat4Invert } from './math'
 
 export class Color {
   r: number
@@ -163,6 +163,13 @@ export class PerspectiveCamera extends Object3D {
   private view = new Float32Array(16)
   readonly viewProjection = new Float32Array(16)
 
+  /**
+   * When set, `updateViewProjection` uses orthographic projection instead of
+   * perspective. Set to `null` to return to perspective mode.
+   * Values: `{ left, right, bottom, top }`
+   */
+  orthoOverride: { left: number; right: number; bottom: number; top: number } | null = null
+
   get fov() {
     return this._fov * (180 / Math.PI)
   }
@@ -245,7 +252,12 @@ export class PerspectiveCamera extends Object3D {
    */
   updateViewProjection(aspect?: number) {
     if (aspect !== undefined) this.aspect = aspect
-    mat4Perspective(this.proj, this._fov, this.aspect, this._near, this._far)
+    if (this.orthoOverride) {
+      const o = this.orthoOverride
+      mat4Ortho(this.proj, o.left, o.right, o.bottom, o.top, this._near, this._far)
+    } else {
+      mat4Perspective(this.proj, this._fov, this.aspect, this._near, this._far)
+    }
 
     // Ensure world matrix is current for standalone cameras (no parent).
     // Scene-graph cameras already have _worldMatrix set by updateMatrixWorld().

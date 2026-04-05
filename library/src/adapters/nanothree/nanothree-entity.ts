@@ -7,6 +7,7 @@ import {
   CircleGeometry,
   Color,
   ConeGeometry,
+  CylinderGeometry,
   DirectionalLight,
   DirectionalLightHelper,
   GLTFLoader,
@@ -17,10 +18,12 @@ import {
   PerspectiveCamera,
   SphereGeometry,
   TetrahedronGeometry,
+  TorusGeometry,
   loadTexture,
 } from '../../nanothree/index.ts'
 import { applyTransform, createColliderWireframe, hexToColor } from './nanothree-utils.ts'
 
+import type { AnimationClip } from '../../nanothree/animation.ts'
 import type { SceneEntity } from '../../scene-data.ts'
 import type { NanothreeParticleHelper } from './nanothree-particles.ts'
 
@@ -35,6 +38,7 @@ export interface NanothreeEntityState {
   debugWireframes: Map<string, Object3D>
   lightHelpers: Map<string, DirectionalLightHelper | CameraHelper>
   particleHelper: NanothreeParticleHelper
+  onAnimationClips?: (entityId: string, clips: AnimationClip[]) => void
 }
 
 /**
@@ -105,6 +109,12 @@ export function createNanothreeEntity(entity: SceneEntity, parent: Object3D, sta
         case 'cone':
           geometry = new ConeGeometry()
           break
+        case 'cylinder':
+          geometry = new CylinderGeometry()
+          break
+        case 'torus':
+          geometry = new TorusGeometry()
+          break
         case 'tetrahedron':
           geometry = new TetrahedronGeometry()
           break
@@ -144,6 +154,10 @@ export function createNanothreeEntity(entity: SceneEntity, parent: Object3D, sta
             // Apply material color override if specified
             if (entity.model?.material?.color) {
               applyColorOverride(group, hexToColor(entity.model.material.color))
+            }
+            // Pass animation clips to the helper
+            if (gltf.animations && gltf.animations.length > 0) {
+              state.onAnimationClips?.(entity.id, gltf.animations)
             }
           },
           undefined,

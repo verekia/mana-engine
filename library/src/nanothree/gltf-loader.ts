@@ -6,10 +6,15 @@
 // - Lambert materials with optional albedo texture
 // - Shadow properties (castShadow, receiveShadow) applied to all meshes
 //
-// Does not support: skeletal animation, morph targets, cameras, lights,
+// Animation support: parses GLTF animation channels/samplers into
+// AnimationClip/KeyframeTrack for node-level transform animation
+// (translation, rotation, scale). No skeletal/skinned animation.
+//
+// Does not support: morph targets, cameras, lights,
 // KHR extensions, sparse accessors, or multi-primitive meshes with
 // different materials.
 
+import { AnimationClip, KeyframeTrack, type TrackPath } from './animation'
 import { Color, Group, Object3D } from './core'
 import { BufferGeometry, Float32BufferAttribute } from './geometry'
 import { MeshLambertMaterial, NanoTexture } from './material'
@@ -30,6 +35,27 @@ interface GLTFJson {
   textures?: GLTFTextureRef[]
   images?: GLTFImage[]
   samplers?: GLTFSampler[]
+  animations?: GLTFAnimation[]
+}
+
+interface GLTFAnimation {
+  name?: string
+  channels: GLTFChannel[]
+  samplers: GLTFAnimationSampler[]
+}
+
+interface GLTFChannel {
+  sampler: number
+  target: {
+    node?: number
+    path: string // 'translation' | 'rotation' | 'scale' | 'weights'
+  }
+}
+
+interface GLTFAnimationSampler {
+  input: number // accessor index for keyframe times
+  output: number // accessor index for keyframe values
+  interpolation?: string // 'LINEAR' | 'STEP' | 'CUBICSPLINE'
 }
 
 interface GLTFNode {
@@ -138,6 +164,7 @@ const GLB_CHUNK_BIN = 0x004e4942 // 'BIN\0'
 
 export interface GLTFResult {
   scene: Group
+  animations: AnimationClip[]
 }
 
 // ── GLTFLoader class ──────────────────────────────────────────────────
@@ -197,7 +224,10 @@ export class GLTFLoader {
     // Build scene graph
     const scene = buildScene(json, buffers, materials)
 
-    return { scene }
+    // Build animations
+    const animations = buildAnimations(json, buffers)
+
+    return { scene, animations }
   }
 }
 
@@ -610,6 +640,45 @@ function computeFlatNormals(geometry: BufferGeometry): void {
   }
 
   geometry.normals = normals
+}
+
+// ── Animation building ───────────────────────────────────────────────
+
+const SUPPORTED_PATHS: Record<string, TrackPath> = {
+  translation: 'translation',
+  rotation: 'rotation',
+  scale: 'scale',
+}
+
+function buildAnimations(json: GLTFJson, buffers: ArrayBuffer[]): AnimationClip[] {
+  if (!json.animations || json.animations.length === 0) return []
+
+  return json.animations.map((animDef, idx) => {
+    const tracks: KeyframeTrack[] = []
+    let duration = 0
+
+    for (const channel of animDef.channels) {
+      const path = SUPPORTED_PATHS[channel.target.path]
+      if (!path || channel.target.node === undefined) continue
+
+      const sampler = animDef.samplers[channel.sampler]
+      if (!sampler) continue
+
+      const times = readAccessor(json, buffers, sampler.input) as Float32Array
+      const values = readAccessor(json, buffers, sampler.output) as Float32Array
+
+      // Track the max time to compute clip duration
+      if (times.length > 0) {
+        const maxTime = times[times.length - 1]
+        if (maxTime > duration) duration = maxTime
+      }
+
+      tracks.push(new KeyframeTrack(channel.target.node, path, times, values))
+    }
+
+    const name = animDef.name ?? `animation_${idx}`
+    return new AnimationClip(name, duration, tracks)
+  })
 }
 
 // ── Transform helpers ─────────────────────────────────────────────────

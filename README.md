@@ -40,7 +40,7 @@ bun editor
 
 ### Meshes & Materials
 
-- **6 geometry types** — `box`, `sphere`, `plane`, `capsule`, `cone`, `tetrahedron`
+- **8 geometry types** — `box`, `sphere`, `plane`, `capsule`, `cone`, `cylinder`, `torus`, `tetrahedron`
 - **PBR material** (Three.js) — Physically-based rendering with metalness/roughness workflow: color, albedo map, emissive map/color, normal map, roughness map, metalness map
 - **Lambert material** (VoidCore) — Diffuse color, albedo texture map, emissive texture map
 - **GLTF/GLB model loading** — Import 3D models as `model` entities (Three.js and VoidCore)
@@ -163,20 +163,20 @@ The engine is decoupled from any specific 3D renderer or physics library. Choose
 
 ### Renderer Adapters
 
-| Feature               | Three.js                                       | VoidCore                                       | nanothree                                      |
-| --------------------- | ---------------------------------------------- | ---------------------------------------------- | ---------------------------------------------- |
-| **Geometries**        | box, sphere, plane, capsule, cone, tetrahedron | box, sphere, plane, capsule, cone, tetrahedron | box, sphere, plane, capsule, cone, tetrahedron |
-| **Materials**         | Lambert (color, map, emissiveMap)              | Lambert (color only)                           | Lambert (color, albedo map)                    |
-| **Textures**          | PNG, JPG, KTX2 (basis transcoder)              | —                                              | PNG, JPG (albedo only)                         |
-| **GLTF/GLB models**   | Yes (GLTFLoader)                               | Yes (loadGLTF)                                 | Yes (custom GLTFLoader)                        |
-| **Camera**            | PerspectiveCamera                              | PerspectiveCamera                              | PerspectiveCamera                              |
-| **Directional light** | Yes + shadows                                  | Yes + shadows                                  | Yes + shadows (PCF)                            |
-| **Ambient light**     | Yes                                            | Yes                                            | Yes                                            |
-| **Point light**       | Yes + shadows                                  | — (placeholder)                                | — (placeholder)                                |
-| **Shadow mapping**    | castShadow / receiveShadow                     | castShadow only                                | castShadow / receiveShadow                     |
-| **Coordinate system** | Y-up native, Z-up via sceneRoot rotation       | Y-up and Z-up                                  | Y-up native, Z-up via sceneRoot                |
-| **Frustum culling**   | Yes (per-object)                               | —                                              | Yes (bounding sphere, enabled by default)      |
-| **GPU backend**       | WebGPU (WebGPURenderer)                        | WebGPU with WebGL2 fallback                    | WebGPU only                                    |
+| Feature               | Three.js                                                        | VoidCore                                                 | nanothree                                                       |
+| --------------------- | --------------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------- |
+| **Geometries**        | box, sphere, plane, capsule, cone, cylinder, torus, tetrahedron | box, sphere, plane, capsule, cone, cylinder, tetrahedron | box, sphere, plane, capsule, cone, cylinder, torus, tetrahedron |
+| **Materials**         | Lambert (color, map, emissiveMap)                               | Lambert (color only)                                     | Lambert (color, albedo map)                                     |
+| **Textures**          | PNG, JPG, KTX2 (basis transcoder)                               | —                                                        | PNG, JPG (albedo only)                                          |
+| **GLTF/GLB models**   | Yes (GLTFLoader)                                                | Yes (loadGLTF)                                           | Yes (custom GLTFLoader)                                         |
+| **Camera**            | PerspectiveCamera                                               | PerspectiveCamera                                        | PerspectiveCamera                                               |
+| **Directional light** | Yes + shadows                                                   | Yes + shadows                                            | Yes + shadows (PCF)                                             |
+| **Ambient light**     | Yes                                                             | Yes                                                      | Yes                                                             |
+| **Point light**       | Yes + shadows                                                   | — (placeholder)                                          | — (placeholder)                                                 |
+| **Shadow mapping**    | castShadow / receiveShadow                                      | castShadow only                                          | castShadow / receiveShadow                                      |
+| **Coordinate system** | Y-up native, Z-up via sceneRoot rotation                        | Y-up and Z-up                                            | Y-up native, Z-up via sceneRoot                                 |
+| **Frustum culling**   | Yes (per-object)                                                | —                                                        | Yes (bounding sphere, enabled by default)                       |
+| **GPU backend**       | WebGPU (WebGPURenderer)                                         | WebGPU with WebGL2 fallback                              | WebGPU only                                                     |
 
 #### Editor Features (per renderer)
 

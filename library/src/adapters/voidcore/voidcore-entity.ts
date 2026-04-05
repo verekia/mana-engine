@@ -3,6 +3,7 @@ import {
   BoxGeometry,
   CapsuleGeometry,
   ConeGeometry,
+  CylinderGeometry,
   DirectionalLight,
   Group,
   LambertMaterial,
@@ -47,6 +48,8 @@ export function createGeometry(type?: string) {
       return new CapsuleGeometry({ radius: 0.5, height: 2 })
     case 'cone':
       return new ConeGeometry()
+    case 'cylinder':
+      return new CylinderGeometry()
     case 'tetrahedron':
       return new ConeGeometry({ radialSegments: 3 })
     default:
