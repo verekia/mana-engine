@@ -1,0 +1,5 @@
+{
+  "renderer": "nanothree",
+  "physics": "crashcat",
+  "coordinateSystem": "y-up"
+}

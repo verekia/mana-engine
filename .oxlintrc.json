@@ -48,5 +48,5 @@
       "version": "19.0"
     }
   },
-  "ignorePatterns": ["node_modules", "dist", "out", ".next", ".mana"]
+  "ignorePatterns": ["node_modules", "dist", "out", ".next", ".mana", "library/src/nanothree"]
 }

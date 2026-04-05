@@ -117,6 +117,9 @@ function generateAdapterCode(config: ManaConfig): string {
   if (renderer === 'three') {
     lines.push(`import { ThreeRendererAdapter } from 'mana-engine/game'`)
     lines.push(`const createRenderer = () => new ThreeRendererAdapter()`)
+  } else if (renderer === 'nanothree') {
+    lines.push(`import { NanothreeRendererAdapter } from 'mana-engine/game'`)
+    lines.push(`const createRenderer = () => new NanothreeRendererAdapter()`)
   } else {
     lines.push(`import { VoidcoreRendererAdapter } from 'mana-engine/game'`)
     lines.push(`const createRenderer = () => new VoidcoreRendererAdapter()`)

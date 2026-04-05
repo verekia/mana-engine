@@ -37,12 +37,13 @@ The engine is decoupled from any specific 3D renderer or physics library via two
 
 Each adapter lives in its own directory under `library/src/adapters/<name>/index.ts`. Renderers and physics engines are fully independent — any renderer can be combined with any physics adapter.
 
-| Path                 | Type     | Library                              |
-| -------------------- | -------- | ------------------------------------ |
-| `adapters/three/`    | Renderer | Three.js (WebGPU renderer)           |
-| `adapters/voidcore/` | Renderer | VoidCore (minimal, stub)             |
-| `adapters/rapier/`   | Physics  | Rapier 3D (WASM, async init)         |
-| `adapters/crashcat/` | Physics  | Crashcat (pure JS, synchronous init) |
+| Path                  | Type     | Library                              |
+| --------------------- | -------- | ------------------------------------ |
+| `adapters/three/`     | Renderer | Three.js (WebGPU renderer)           |
+| `adapters/voidcore/`  | Renderer | VoidCore (minimal, stub)             |
+| `adapters/nanothree/` | Renderer | nanothree (lightweight WebGPU)       |
+| `adapters/rapier/`    | Physics  | Rapier 3D (WASM, async init)         |
+| `adapters/crashcat/`  | Physics  | Crashcat (pure JS, synchronous init) |
 
 - `ThreeRendererAdapter` wraps Three.js entity creation, OrbitControls, TransformControls, outline post-processing, and raycasting
 - `VoidcoreRendererAdapter` wraps VoidCore (WebGPU/WebGL2): meshes (box, sphere, plane, capsule), Lambert materials, directional/ambient lights, shadow casting, coordinate system rotation, physics transform sync
@@ -56,6 +57,20 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
   - Collider wireframe gizmos: semi-transparent green meshes (box, sphere, capsule) shown when gizmos are enabled, synced with entity transforms
   - No light helper gizmos
   - Uses `Engine.create()` for async WebGPU init with WebGL2 fallback
+- `NanothreeRendererAdapter` wraps nanothree — a lightweight pure-WebGPU renderer with Three.js-compatible API
+  - Source lives in `library/src/nanothree/` (vendored, not on npm); excluded from oxlint via `.oxlintrc.json`
+  - Y-up natively (same as Three.js) — no coordinate conversion needed for Y-up scenes; Z-up scenes use sceneRoot rotation
+  - Geometry: `BoxGeometry`, `SphereGeometry`, `CapsuleGeometry`, `CylinderGeometry`, `CircleGeometry`, `TetrahedronGeometry` — all ported from Three.js with identical vertex output
+  - Materials: `MeshLambertMaterial` (color, wireframe, side: FrontSide/BackSide/DoubleSide) — no textures, no PBR
+  - `FrontSide` (default), `BackSide`, `DoubleSide` constants control GPU cullMode per-mesh; renderer creates 3 pipeline variants
+  - Lights: `AmbientLight` + `DirectionalLight` with shadow mapping (2048x2048, PCF) — no point lights
+  - Raycasting: `Raycaster` class with Möller–Trumbore ray-triangle intersection; supports `setFromCamera(ndc, camera)` (NDC unproject) and `set(origin, direction)` (world-space); tests against mesh geometry using inverse world matrices
+  - No GLTF/model loading, no animations, no particles
+  - Editor: `Raycaster`-based click-to-select, invert-hull outline selection (BackSide + 1.06× scale in outline color), `TransformGizmo` (visual translate/rotate/scale line gizmos, no mouse interaction), `CameraHelper`, `DirectionalLightHelper`, grid, collider wireframes (sphere, capsule, box)
+  - Manual orbit controls (mouse drag to rotate, right-drag to pan, scroll to zoom) — nanothree has no built-in orbit controls
+  - Euler angles throughout (no quaternion storage on Object3D) — quaternion↔euler conversion in physics sync
+  - Camera: `lookAt()` sets euler rotation (like Three.js), view matrix = inverse(worldMatrix); standalone cameras auto-compute world matrix in `updateViewProjection()`
+  - `compat.ts` warnings: GLTF models, particles, textures, point lights
 - `RapierPhysicsAdapter` wraps Rapier 3D world setup, rigid body/collider creation, and transform readback
 - `CrashcatPhysicsAdapter` wraps Crashcat — a pure-JS physics engine (no WASM, synchronous init)
   - Shapes: box (`halfExtents`), sphere (`radius`), capsule (`halfHeightOfCylinder` + `radius`)
@@ -175,7 +190,7 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - Running `mana editor`, `mana dev`, or `mana build` in a directory auto-scaffolds a new project if no `mana.json` or `mana.config.js` exists
 - Scaffolding creates: `mana.json`, `scenes/default.yaml` (camera + light + cube), `scripts/`, `ui/`, `assets/`, `prefabs/` dirs, and `game.css`
 - `mana.json` is the project config: `{ "gameDir": ".", "outDir": ".mana/build", "startScene": "default", "renderer": "three", "physics": "rapier", "coordinateSystem": "y-up" }`
-- `renderer` defaults to `"three"` (Three.js WebGPU); supported values: `"three"`, `"voidcore"`
+- `renderer` defaults to `"three"` (Three.js WebGPU); supported values: `"three"`, `"voidcore"`, `"nanothree"`
 - `physics` defaults to `"rapier"`; supported values: `"rapier"`, `"crashcat"`, `"none"`
 - `coordinateSystem` defaults to `"y-up"`; supported values: `"y-up"`, `"z-up"`
 - The CLI reads these and injects the correct adapter factories + `coordinateSystem` into the generated entry files — no manual adapter wiring needed

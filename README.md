@@ -162,30 +162,30 @@ The engine is decoupled from any specific 3D renderer or physics library. Choose
 
 ### Renderer Adapters
 
-| Feature               | Three.js                                 | VoidCore                    |
-| --------------------- | ---------------------------------------- | --------------------------- |
-| **Geometries**        | box, sphere, plane, capsule              | box, sphere, plane, capsule |
-| **Materials**         | Lambert (color, map, emissiveMap)        | Lambert (color only)        |
-| **Textures**          | PNG, JPG, KTX2 (basis transcoder)        | —                           |
-| **GLTF/GLB models**   | Yes (GLTFLoader)                         | Yes (loadGLTF)              |
-| **Camera**            | PerspectiveCamera                        | PerspectiveCamera           |
-| **Directional light** | Yes + shadows                            | Yes + shadows               |
-| **Ambient light**     | Yes                                      | Yes                         |
-| **Point light**       | Yes + shadows                            | — (placeholder)             |
-| **Shadow mapping**    | castShadow / receiveShadow               | castShadow only             |
-| **Coordinate system** | Y-up native, Z-up via sceneRoot rotation | Y-up and Z-up               |
-| **GPU backend**       | WebGPU (WebGPURenderer)                  | WebGPU with WebGL2 fallback |
+| Feature               | Three.js                                 | VoidCore                    | nanothree                              |
+| --------------------- | ---------------------------------------- | --------------------------- | -------------------------------------- |
+| **Geometries**        | box, sphere, plane, capsule              | box, sphere, plane, capsule | box, sphere, capsule, cylinder, circle |
+| **Materials**         | Lambert (color, map, emissiveMap)        | Lambert (color only)        | Lambert (color only)                   |
+| **Textures**          | PNG, JPG, KTX2 (basis transcoder)        | —                           | —                                      |
+| **GLTF/GLB models**   | Yes (GLTFLoader)                         | Yes (loadGLTF)              | —                                      |
+| **Camera**            | PerspectiveCamera                        | PerspectiveCamera           | PerspectiveCamera                      |
+| **Directional light** | Yes + shadows                            | Yes + shadows               | Yes + shadows (PCF)                    |
+| **Ambient light**     | Yes                                      | Yes                         | Yes                                    |
+| **Point light**       | Yes + shadows                            | — (placeholder)             | — (placeholder)                        |
+| **Shadow mapping**    | castShadow / receiveShadow               | castShadow only             | castShadow / receiveShadow             |
+| **Coordinate system** | Y-up native, Z-up via sceneRoot rotation | Y-up and Z-up               | Y-up native, Z-up via sceneRoot        |
+| **GPU backend**       | WebGPU (WebGPURenderer)                  | WebGPU with WebGL2 fallback | WebGPU only                            |
 
 #### Editor Features (per renderer)
 
-| Feature                          | Three.js                   | VoidCore                  |
-| -------------------------------- | -------------------------- | ------------------------- |
-| **Orbit controls**               | Yes                        | Yes                       |
-| **Raycasting / click-to-select** | Yes                        | Yes                       |
-| **Selection outline**            | Yes (post-processing)      | Yes (native mesh outline) |
-| **Transform gizmos** (W/E/R)     | Yes (TransformControls)    | Yes (custom gizmos)       |
-| **Collider wireframe gizmos**    | Yes (green wireframes)     | Yes (green transparent)   |
-| **Light helper gizmos**          | Camera, directional, point | —                         |
+| Feature                          | Three.js                   | VoidCore                  | nanothree                      |
+| -------------------------------- | -------------------------- | ------------------------- | ------------------------------ |
+| **Orbit controls**               | Yes                        | Yes                       | Yes (manual implementation)    |
+| **Raycasting / click-to-select** | Yes                        | Yes                       | Yes (CPU ray-triangle)         |
+| **Selection outline**            | Yes (post-processing)      | Yes (native mesh outline) | Yes (invert hull)              |
+| **Transform gizmos** (W/E/R)     | Yes (TransformControls)    | Yes (custom gizmos)       | Yes (visual only, no dragging) |
+| **Collider wireframe gizmos**    | Yes (green wireframes)     | Yes (green transparent)   | Yes (wireframe meshes)         |
+| **Light helper gizmos**          | Camera, directional, point | —                         | Camera, directional            |
 
 ### Physics Adapters
 
@@ -312,7 +312,7 @@ Scenes, scripts, and UI components are **auto-discovered** — no manual registr
 - `gameDir` — Directory containing `scenes/`, `scripts/`, `ui/`, `assets/` (default: `.`)
 - `outDir` — Production build output directory (default: `.mana/build`)
 - `startScene` — Scene to load on startup (default: first scene alphabetically)
-- `renderer` — `"three"` (Three.js WebGPU) or `"voidcore"` (default: `"three"`)
+- `renderer` — `"three"` (Three.js WebGPU), `"voidcore"`, or `"nanothree"` (default: `"three"`)
 - `physics` — `"rapier"` (WASM), `"crashcat"` (pure JS), or `"none"` (default: `"rapier"`)
 - `coordinateSystem` — `"y-up"` or `"z-up"` (default: `"y-up"`)
 
@@ -404,16 +404,18 @@ The `examples/` directory contains Bun workspace packages demonstrating differen
 - **`examples/platformer/`** — Full platformer demo with host page, scripts, UI components, and multiple scenes
 - **`examples/<renderer>-<physics>-<coord>/`** — Minimal examples for every adapter combination (a plane + falling cube):
 
-| Example                 | Renderer | Physics  | Coordinate System |
-| ----------------------- | -------- | -------- | ----------------- |
-| `three-rapier-yup`      | Three.js | Rapier   | Y-up              |
-| `three-rapier-zup`      | Three.js | Rapier   | Z-up              |
-| `three-crashcat-yup`    | Three.js | Crashcat | Y-up              |
-| `three-crashcat-zup`    | Three.js | Crashcat | Z-up              |
-| `voidcore-rapier-yup`   | VoidCore | Rapier   | Y-up              |
-| `voidcore-rapier-zup`   | VoidCore | Rapier   | Z-up              |
-| `voidcore-crashcat-yup` | VoidCore | Crashcat | Y-up              |
-| `voidcore-crashcat-zup` | VoidCore | Crashcat | Z-up              |
+| Example                  | Renderer  | Physics  | Coordinate System |
+| ------------------------ | --------- | -------- | ----------------- |
+| `three-rapier-yup`       | Three.js  | Rapier   | Y-up              |
+| `three-rapier-zup`       | Three.js  | Rapier   | Z-up              |
+| `three-crashcat-yup`     | Three.js  | Crashcat | Y-up              |
+| `three-crashcat-zup`     | Three.js  | Crashcat | Z-up              |
+| `voidcore-rapier-yup`    | VoidCore  | Rapier   | Y-up              |
+| `voidcore-rapier-zup`    | VoidCore  | Rapier   | Z-up              |
+| `voidcore-crashcat-yup`  | VoidCore  | Crashcat | Y-up              |
+| `voidcore-crashcat-zup`  | VoidCore  | Crashcat | Z-up              |
+| `nanothree-rapier-yup`   | nanothree | Rapier   | Y-up              |
+| `nanothree-crashcat-yup` | nanothree | Crashcat | Y-up              |
 
 To run any minimal example:
 

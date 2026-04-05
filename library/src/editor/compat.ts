@@ -11,7 +11,7 @@ export interface CompatWarning {
   message: string
 }
 
-type RendererName = 'three' | 'voidcore'
+type RendererName = 'three' | 'voidcore' | 'nanothree'
 type PhysicsName = 'rapier' | 'crashcat' | 'none'
 
 /**
@@ -29,7 +29,7 @@ export function checkCompatibility(
   // Entity-level checks (single pass)
   for (const entity of flattenEntities(sceneData.entities)) {
     if (renderer !== 'three') {
-      checkRendererCompat(entity, warnings)
+      checkRendererCompat(entity, renderer, warnings)
     }
     if (physics === 'none') {
       if (entity.rigidBody) {
@@ -82,7 +82,7 @@ export function checkCompatibility(
   return warnings
 }
 
-function checkRendererCompat(entity: SceneEntity, warnings: CompatWarning[]): void {
+function checkRendererCompat(entity: SceneEntity, renderer: RendererName | string, warnings: CompatWarning[]): void {
   const mat = entity.mesh?.material ?? entity.model?.material
   if (mat) {
     const hasPBR =
@@ -99,6 +99,18 @@ function checkRendererCompat(entity: SceneEntity, warnings: CompatWarning[]): vo
         message: `"${entity.name}" uses PBR material properties — only supported with Three.js renderer`,
       })
     }
+    // Nanothree has no texture support
+    if (
+      renderer === 'nanothree' &&
+      (mat.map || mat.emissiveMap || mat.normalMap || mat.roughnessMap || mat.metalnessMap)
+    ) {
+      warnings.push({
+        entityId: entity.id,
+        entityName: entity.name,
+        feature: 'Texture Maps',
+        message: `"${entity.name}" uses texture maps — not supported in nanothree renderer`,
+      })
+    }
   }
 
   if (entity.type === 'point-light') {
@@ -106,7 +118,27 @@ function checkRendererCompat(entity: SceneEntity, warnings: CompatWarning[]): vo
       entityId: entity.id,
       entityName: entity.name,
       feature: 'Point Light',
-      message: `"${entity.name}" is a point light — not supported in VoidCore renderer`,
+      message: `"${entity.name}" is a point light — not supported in ${renderer === 'nanothree' ? 'nanothree' : 'VoidCore'} renderer`,
     })
+  }
+
+  // Nanothree-specific warnings
+  if (renderer === 'nanothree') {
+    if (entity.type === 'model') {
+      warnings.push({
+        entityId: entity.id,
+        entityName: entity.name,
+        feature: 'GLTF Model',
+        message: `"${entity.name}" is a GLTF model — not supported in nanothree renderer`,
+      })
+    }
+    if (entity.type === 'particles') {
+      warnings.push({
+        entityId: entity.id,
+        entityName: entity.name,
+        feature: 'Particles',
+        message: `"${entity.name}" uses particles — not supported in nanothree renderer`,
+      })
+    }
   }
 }

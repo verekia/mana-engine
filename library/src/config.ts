@@ -7,7 +7,7 @@ export interface ManaConfig {
   outDir: string
   startScene?: string
   coordinateSystem?: 'y-up' | 'z-up'
-  renderer?: 'three' | 'voidcore'
+  renderer?: 'three' | 'voidcore' | 'nanothree'
   physics?: 'rapier' | 'crashcat' | 'none'
 }
 
