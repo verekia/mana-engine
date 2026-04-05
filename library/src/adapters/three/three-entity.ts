@@ -11,7 +11,7 @@ import {
   LineBasicMaterial,
   LineSegments,
   Mesh,
-  MeshLambertMaterial,
+  MeshStandardMaterial,
   type Object3D,
   PerspectiveCamera,
   PlaneGeometry,
@@ -103,8 +103,8 @@ let ktx2DetectedSupport = false
 
 function loadTexture(
   path: string,
-  material: MeshLambertMaterial,
-  slot: keyof MeshLambertMaterial,
+  material: MeshStandardMaterial,
+  slot: keyof MeshStandardMaterial,
   renderer?: WebGPURenderer,
 ) {
   const url = resolveAsset(path)
@@ -124,40 +124,55 @@ function loadTexture(
   }
 }
 
-export function applyMaterialData(material: MeshLambertMaterial, mat?: MaterialData, renderer?: WebGPURenderer) {
+export function applyMaterialData(material: MeshStandardMaterial, mat?: MaterialData, renderer?: WebGPURenderer) {
   material.color.set(mat?.color ?? '#4488ff')
+  material.metalness = mat?.metalness ?? 0
+  material.roughness = mat?.roughness ?? 0.5
+  if (mat?.emissiveColor) material.emissive.set(mat.emissiveColor)
   if (!mat) return
   if (mat.map) loadTexture(mat.map, material, 'map', renderer)
   if (mat.emissiveMap) loadTexture(mat.emissiveMap, material, 'emissiveMap', renderer)
+  if (mat.normalMap) loadTexture(mat.normalMap, material, 'normalMap', renderer)
+  if (mat.roughnessMap) loadTexture(mat.roughnessMap, material, 'roughnessMap', renderer)
+  if (mat.metalnessMap) loadTexture(mat.metalnessMap, material, 'metalnessMap', renderer)
 }
 
 /** Apply a material override to all meshes in a model group — only overrides fields that are explicitly set. */
 export function applyModelMaterialOverride(group: Group, mat: MaterialData, renderer?: WebGPURenderer) {
   group.traverse(child => {
-    if (child instanceof Mesh && child.material instanceof MeshLambertMaterial) {
+    if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
       const m = child.material
       if (mat.color) m.color.set(mat.color)
+      if (mat.metalness !== undefined) m.metalness = mat.metalness
+      if (mat.roughness !== undefined) m.roughness = mat.roughness
+      if (mat.emissiveColor) m.emissive.set(mat.emissiveColor)
       if (mat.map) loadTexture(mat.map, m, 'map', renderer)
       if (mat.emissiveMap) loadTexture(mat.emissiveMap, m, 'emissiveMap', renderer)
+      if (mat.normalMap) loadTexture(mat.normalMap, m, 'normalMap', renderer)
+      if (mat.roughnessMap) loadTexture(mat.roughnessMap, m, 'roughnessMap', renderer)
+      if (mat.metalnessMap) loadTexture(mat.metalnessMap, m, 'metalnessMap', renderer)
     }
   })
 }
 
-function disposeMaterial(material: MeshLambertMaterial) {
+function disposeMaterial(material: MeshStandardMaterial) {
   material.map?.dispose()
   material.emissiveMap?.dispose()
+  material.normalMap?.dispose()
+  material.roughnessMap?.dispose()
+  material.metalnessMap?.dispose()
   material.dispose()
 }
 
 export function disposeEntityObject(obj: Object3D) {
   if (obj instanceof Mesh) {
     obj.geometry.dispose()
-    if (obj.material instanceof MeshLambertMaterial) disposeMaterial(obj.material)
+    if (obj.material instanceof MeshStandardMaterial) disposeMaterial(obj.material)
   } else if (obj instanceof Group) {
     obj.traverse(child => {
       if (child instanceof Mesh) {
         child.geometry.dispose()
-        if (child.material instanceof MeshLambertMaterial) disposeMaterial(child.material)
+        if (child.material instanceof MeshStandardMaterial) disposeMaterial(child.material)
       }
     })
   } else if (obj instanceof DirectionalLight) {
@@ -229,7 +244,7 @@ export function createThreeEntityObject(
       if (entity.mesh.geometry === 'plane' && options.isYUp !== false) {
         geometry.rotateX(-Math.PI / 2)
       }
-      const material = new MeshLambertMaterial()
+      const material = new MeshStandardMaterial()
       applyMaterialData(material, entity.mesh?.material, options.renderer)
       const mesh = new Mesh(geometry, material)
       applyTransform(mesh, entity.transform)
@@ -331,7 +346,7 @@ export function createThreeEntityObject(
       // Speaker icon helper — two concentric ring outlines around a small sphere
       const helperGroup = new Group()
       const helperMat = new LineBasicMaterial({ color: 0xe99444, depthTest: false })
-      const center = new Mesh(new SphereGeometry(0.12, 8, 8), new MeshLambertMaterial({ color: 0xe99444 }))
+      const center = new Mesh(new SphereGeometry(0.12, 8, 8), new MeshStandardMaterial({ color: 0xe99444 }))
       helperGroup.add(center)
       // Inner ring
       const innerRing = new LineSegments(new EdgesGeometry(new SphereGeometry(0.3, 16, 8)), helperMat)

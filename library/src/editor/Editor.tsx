@@ -731,6 +731,25 @@ export default function Editor({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
   }, [])
 
+  const handleSceneUpdate = useCallback((partial: Partial<import('../scene-data.ts').SceneData>) => {
+    setSceneData(sd => {
+      if (!sd) return sd
+      const updated = { ...sd, ...partial }
+      // Sync live renderer state for scene-level properties
+      if (partial.background !== undefined) {
+        sceneRef.current?.updateBackground?.(partial.background)
+      }
+      if ('skybox' in partial) {
+        sceneRef.current?.updateSkybox?.(partial.skybox)
+      }
+      if ('postProcessing' in partial) {
+        sceneRef.current?.updatePostProcessing?.(partial.postProcessing)
+      }
+      return updated
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
+  }, [])
+
   const handleDuplicateEntity = useCallback(
     (id: string) => {
       const data = sceneDataRef.current
@@ -1207,6 +1226,8 @@ export default function Editor({
             () => new Set(sceneData ? flattenEntities(sceneData.entities).map(e => e.id) : []),
             [sceneData],
           )}
+          sceneData={sceneData}
+          onSceneUpdate={handleSceneUpdate}
         />
       </div>
     </div>

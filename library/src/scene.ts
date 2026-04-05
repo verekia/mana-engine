@@ -4,7 +4,7 @@ import { flattenEntities, generateId } from './scene-data.ts'
 
 import type { PhysicsAdapter } from './adapters/physics-adapter.ts'
 import type { RendererAdapter, EditorCameraState, TransformMode } from './adapters/renderer-adapter.ts'
-import type { PrefabData, SceneData, SceneEntity, Transform } from './scene-data.ts'
+import type { PostProcessingData, PrefabData, SceneData, SceneEntity, SkyboxData, Transform } from './scene-data.ts'
 import type { ManaScript } from './script.ts'
 
 // Re-export adapter types so existing consumers can keep importing from 'scene.ts'
@@ -37,6 +37,12 @@ export interface ManaScene {
   frameEntity?(id: string): void
   /** Switch to an orthographic view or back to perspective. */
   setOrthographicView?(view: 'front' | 'back' | 'right' | 'left' | 'top' | 'bottom' | 'perspective'): void
+  /** Update the scene background color. */
+  updateBackground?(color: string): void
+  /** Update skybox / environment map settings. */
+  updateSkybox?(skybox: SkyboxData | undefined): void
+  /** Update post-processing settings. */
+  updatePostProcessing?(settings: PostProcessingData | undefined): void
 }
 
 export interface CreateSceneOptions {
@@ -603,6 +609,15 @@ export async function createScene(
     },
     setOrthographicView(view) {
       renderer.setOrthographicView?.(view)
+    },
+    updateBackground(color: string) {
+      renderer.updateBackground?.(color)
+    },
+    updateSkybox(skybox: SkyboxData | undefined) {
+      renderer.updateSkybox?.(skybox)
+    },
+    updatePostProcessing(settings: PostProcessingData | undefined) {
+      renderer.updatePostProcessing?.(settings)
     },
   }
 }

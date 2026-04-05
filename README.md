@@ -41,7 +41,8 @@ bun editor
 ### Meshes & Materials
 
 - **4 geometry types** — `box`, `sphere`, `plane`, `capsule`
-- **Lambert material** — Diffuse color, albedo texture map, emissive texture map
+- **PBR material** (Three.js) — Physically-based rendering with metalness/roughness workflow: color, albedo map, emissive map/color, normal map, roughness map, metalness map
+- **Lambert material** (VoidCore) — Diffuse color, albedo texture map, emissive texture map
 - **GLTF/GLB model loading** — Import 3D models as `model` entities (Three.js and VoidCore)
 
 ### Lighting & Shadows
@@ -50,6 +51,8 @@ bun editor
 - **Point light** — Localized light source with color, intensity, and optional shadow casting (Three.js only)
 - **Ambient light** — Global illumination with color and intensity
 - **Shadow mapping** — `castShadow`/`receiveShadow` on meshes, models, and lights
+- **Skybox / environment maps** (Three.js) — HDR equirectangular environment maps for image-based lighting and reflections, configurable intensity, optional background display with blur control
+- **Post-processing** (Three.js) — Bloom effect with configurable intensity, threshold, and radius
 
 ### Script System
 
@@ -428,8 +431,7 @@ Bun workspaces, Vite, React 19, Tailwind CSS v4, oxlint, oxfmt, tsgo
 Features not yet implemented that would enhance the engine:
 
 - **Asset manager** — Centralized loading and caching of textures, models, and audio files (asset browser in editor is implemented)
-- **Post-processing** — Bloom, depth of field, tone mapping, color grading, SSAO
-- **Skybox / environment maps** — HDR environment lighting and reflections
+- **Post-processing** — Depth of field, tone mapping, color grading, SSAO (bloom is implemented)
 - **Terrain** — Heightmap-based terrain generation
 - **Networking** — Multiplayer state synchronization
 - **Editor camera bookmarks** — Save and restore camera positions

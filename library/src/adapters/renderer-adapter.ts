@@ -1,4 +1,4 @@
-import type { SceneData, SceneEntity, Transform } from '../scene-data.ts'
+import type { PostProcessingData, SceneData, SceneEntity, SkyboxData, Transform } from '../scene-data.ts'
 import type { PhysicsTransform } from './physics-adapter.ts'
 
 export type TransformMode = 'translate' | 'rotate' | 'scale'
@@ -120,6 +120,25 @@ export interface RendererAdapter {
    * The concrete type depends on the adapter.
    */
   getNativeScene(): unknown
+
+  // ── Scene-level settings ────────────────────────────────────────────────────
+
+  /**
+   * Update the scene background color at runtime (e.g. from the editor).
+   */
+  updateBackground?(color: string): void
+
+  /**
+   * Update skybox / environment map settings at runtime.
+   * Three.js only — other adapters may ignore this.
+   */
+  updateSkybox?(skybox: SkyboxData | undefined): void
+
+  /**
+   * Update post-processing settings at runtime.
+   * Three.js only — other adapters may ignore this.
+   */
+  updatePostProcessing?(settings: PostProcessingData | undefined): void
 
   // ── Animation ───────────────────────────────────────────────────────────────
 
