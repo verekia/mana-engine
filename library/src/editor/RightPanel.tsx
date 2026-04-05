@@ -5,13 +5,29 @@ import { IconClose } from './icons.tsx'
 import { Popover, PopoverItem } from './Popover.tsx'
 import { CheckboxInput, ColorInput, NumberInput, SectionLabel, SelectInput, TextInput, Vec3Input } from './widgets.tsx'
 
-import type { MaterialData, MeshData, SceneEntity } from '../scene-data.ts'
+import type { MaterialData, MeshData, SceneData, SceneEntity } from '../scene-data.ts'
 import type { ManaScript } from '../script.ts'
 
-const TEXTURE_MAP_FIELDS: { label: string; key: keyof MaterialData }[] = [
-  { label: 'Albedo Map', key: 'map' },
-  { label: 'Emissive Map', key: 'emissiveMap' },
-]
+function AdapterBadge({ label }: { label: string }) {
+  return (
+    <span
+      style={{
+        fontSize: 8,
+        fontWeight: 600,
+        color: '#6b7280',
+        background: '#374151',
+        padding: '1px 4px',
+        borderRadius: 3,
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+        marginLeft: 4,
+        verticalAlign: 'middle',
+      }}
+    >
+      {label}
+    </span>
+  )
+}
 
 const LS_KEY = 'mana:inspectorCollapsed'
 
@@ -137,14 +153,62 @@ function MaterialEditor({ material, onChange }: { material: MaterialData; onChan
         value={material.color ?? '#888888'}
         onChange={v => onChange({ ...material, color: v })}
       />
-      {TEXTURE_MAP_FIELDS.map(({ label, key }) => (
-        <TextInput
-          key={key}
-          label={label}
-          value={(material[key] as string) ?? ''}
-          onChange={v => onChange({ ...material, [key]: v || undefined })}
-        />
-      ))}
+      <TextInput
+        label="Albedo Map"
+        value={material.map ?? ''}
+        onChange={v => onChange({ ...material, map: v || undefined })}
+      />
+      <TextInput
+        label="Emissive Map"
+        value={material.emissiveMap ?? ''}
+        onChange={v => onChange({ ...material, emissiveMap: v || undefined })}
+      />
+      <ColorInput
+        label="Emissive"
+        value={material.emissiveColor ?? '#000000'}
+        onChange={v => onChange({ ...material, emissiveColor: v === '#000000' ? undefined : v })}
+      />
+      <div
+        style={{
+          color: '#6b7280',
+          fontSize: 9,
+          fontWeight: 600,
+          marginTop: 6,
+          marginBottom: 2,
+          display: 'flex',
+          alignItems: 'center',
+        }}
+      >
+        PBR
+        <AdapterBadge label="Three.js" />
+      </div>
+      <NumberInput
+        label="Metalness"
+        value={material.metalness ?? 0}
+        step={0.05}
+        onChange={v => onChange({ ...material, metalness: v })}
+      />
+      <NumberInput
+        label="Roughness"
+        value={material.roughness ?? 0.5}
+        step={0.05}
+        onChange={v => onChange({ ...material, roughness: v })}
+      />
+      <TextInput
+        label="Normal Map"
+        value={material.normalMap ?? ''}
+        onChange={v => onChange({ ...material, normalMap: v || undefined })}
+      />
+      <TextInput
+        label="Roughness Map"
+        value={material.roughnessMap ?? ''}
+        onChange={v => onChange({ ...material, roughnessMap: v || undefined })}
+      />
+      <TextInput
+        label="Metalness Map"
+        value={material.metalnessMap ?? ''}
+        onChange={v => onChange({ ...material, metalnessMap: v || undefined })}
+      />
     </>
   )
 }
@@ -402,6 +466,89 @@ function InspectorName({ entity, onRename }: { entity: SceneEntity; onRename: (i
   )
 }
 
+function SceneSettingsEditor({
+  sceneData,
+  onSceneUpdate,
+}: {
+  sceneData: SceneData
+  onSceneUpdate: (data: Partial<SceneData>) => void
+}) {
+  const skybox = sceneData.skybox ?? {}
+  const pp = sceneData.postProcessing ?? {}
+
+  return (
+    <>
+      <SectionLabel collapsed={false} onToggle={() => {}}>
+        Background
+      </SectionLabel>
+      <ColorInput
+        label="Color"
+        value={sceneData.background ?? '#111111'}
+        onChange={v => onSceneUpdate({ background: v })}
+      />
+
+      <SectionLabel collapsed={false} onToggle={() => {}}>
+        Skybox / Environment
+        <AdapterBadge label="Three.js" />
+      </SectionLabel>
+      <TextInput
+        label="HDR Source"
+        value={skybox.source ?? ''}
+        onChange={v => onSceneUpdate({ skybox: { ...skybox, source: v || undefined } })}
+      />
+      <NumberInput
+        label="Intensity"
+        value={skybox.intensity ?? 1}
+        step={0.1}
+        onChange={v => onSceneUpdate({ skybox: { ...skybox, intensity: v } })}
+      />
+      <CheckboxInput
+        label="Show Background"
+        value={skybox.showBackground !== false}
+        onChange={v => onSceneUpdate({ skybox: { ...skybox, showBackground: v } })}
+      />
+      <NumberInput
+        label="BG Blur"
+        value={skybox.backgroundBlur ?? 0}
+        step={0.05}
+        onChange={v => onSceneUpdate({ skybox: { ...skybox, backgroundBlur: v } })}
+      />
+
+      <SectionLabel collapsed={false} onToggle={() => {}}>
+        Post-Processing
+        <AdapterBadge label="Three.js" />
+      </SectionLabel>
+      <CheckboxInput
+        label="Bloom"
+        value={pp.bloom ?? false}
+        onChange={v => onSceneUpdate({ postProcessing: { ...pp, bloom: v } })}
+      />
+      {pp.bloom && (
+        <>
+          <NumberInput
+            label="Intensity"
+            value={pp.bloomIntensity ?? 0.5}
+            step={0.05}
+            onChange={v => onSceneUpdate({ postProcessing: { ...pp, bloomIntensity: v } })}
+          />
+          <NumberInput
+            label="Threshold"
+            value={pp.bloomThreshold ?? 0.8}
+            step={0.05}
+            onChange={v => onSceneUpdate({ postProcessing: { ...pp, bloomThreshold: v } })}
+          />
+          <NumberInput
+            label="Radius"
+            value={pp.bloomRadius ?? 0.4}
+            step={0.05}
+            onChange={v => onSceneUpdate({ postProcessing: { ...pp, bloomRadius: v } })}
+          />
+        </>
+      )}
+    </>
+  )
+}
+
 export function RightPanel({
   width,
   entity,
@@ -411,6 +558,8 @@ export function RightPanel({
   availableUiComponents,
   scriptDefs,
   allEntityIds,
+  sceneData,
+  onSceneUpdate,
 }: {
   width: number
   entity: SceneEntity | null
@@ -420,6 +569,8 @@ export function RightPanel({
   availableUiComponents: string[]
   scriptDefs: Record<string, ManaScript>
   allEntityIds: Set<string>
+  sceneData?: SceneData | null
+  onSceneUpdate?: (data: Partial<SceneData>) => void
 }) {
   const [addComponentPos, setAddComponentPos] = useState<{ x: number; y: number } | null>(null)
   const { collapsed, toggle, setAll, removeSection } = useCollapsedSections(entity?.id ?? null)
@@ -1158,6 +1309,8 @@ export function RightPanel({
               <AddComponentButton entity={entity} availableScripts={availableScripts} onUpdate={onUpdate} />
             )}
           </>
+        ) : sceneData && onSceneUpdate ? (
+          <SceneSettingsEditor sceneData={sceneData} onSceneUpdate={onSceneUpdate} />
         ) : (
           <div
             style={{

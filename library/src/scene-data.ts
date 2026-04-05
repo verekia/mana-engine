@@ -11,8 +11,8 @@ export interface CameraData {
 }
 
 /**
- * Lambert material — diffuse color only, no PBR.
- * Additional material types (Standard/PBR, Unlit, etc.) will be added incrementally.
+ * PBR material — physically-based rendering with metalness/roughness workflow.
+ * Three.js adapter uses MeshStandardMaterial; VoidCore falls back to Lambert.
  */
 export interface MaterialData {
   color?: string
@@ -20,6 +20,18 @@ export interface MaterialData {
   map?: string
   /** Emissive texture map path */
   emissiveMap?: string
+  /** Emissive color (hex string). Default: '#000000' (no emission) */
+  emissiveColor?: string
+  /** Metalness factor (0 = dielectric, 1 = metallic). Default: 0 */
+  metalness?: number
+  /** Roughness factor (0 = mirror, 1 = fully rough). Default: 0.5 */
+  roughness?: number
+  /** Normal map texture path */
+  normalMap?: string
+  /** Roughness map texture path (overrides roughness factor) */
+  roughnessMap?: string
+  /** Metalness map texture path (overrides metalness factor) */
+  metalnessMap?: string
 }
 
 export interface MeshData {
@@ -178,6 +190,30 @@ export function flattenEntities(entities: SceneEntity[]): SceneEntity[] {
   return result
 }
 
+/** Skybox / environment map configuration (Three.js only). */
+export interface SkyboxData {
+  /** Path to an HDR or EXR equirectangular environment map (relative to assets/). */
+  source?: string
+  /** Environment map intensity multiplier. Default: 1 */
+  intensity?: number
+  /** Whether the environment map is used as scene background. Default: true */
+  showBackground?: boolean
+  /** Background blur amount (0 = sharp, 1 = fully blurred). Default: 0 */
+  backgroundBlur?: number
+}
+
+/** Post-processing configuration (Three.js only). */
+export interface PostProcessingData {
+  /** Enable bloom glow effect. Default: false */
+  bloom?: boolean
+  /** Bloom intensity/strength. Default: 0.5 */
+  bloomIntensity?: number
+  /** Bloom threshold — only pixels brighter than this value glow. Default: 0.8 */
+  bloomThreshold?: number
+  /** Bloom blur radius. Default: 0.4 */
+  bloomRadius?: number
+}
+
 export interface SceneData {
   background?: string
   /**
@@ -189,6 +225,10 @@ export interface SceneData {
    * default camera, grid, and transform gizmos.
    */
   coordinateSystem?: 'y-up' | 'z-up'
+  /** Skybox / environment map (Three.js only). */
+  skybox?: SkyboxData
+  /** Post-processing effects (Three.js only). */
+  postProcessing?: PostProcessingData
   entities: SceneEntity[]
 }
 

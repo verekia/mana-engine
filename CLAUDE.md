@@ -225,14 +225,38 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 
 ## Materials & Textures
 
-- `MaterialData` in `scene-data.ts` currently defines **Lambert** material properties only: `color`, `map` (albedo texture), `emissiveMap`
-- Additional material types (Standard/PBR, Unlit, etc.) will be added incrementally as adapters support them
-- The Three.js adapter uses `MeshLambertMaterial`; texture maps are loaded via `TextureLoader` (standard formats) or `KTX2Loader` (`.ktx2` GPU-compressed textures)
+- `MaterialData` in `scene-data.ts` defines PBR material properties: `color`, `map` (albedo texture), `emissiveMap`, `emissiveColor`, `metalness` (0–1, default 0), `roughness` (0–1, default 0.5), `normalMap`, `roughnessMap`, `metalnessMap`
+- The Three.js adapter uses `MeshStandardMaterial` (physically-based rendering with metalness/roughness workflow)
+- VoidCore adapter uses Lambert material (diffuse only) — PBR properties are ignored
+- Texture maps are loaded via `TextureLoader` (standard formats) or `KTX2Loader` (`.ktx2` GPU-compressed textures)
 - KTX2 support requires the basis universal transcoder, served via `/__mana/basis/` middleware from Three.js's bundled transcoder files
 - `loadTexture()` helper detects file extension and uses the appropriate loader; KTX2 textures load asynchronously with `material.needsUpdate = true`
-- In the editor, texture paths are editable text inputs
-- `applyMaterialData()` helper in `adapters/three/three-entity.ts` applies material properties to a `MeshLambertMaterial`
+- In the editor, the material inspector shows Color, Metalness, Roughness, Emissive color, and texture map paths (albedo, emissive, normal, roughness, metalness)
+- `applyMaterialData()` helper in `adapters/three/three-entity.ts` applies all material properties to a `MeshStandardMaterial`
 - Texture disposal is handled in `dispose()` and `removeEntity()` to prevent memory leaks
+
+## Skybox / Environment Maps
+
+- `SkyboxData` in `scene-data.ts` defines: `source` (HDR/EXR path), `intensity` (default 1), `showBackground` (default true), `backgroundBlur` (0–1, default 0)
+- Stored on `SceneData.skybox` — a scene-level property, not per-entity
+- Three.js adapter: loads equirectangular HDR via `RGBELoader` (dynamic import), sets `scene.environment` for image-based lighting and optionally `scene.background` for visible skybox
+- `EquirectangularReflectionMapping` is applied to the loaded texture
+- `environmentIntensity` and `backgroundBlurriness` are set from the config
+- VoidCore adapter: skybox is not supported (ignored)
+- Editor: when no entity is selected, the right panel shows "Scene Settings" with skybox controls (HDR source path, intensity, show background toggle, background blur)
+- `updateSkybox()` on the renderer adapter allows live preview in the editor
+- Asset paths use `resolveAsset()` — works in both dev and production
+
+## Post-Processing
+
+- `PostProcessingData` in `scene-data.ts` defines: `bloom` (boolean), `bloomIntensity` (default 0.5), `bloomThreshold` (default 0.8), `bloomRadius` (default 0.4)
+- Stored on `SceneData.postProcessing` — a scene-level property
+- Three.js adapter: uses TSL-based `BloomNode` from `three/examples/jsm/tsl/display/BloomNode.js` with `RenderPipeline`
+- Bloom is applied in play mode only — the editor uses its own outline post-processing pipeline
+- The bloom pipeline composes: `scenePass.getTextureNode('output').add(bloom(...))`
+- `updatePostProcessing()` on the renderer adapter recreates the pipeline with new settings
+- VoidCore adapter: post-processing is not supported (ignored)
+- Editor: scene settings panel shows Bloom toggle with intensity, threshold, and radius controls (visible when bloom is enabled)
 
 ## GLTF/GLB Model Loading
 
@@ -301,7 +325,7 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 ## Editor
 
 - `mana editor` launches a full editor with hierarchy, inspector, viewport, and asset browser panels
-- Editor source is split into modular components: `Editor.tsx` (main), `Toolbar.tsx`, `Viewport.tsx`, `LeftPanel.tsx`, `RightPanel.tsx`, `BottomPanel.tsx`, `widgets.tsx`, `colors.ts`, `icons.tsx`, `ResizeHandle.tsx`, `scene-api.ts`, `history.ts`
+- Editor source is split into modular components: `Editor.tsx` (main), `Toolbar.tsx`, `Viewport.tsx`, `LeftPanel.tsx`, `RightPanel.tsx`, `BottomPanel.tsx`, `widgets.tsx`, `colors.ts`, `icons.tsx`, `ResizeHandle.tsx`, `scene-api.ts`, `history.ts`, `compat.ts`
 - Editor reads/writes scene YAML files via a Vite middleware API (`/__mana/scenes/:name`) — the API speaks JSON over the wire, the server converts to/from YAML at the file I/O boundary
 - Asset browser in bottom panel browses `game/assets/` via `/__mana/assets?path=` API
 - `assetsApiPlugin` lists files/folders with type detection, path traversal prevention, and sorted output (folders first)
@@ -353,6 +377,11 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - The editor entry auto-imports discovered `uiComponents`, `scripts`, and `prefabs` (no `game/index.tsx` needed)
 - Left panel has two tabs: "Scenes" (scene list + entity hierarchy) and "Prefabs" (prefab list with create/rename/delete)
 - Prefab editing mode: green toolbar with "PREFAB: name" label, "Back" button, auto-generated camera/lights, Cmd+S saves prefab data
+- Adapter compatibility warnings: `compat.ts` checks scene data against the active renderer/physics adapter and produces warnings for unsupported features (e.g. PBR materials with VoidCore, sensor colliders with Crashcat, skybox/bloom without Three.js)
+  - Toolbar shows an amber warning triangle with count when incompatibilities exist; clicking it opens a popover listing all warnings
+  - Clicking a warning selects the offending entity in the hierarchy
+  - Inspector shows `AdapterBadge` labels (e.g. "THREE.JS") on adapter-specific sections (Skybox, Post-Processing, PBR)
+  - `rendererName` and `physicsName` strings are passed from the CLI-generated entry file to the Editor component
 
 ## Scene Switching API
 

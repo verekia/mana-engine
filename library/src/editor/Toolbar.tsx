@@ -1,4 +1,8 @@
+import { useRef, useState } from 'react'
+
 import { COLORS } from './colors.ts'
+import { SCENE_ENTITY_ID, type CompatWarning } from './compat.ts'
+import { Popover } from './Popover.tsx'
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
 const MOD_KEY = isMac ? '\u2318' : 'Ctrl'
@@ -15,6 +19,7 @@ import {
   IconStop,
   IconTranslate,
   IconUndo,
+  IconWarning,
 } from './icons.tsx'
 
 import type { TransformMode } from '../scene.ts'
@@ -132,6 +137,8 @@ export function Toolbar({
   onToggleGizmos,
   editingPrefab,
   onExitPrefab,
+  compatWarnings = [],
+  onSelectWarningEntity,
 }: {
   playing: boolean
   onPlay: () => void
@@ -153,6 +160,8 @@ export function Toolbar({
   onToggleGizmos: () => void
   editingPrefab?: string | null
   onExitPrefab?: () => void
+  compatWarnings?: CompatWarning[]
+  onSelectWarningEntity?: (entityId: string) => void
 }) {
   return (
     <div
@@ -255,7 +264,7 @@ export function Toolbar({
       </ToolbarButton>
       <div style={{ flex: 1 }} />
 
-      {/* Right: viewport toggles + save status */}
+      {/* Right: viewport toggles + compat warnings + save status */}
       {!playing && (
         <>
           <ToggleButton icon={<IconEye />} label="UI" active={showUI} onClick={onToggleUI} />
@@ -263,6 +272,7 @@ export function Toolbar({
           <ToolbarSeparator />
         </>
       )}
+      {compatWarnings.length > 0 && <CompatWarningButton warnings={compatWarnings} onSelect={onSelectWarningEntity} />}
       <div
         style={{
           fontSize: 10,
@@ -283,5 +293,91 @@ export function Toolbar({
         <span style={{ color: dirty ? '#f59e0b' : COLORS.textMuted }}>{dirty ? 'Unsaved' : 'Saved'}</span>
       </div>
     </div>
+  )
+}
+
+function CompatWarningButton({
+  warnings,
+  onSelect,
+}: {
+  warnings: CompatWarning[]
+  onSelect?: (entityId: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={() => setOpen(v => !v)}
+        title={`${warnings.length} compatibility warning${warnings.length > 1 ? 's' : ''}`}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 3,
+          background: 'none',
+          border: 'none',
+          color: '#f59e0b',
+          padding: '2px 6px',
+          fontSize: 10,
+          borderRadius: 3,
+          fontFamily: 'inherit',
+          fontWeight: 600,
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'rgba(245, 158, 11, 0.15)'
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = 'none'
+        }}
+      >
+        <IconWarning />
+        {warnings.length}
+      </button>
+      {open && (
+        <Popover anchorRef={btnRef} onClose={() => setOpen(false)} width={340}>
+          <div
+            style={{
+              padding: '6px 10px',
+              fontSize: 10,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              color: '#f59e0b',
+              borderBottom: `1px solid ${COLORS.border}`,
+            }}
+          >
+            Compatibility Warnings ({warnings.length})
+          </div>
+          {warnings.map(w => (
+            <button
+              key={`${w.entityId}-${w.feature}`}
+              onClick={() => {
+                if (w.entityId !== SCENE_ENTITY_ID) onSelect?.(w.entityId)
+                setOpen(false)
+              }}
+              className="mana-hover"
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                background: 'none',
+                border: 'none',
+                borderBottom: `1px solid ${COLORS.border}`,
+                padding: '6px 10px',
+                color: COLORS.text,
+                fontSize: 11,
+                fontFamily: 'inherit',
+                cursor: w.entityId !== SCENE_ENTITY_ID ? 'pointer' : 'default',
+              }}
+            >
+              <div style={{ fontWeight: 600, fontSize: 10, color: '#f59e0b', marginBottom: 2 }}>{w.feature}</div>
+              <div style={{ color: COLORS.textMuted }}>{w.message}</div>
+            </button>
+          ))}
+        </Popover>
+      )}
+    </>
   )
 }

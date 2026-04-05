@@ -11,6 +11,7 @@ import {
 } from '../scene-data.ts'
 import { BottomPanel } from './BottomPanel.tsx'
 import { COLORS, EDITOR_CSS } from './colors.ts'
+import { checkCompatibility } from './compat.ts'
 import { UndoHistory } from './history.ts'
 import { LeftPanel } from './LeftPanel.tsx'
 import { ResizeHandle } from './ResizeHandle.tsx'
@@ -45,6 +46,8 @@ export default function Editor({
   createRenderer,
   createPhysics,
   coordinateSystem,
+  rendererName = 'three',
+  physicsName = 'rapier',
 }: {
   uiComponents?: Record<string, ComponentType>
   scripts?: Record<string, ManaScript>
@@ -52,6 +55,8 @@ export default function Editor({
   createRenderer: () => RendererAdapter
   createPhysics?: () => PhysicsAdapter
   coordinateSystem?: 'y-up' | 'z-up'
+  rendererName?: string
+  physicsName?: string
 }) {
   const [showUI, setShowUI] = useState(() => localStorage.getItem('mana:showUI') !== 'false')
   const [showGizmos, setShowGizmos] = useState(() => localStorage.getItem('mana:showGizmos') !== 'false')
@@ -106,6 +111,11 @@ export default function Editor({
     [sceneData, savedSceneJson],
   )
   dirtyRef.current = dirty
+
+  const compatWarnings = useMemo(
+    () => checkCompatibility(sceneData, rendererName, physicsName),
+    [sceneData, rendererName, physicsName],
+  )
 
   // Prefab editing mode
   const [editingPrefab, setEditingPrefab] = useState<string | null>(null)
@@ -731,6 +741,25 @@ export default function Editor({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
   }, [])
 
+  const handleSceneUpdate = useCallback((partial: Partial<import('../scene-data.ts').SceneData>) => {
+    setSceneData(sd => {
+      if (!sd) return sd
+      const updated = { ...sd, ...partial }
+      // Sync live renderer state for scene-level properties
+      if (partial.background !== undefined) {
+        sceneRef.current?.updateBackground?.(partial.background)
+      }
+      if ('skybox' in partial) {
+        sceneRef.current?.updateSkybox?.(partial.skybox)
+      }
+      if ('postProcessing' in partial) {
+        sceneRef.current?.updatePostProcessing?.(partial.postProcessing)
+      }
+      return updated
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sceneRef is stable
+  }, [])
+
   const handleDuplicateEntity = useCallback(
     (id: string) => {
       const data = sceneDataRef.current
@@ -1148,6 +1177,8 @@ export default function Editor({
                 }}
                 editingPrefab={editingPrefab}
                 onExitPrefab={handleExitPrefab}
+                compatWarnings={compatWarnings}
+                onSelectWarningEntity={id => setSelectedIds([id])}
               />
               <div style={{ flex: 1, overflow: 'hidden' }}>
                 <ManaContext.Provider value={manaContextValue}>
@@ -1207,6 +1238,8 @@ export default function Editor({
             () => new Set(sceneData ? flattenEntities(sceneData.entities).map(e => e.id) : []),
             [sceneData],
           )}
+          sceneData={sceneData}
+          onSceneUpdate={handleSceneUpdate}
         />
       </div>
     </div>
