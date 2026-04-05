@@ -4,6 +4,7 @@ import {
   BoxGeometry,
   CameraHelper,
   CapsuleGeometry,
+  ConeGeometry,
   DirectionalLight,
   DirectionalLightHelper,
   EdgesGeometry,
@@ -67,6 +68,8 @@ function createGeometry(type?: string) {
       return new PlaneGeometry()
     case 'capsule':
       return new CapsuleGeometry()
+    case 'cone':
+      return new ConeGeometry()
     default:
       return new BoxGeometry()
   }

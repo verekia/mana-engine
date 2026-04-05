@@ -60,13 +60,13 @@ Each adapter lives in its own directory under `library/src/adapters/<name>/index
 - `NanothreeRendererAdapter` wraps nanothree — a lightweight pure-WebGPU renderer with Three.js-compatible API
   - Source lives in `library/src/nanothree/` (vendored, not on npm); excluded from oxlint via `.oxlintrc.json`
   - Y-up natively (same as Three.js) — no coordinate conversion needed for Y-up scenes; Z-up scenes use sceneRoot rotation
-  - Geometry: `BoxGeometry`, `SphereGeometry`, `CapsuleGeometry`, `CylinderGeometry`, `CircleGeometry`, `TetrahedronGeometry` — all ported from Three.js with identical vertex output
+  - Geometry: `BoxGeometry`, `SphereGeometry`, `CapsuleGeometry`, `CylinderGeometry`, `ConeGeometry`, `CircleGeometry`, `PlaneGeometry`, `TorusGeometry`, `TetrahedronGeometry` — all ported from Three.js with identical vertex output
   - Materials: `MeshLambertMaterial` (color, wireframe, side: FrontSide/BackSide/DoubleSide) — no textures, no PBR
   - `FrontSide` (default), `BackSide`, `DoubleSide` constants control GPU cullMode per-mesh; renderer creates 3 pipeline variants
   - Lights: `AmbientLight` + `DirectionalLight` with shadow mapping (2048x2048, PCF) — no point lights
   - Raycasting: `Raycaster` class with Möller–Trumbore ray-triangle intersection; supports `setFromCamera(ndc, camera)` (NDC unproject) and `set(origin, direction)` (world-space); tests against mesh geometry using inverse world matrices
   - No GLTF/model loading, no animations, no particles
-  - Editor: `Raycaster`-based click-to-select, invert-hull outline selection (BackSide + 1.06× scale in outline color), `TransformGizmo` (visual translate/rotate/scale line gizmos, no mouse interaction), `CameraHelper`, `DirectionalLightHelper`, grid, collider wireframes (sphere, capsule, box)
+  - Editor: `Raycaster`-based click-to-select, invert-hull outline selection (BackSide + 1.06× scale in outline color), interactive `TransformGizmo` (solid mesh handles: cones for translate, tori for rotate, cubes for scale — with raycasting, hover highlight, click-drag, snap support), `CameraHelper`, `DirectionalLightHelper`, grid, collider wireframes (sphere, capsule, box)
   - Manual orbit controls (mouse drag to rotate, right-drag to pan, scroll to zoom) — nanothree has no built-in orbit controls
   - Euler angles throughout (no quaternion storage on Object3D) — quaternion↔euler conversion in physics sync
   - Camera: `lookAt()` sets euler rotation (like Three.js), view matrix = inverse(worldMatrix); standalone cameras auto-compute world matrix in `updateViewProjection()`

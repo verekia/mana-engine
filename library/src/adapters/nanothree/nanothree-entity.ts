@@ -5,6 +5,7 @@ import {
   CapsuleGeometry,
   CircleGeometry,
   Color,
+  ConeGeometry,
   DirectionalLight,
   DirectionalLightHelper,
   Group,
@@ -94,6 +95,9 @@ export function createNanothreeEntity(entity: SceneEntity, parent: Object3D, sta
           break
         case 'plane':
           geometry = new CircleGeometry(1, 32)
+          break
+        case 'cone':
+          geometry = new ConeGeometry()
           break
         default:
           geometry = new BoxGeometry()

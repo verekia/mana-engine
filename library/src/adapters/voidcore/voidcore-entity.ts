@@ -2,6 +2,7 @@ import {
   AmbientLight,
   BoxGeometry,
   CapsuleGeometry,
+  ConeGeometry,
   DirectionalLight,
   Group,
   LambertMaterial,
@@ -44,6 +45,8 @@ export function createGeometry(type?: string) {
     case 'capsule':
       // VoidCore height = total height. radius 0.5 + height 2 -> cylinder section = 1.
       return new CapsuleGeometry({ radius: 0.5, height: 2 })
+    case 'cone':
+      return new ConeGeometry()
     default:
       return new BoxGeometry()
   }

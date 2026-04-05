@@ -5,11 +5,14 @@ export {
   SphereGeometry,
   CapsuleGeometry,
   CylinderGeometry,
+  ConeGeometry,
   CircleGeometry,
+  PlaneGeometry,
+  TorusGeometry,
   TetrahedronGeometry,
   Float32BufferAttribute,
 } from './geometry'
-export { MeshLambertMaterial, LineBasicMaterial, FrontSide, BackSide, DoubleSide } from './material'
+export { MeshLambertMaterial, MeshBasicMaterial, LineBasicMaterial, FrontSide, BackSide, DoubleSide } from './material'
 export type { Side } from './material'
 export { ShaderMaterial, SHADER_PREAMBLE } from './shader-material'
 export { Mesh } from './mesh'

@@ -35,9 +35,9 @@ export interface MaterialData {
 }
 
 export interface MeshData {
-  /** Supported geometries: box, sphere, plane, capsule.
+  /** Supported geometries: box, sphere, plane, capsule, cone.
    *  Additional types (cylinder, torus, etc.) will be added incrementally. */
-  geometry?: 'box' | 'sphere' | 'plane' | 'capsule'
+  geometry?: 'box' | 'sphere' | 'plane' | 'capsule' | 'cone'
   material?: MaterialData
 }
 

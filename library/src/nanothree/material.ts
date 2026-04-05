@@ -29,6 +29,27 @@ export class MeshLambertMaterial {
   }
 }
 
+export class MeshBasicMaterial {
+  readonly isBasic = true
+  color: Color
+  wireframe: boolean
+  side: Side
+
+  constructor(params?: { color?: Color | number; wireframe?: boolean; side?: Side }) {
+    if (params?.color instanceof Color) {
+      this.color = params.color
+    } else if (typeof params?.color === 'number') {
+      this.color = new Color(params.color)
+    } else {
+      this.color = new Color(0xffffff)
+    }
+    this.wireframe = params?.wireframe ?? false
+    this.side = params?.side ?? FrontSide
+  }
+
+  dispose() {}
+}
+
 export class LineBasicMaterial {
   color: Color
 

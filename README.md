@@ -40,7 +40,7 @@ bun editor
 
 ### Meshes & Materials
 
-- **4 geometry types** — `box`, `sphere`, `plane`, `capsule`
+- **5 geometry types** — `box`, `sphere`, `plane`, `capsule`, `cone`
 - **PBR material** (Three.js) — Physically-based rendering with metalness/roughness workflow: color, albedo map, emissive map/color, normal map, roughness map, metalness map
 - **Lambert material** (VoidCore) — Diffuse color, albedo texture map, emissive texture map
 - **GLTF/GLB model loading** — Import 3D models as `model` entities (Three.js and VoidCore)
@@ -128,7 +128,7 @@ bun editor
 - **Scene selector** — Dropdown to switch between scene files
 - **Play/Stop mode** — Toggle between editing and running the game with full interactivity
 - **Save hotkey** — Cmd+S / Ctrl+S saves the current scene to disk
-- **Add Entity menu** — Presets for empty, camera, box, sphere, plane, cylinder, capsule, lights, and audio
+- **Add Entity menu** — Presets for empty, camera, box, sphere, plane, cylinder, capsule, cone, lights, and audio
 - **Add Component menu** — Attach rigid body, collider, or scripts to entities
 - **Multi-select** — Ctrl+click / Cmd+click to add/remove entities from selection in viewport or hierarchy; batch delete
 - **Selection outline** — Blue outline highlighting for selected entities
@@ -162,19 +162,19 @@ The engine is decoupled from any specific 3D renderer or physics library. Choose
 
 ### Renderer Adapters
 
-| Feature               | Three.js                                 | VoidCore                    | nanothree                              |
-| --------------------- | ---------------------------------------- | --------------------------- | -------------------------------------- |
-| **Geometries**        | box, sphere, plane, capsule              | box, sphere, plane, capsule | box, sphere, capsule, cylinder, circle |
-| **Materials**         | Lambert (color, map, emissiveMap)        | Lambert (color only)        | Lambert (color only)                   |
-| **Textures**          | PNG, JPG, KTX2 (basis transcoder)        | —                           | —                                      |
-| **GLTF/GLB models**   | Yes (GLTFLoader)                         | Yes (loadGLTF)              | —                                      |
-| **Camera**            | PerspectiveCamera                        | PerspectiveCamera           | PerspectiveCamera                      |
-| **Directional light** | Yes + shadows                            | Yes + shadows               | Yes + shadows (PCF)                    |
-| **Ambient light**     | Yes                                      | Yes                         | Yes                                    |
-| **Point light**       | Yes + shadows                            | — (placeholder)             | — (placeholder)                        |
-| **Shadow mapping**    | castShadow / receiveShadow               | castShadow only             | castShadow / receiveShadow             |
-| **Coordinate system** | Y-up native, Z-up via sceneRoot rotation | Y-up and Z-up               | Y-up native, Z-up via sceneRoot        |
-| **GPU backend**       | WebGPU (WebGPURenderer)                  | WebGPU with WebGL2 fallback | WebGPU only                            |
+| Feature               | Three.js                                 | VoidCore                          | nanothree                         |
+| --------------------- | ---------------------------------------- | --------------------------------- | --------------------------------- |
+| **Geometries**        | box, sphere, plane, capsule, cone        | box, sphere, plane, capsule, cone | box, sphere, plane, capsule, cone |
+| **Materials**         | Lambert (color, map, emissiveMap)        | Lambert (color only)              | Lambert (color only)              |
+| **Textures**          | PNG, JPG, KTX2 (basis transcoder)        | —                                 | —                                 |
+| **GLTF/GLB models**   | Yes (GLTFLoader)                         | Yes (loadGLTF)                    | —                                 |
+| **Camera**            | PerspectiveCamera                        | PerspectiveCamera                 | PerspectiveCamera                 |
+| **Directional light** | Yes + shadows                            | Yes + shadows                     | Yes + shadows (PCF)               |
+| **Ambient light**     | Yes                                      | Yes                               | Yes                               |
+| **Point light**       | Yes + shadows                            | — (placeholder)                   | — (placeholder)                   |
+| **Shadow mapping**    | castShadow / receiveShadow               | castShadow only                   | castShadow / receiveShadow        |
+| **Coordinate system** | Y-up native, Z-up via sceneRoot rotation | Y-up and Z-up                     | Y-up native, Z-up via sceneRoot   |
+| **GPU backend**       | WebGPU (WebGPURenderer)                  | WebGPU with WebGL2 fallback       | WebGPU only                       |
 
 #### Editor Features (per renderer)
 

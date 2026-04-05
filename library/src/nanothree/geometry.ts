@@ -547,6 +547,122 @@ export class CircleGeometry extends BufferGeometry {
   }
 }
 
+// ── ConeGeometry ────────────────────────────────────────────────────────
+// Ported from Three.js ConeGeometry — CylinderGeometry with radiusTop=0.
+
+export class ConeGeometry extends CylinderGeometry {
+  constructor(
+    radius = 1,
+    height = 1,
+    radialSegments = 32,
+    heightSegments = 1,
+    openEnded = false,
+    thetaStart = 0,
+    thetaLength = Math.PI * 2,
+  ) {
+    super(0, radius, height, radialSegments, heightSegments, openEnded, thetaStart, thetaLength)
+  }
+}
+
+// ── PlaneGeometry ───────────────────────────────────────────────────────
+// Ported from Three.js PlaneGeometry — identical vertex output.
+
+export class PlaneGeometry extends BufferGeometry {
+  constructor(width = 1, height = 1, widthSegments = 1, heightSegments = 1) {
+    super()
+
+    const widthHalf = width / 2
+    const heightHalf = height / 2
+
+    const gridX = Math.floor(widthSegments)
+    const gridY = Math.floor(heightSegments)
+
+    const gridX1 = gridX + 1
+    const gridY1 = gridY + 1
+
+    const segmentWidth = width / gridX
+    const segmentHeight = height / gridY
+
+    const indices: number[] = []
+    const vertices: number[] = []
+    const normals: number[] = []
+
+    for (let iy = 0; iy < gridY1; iy++) {
+      const y = iy * segmentHeight - heightHalf
+      for (let ix = 0; ix < gridX1; ix++) {
+        const x = ix * segmentWidth - widthHalf
+        vertices.push(x, -y, 0)
+        normals.push(0, 0, 1)
+      }
+    }
+
+    for (let iy = 0; iy < gridY; iy++) {
+      for (let ix = 0; ix < gridX; ix++) {
+        const a = ix + gridX1 * iy
+        const b = ix + gridX1 * (iy + 1)
+        const c = ix + 1 + gridX1 * (iy + 1)
+        const d = ix + 1 + gridX1 * iy
+        indices.push(a, b, d)
+        indices.push(b, c, d)
+      }
+    }
+
+    this.positions = new Float32Array(vertices)
+    this.normals = new Float32Array(normals)
+    this.indices = new Uint16Array(indices)
+  }
+}
+
+// ── TorusGeometry ───────────────────────────────────────────────────────
+// Ported from Three.js TorusGeometry — identical vertex output.
+
+export class TorusGeometry extends BufferGeometry {
+  constructor(radius = 1, tube = 0.4, radialSegments = 12, tubularSegments = 48, arc = Math.PI * 2) {
+    super()
+
+    radialSegments = Math.floor(radialSegments)
+    tubularSegments = Math.floor(tubularSegments)
+
+    const indices: number[] = []
+    const vertices: number[] = []
+    const normals: number[] = []
+
+    for (let j = 0; j <= radialSegments; j++) {
+      for (let i = 0; i <= tubularSegments; i++) {
+        const u = (i / tubularSegments) * arc
+        const v = (j / radialSegments) * Math.PI * 2
+
+        const cx = (radius + tube * Math.cos(v)) * Math.cos(u)
+        const cy = (radius + tube * Math.cos(v)) * Math.sin(u)
+        const cz = tube * Math.sin(v)
+        vertices.push(cx, cy, cz)
+
+        // Normal = vertex position - center of tube ring
+        const nx = cx - radius * Math.cos(u)
+        const ny = cy - radius * Math.sin(u)
+        const nz = cz
+        const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1
+        normals.push(nx / len, ny / len, nz / len)
+      }
+    }
+
+    for (let j = 1; j <= radialSegments; j++) {
+      for (let i = 1; i <= tubularSegments; i++) {
+        const a = (tubularSegments + 1) * j + i - 1
+        const b = (tubularSegments + 1) * (j - 1) + i - 1
+        const c = (tubularSegments + 1) * (j - 1) + i
+        const d = (tubularSegments + 1) * j + i
+        indices.push(a, b, d)
+        indices.push(b, c, d)
+      }
+    }
+
+    this.positions = new Float32Array(vertices)
+    this.normals = new Float32Array(normals)
+    this.indices = new Uint16Array(indices)
+  }
+}
+
 // ── TetrahedronGeometry ─────────────────────────────────────────────────
 // Ported from Three.js PolyhedronGeometry (detail=0) — identical vertex output.
 // Three.js TetrahedronGeometry extends PolyhedronGeometry which projects

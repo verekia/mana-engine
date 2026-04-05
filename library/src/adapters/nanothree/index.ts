@@ -70,6 +70,7 @@ export class NanothreeRendererAdapter implements RendererAdapter {
   private orbitDistance = 10
   private orbitAzimuth = Math.PI / 4
   private orbitElevation = Math.PI / 6
+  private orbitEnabled = true
   private canvas!: HTMLCanvasElement
   private isDragging = false
   private lastMouseX = 0
@@ -213,10 +214,19 @@ export class NanothreeRendererAdapter implements RendererAdapter {
 
     // Set up transform gizmo for editor mode
     if (this.enableOrbitControls && !this.transformGizmo) {
-      this.transformGizmo = new TransformGizmo(2)
+      this.transformGizmo = new TransformGizmo(this.camera, this.canvas, {
+        onTransformStart: this.options.onTransformStart,
+        onTransformChange: this.options.onTransformChange,
+        onTransformEnd: this.options.onTransformEnd,
+        disableOrbitControls: () => {
+          this.orbitEnabled = false
+        },
+        enableOrbitControls: () => {
+          this.orbitEnabled = true
+        },
+      })
       this.transformGizmo.setMode(this.currentTransformMode)
-      this.transformGizmo.addToScene(this.scene)
-      this.transformGizmo.visible = false
+      this.scene.add(this.transformGizmo.root)
     }
   }
 
@@ -466,12 +476,10 @@ export class NanothreeRendererAdapter implements RendererAdapter {
     if (id) {
       const obj = this.entityObjects.get(id)
       if (obj) {
-        this.transformGizmo.attach(obj)
-        this.transformGizmo.visible = true
+        this.transformGizmo.attach(obj, id)
       }
     } else {
       this.transformGizmo.detach()
-      this.transformGizmo.visible = false
     }
   }
 
@@ -480,8 +488,8 @@ export class NanothreeRendererAdapter implements RendererAdapter {
     if (this.transformGizmo) this.transformGizmo.setMode(mode)
   }
 
-  setTransformSnap(_translate: number | null, _rotate: number | null, _scale: number | null): void {
-    // Nanothree gizmo is visual-only, no snap support
+  setTransformSnap(translate: number | null, rotate: number | null, scale: number | null): void {
+    if (this.transformGizmo) this.transformGizmo.setSnap(translate, rotate, scale)
   }
 
   setTransformSpace(_space: 'local' | 'world'): void {
@@ -607,6 +615,7 @@ export class NanothreeRendererAdapter implements RendererAdapter {
 
   private setupOrbitControls(canvas: HTMLCanvasElement): void {
     this.boundOnMouseDown = (e: MouseEvent) => {
+      if (!this.orbitEnabled) return
       if (e.button === 0) {
         this.isDragging = true
       } else if (e.button === 2) {

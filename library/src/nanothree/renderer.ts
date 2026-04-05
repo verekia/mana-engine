@@ -8,7 +8,7 @@
 //    c. Custom shader meshes (per-ShaderMaterial WGSL)
 //    d. Lines (line-list, unlit flat color)
 
-import { BackSide, DoubleSide } from './material'
+import { BackSide, DoubleSide, MeshBasicMaterial } from './material'
 import { mat4Ortho, mat4LookAt, mat4Multiply } from './math'
 import { ShaderMaterial } from './shader-material'
 
@@ -181,6 +181,10 @@ export class WebGPURenderer {
   private meshPipeline!: GPURenderPipeline // FrontSide: cull back
   private meshPipelineFront!: GPURenderPipeline // BackSide: cull front
   private meshPipelineDouble!: GPURenderPipeline // DoubleSide: cull none
+  // Unlit (basic) mesh pipelines — same shader as lines but triangle topology
+  private basicPipeline!: GPURenderPipeline
+  private basicPipelineFront!: GPURenderPipeline
+  private basicPipelineDouble!: GPURenderPipeline
   private wireframePipeline!: GPURenderPipeline
   private linePipeline!: GPURenderPipeline
 
@@ -382,6 +386,18 @@ export class WebGPURenderer {
     this.meshPipeline = this.device.createRenderPipeline(meshPipelineDesc('back'))
     this.meshPipelineFront = this.device.createRenderPipeline(meshPipelineDesc('front'))
     this.meshPipelineDouble = this.device.createRenderPipeline(meshPipelineDesc('none'))
+
+    // Basic (unlit) mesh pipelines — same shader as lines but triangle topology
+    const basicPipelineDesc = (cullMode: GPUCullMode) => ({
+      layout: this.standardPipelineLayout,
+      vertex: { module: lineShader, entryPoint: 'vs', buffers: [VERTEX_BUFFER_LAYOUT] },
+      fragment: { module: lineShader, entryPoint: 'fs', targets: [{ format: this.format }] },
+      primitive: { topology: 'triangle-list' as GPUPrimitiveTopology, cullMode },
+      depthStencil: DEPTH_STENCIL,
+    })
+    this.basicPipeline = this.device.createRenderPipeline(basicPipelineDesc('back'))
+    this.basicPipelineFront = this.device.createRenderPipeline(basicPipelineDesc('front'))
+    this.basicPipelineDouble = this.device.createRenderPipeline(basicPipelineDesc('none'))
     this.wireframePipeline = this.device.createRenderPipeline({
       layout: this.standardPipelineLayout,
       vertex: { module: meshShader, entryPoint: 'vs', buffers: [VERTEX_BUFFER_LAYOUT] },
@@ -502,6 +518,7 @@ export class WebGPURenderer {
     scene.updateMatrixWorld()
 
     const solidMeshes: Mesh[] = []
+    const basicMeshes: Mesh[] = []
     const wireframeMeshes: Mesh[] = []
     const customMeshes: Mesh[] = []
     const lines: Line[] = []
@@ -509,16 +526,20 @@ export class WebGPURenderer {
     for (let i = 0; i < scene.meshes.length; i++) {
       const m = scene.meshes[i]
       if (m.material instanceof ShaderMaterial) customMeshes.push(m)
-      else if (m.material.wireframe) wireframeMeshes.push(m)
+      else if (m.material instanceof MeshBasicMaterial) {
+        if (m.material.wireframe) wireframeMeshes.push(m)
+        else basicMeshes.push(m)
+      } else if ((m.material as any).wireframe) wireframeMeshes.push(m)
       else solidMeshes.push(m)
     }
     for (let i = 0; i < scene.lines.length; i++) lines.push(scene.lines[i])
 
     const solidCount = solidMeshes.length
+    const basicCount = basicMeshes.length
     const wireCount = wireframeMeshes.length
     const customCount = customMeshes.length
     const lineCount = lines.length
-    const totalCount = solidCount + wireCount + customCount + lineCount
+    const totalCount = solidCount + basicCount + wireCount + customCount + lineCount
     if (totalCount === 0) return
 
     // Resize
@@ -578,9 +599,14 @@ export class WebGPURenderer {
     this.device.queue.writeBuffer(this.sceneBuffer, 0, sd)
 
     // ── Stage object data (world matrices already computed by updateMatrixWorld) ──
+    // Order: solid, basic, wireframe, custom, lines
     let idx = 0
     for (let i = 0; i < solidCount; i++, idx++) {
       const m = solidMeshes[i]
+      this.writeObjectData(idx, m._worldMatrix, m.material.color.r, m.material.color.g, m.material.color.b)
+    }
+    for (let i = 0; i < basicCount; i++, idx++) {
+      const m = basicMeshes[i]
       this.writeObjectData(idx, m._worldMatrix, m.material.color.r, m.material.color.g, m.material.color.b)
     }
     for (let i = 0; i < wireCount; i++, idx++) {
@@ -675,10 +701,40 @@ export class WebGPURenderer {
       }
     }
 
-    // 2: wireframe meshes
+    // 2: basic (unlit) meshes
+    if (basicCount > 0) {
+      let curPipeline: GPURenderPipeline | null = null
+      let curGeo: BufferGeometry | null = null
+      const base = solidCount
+      for (let i = 0; i < basicCount; i++) {
+        const mat = basicMeshes[i].material as MeshBasicMaterial
+        const pipeline =
+          mat.side === BackSide
+            ? this.basicPipelineFront
+            : mat.side === DoubleSide
+              ? this.basicPipelineDouble
+              : this.basicPipeline
+        if (pipeline !== curPipeline) {
+          curPipeline = pipeline
+          pass.setPipeline(pipeline)
+          curGeo = null
+        }
+        const geo = basicMeshes[i].geometry
+        if (geo !== curGeo) {
+          curGeo = geo
+          geo._ensureGPU(this.device)
+          pass.setVertexBuffer(0, geo._vertexBuffer!)
+          pass.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
+        }
+        pass.setBindGroup(1, this.objectBindGroup, [(base + i) * this.objectStride])
+        pass.drawIndexed(geo._indexCount)
+      }
+    }
+
+    // 3: wireframe meshes
     if (wireCount > 0) {
       pass.setPipeline(this.wireframePipeline)
-      const base = solidCount
+      const base = solidCount + basicCount
       let curGeo: BufferGeometry | null = null
       for (let i = 0; i < wireCount; i++) {
         const geo = wireframeMeshes[i].geometry
@@ -693,9 +749,9 @@ export class WebGPURenderer {
       }
     }
 
-    // 3: custom shader meshes
+    // 4: custom shader meshes
     if (customCount > 0) {
-      const base = solidCount + wireCount
+      const base = solidCount + basicCount + wireCount
       let curPipeline: GPURenderPipeline | null = null
       let curGeo: BufferGeometry | null = null
       for (let i = 0; i < customCount; i++) {
@@ -726,10 +782,10 @@ export class WebGPURenderer {
       }
     }
 
-    // 4: lines
+    // 5: lines
     if (lineCount > 0) {
       pass.setPipeline(this.linePipeline)
-      const base = solidCount + wireCount + customCount
+      const base = solidCount + basicCount + wireCount + customCount
       let curGeo: BufferGeometry | null = null
       for (let i = 0; i < lineCount; i++) {
         const geo = lines[i].geometry
