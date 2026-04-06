@@ -221,7 +221,6 @@ entities:
     name: Player
     type: mesh
     transform: { position: [0, 2, 0] }
-    mesh: { geometry: capsule, material: { color: '#e84057' } }
     rigidBody: { type: dynamic, lockRotation: [true, true, true] }
     collider: { shape: capsule, radius: 0.5, halfHeight: 0.5 }
     castShadow: true
@@ -304,3 +303,14 @@ entities:
         blending: additive,
         loop: true,
       }
+  - id: yx65b87t
+    name: michelle
+    type: model
+    transform: { position: [-1.4, 0.488, 0.365], rotation: [0, 0, 0], scale: [1, 1, 1] }
+    model: { src: models/michelle.glb }
+    scripts: [{ name: play-animation, params: { name: mixamo.com } }]
+  - id: tbhkp45t
+    name: megaxe-z-up
+    type: model
+    transform: { position: [-6.6, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }
+    model: { src: models/megaxe-z-up.glb }

@@ -1,4 +1,4 @@
-export { resolveAsset, setAssetManifest } from './assets.ts'
+export { getBasisTranscoderPath, getDracoDecoderPath, resolveAsset, setAssetManifest } from './assets.ts'
 export { Audio } from './audio.ts'
 export { Game } from './GameComponent.tsx'
 export { createScene } from './scene.ts'

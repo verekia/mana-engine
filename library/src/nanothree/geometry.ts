@@ -10,6 +10,16 @@ export class Float32BufferAttribute {
   }
 }
 
+export class Uint16BufferAttribute {
+  readonly array: Uint16Array
+  readonly itemSize: number
+
+  constructor(array: ArrayLike<number>, itemSize: number) {
+    this.array = array instanceof Uint16Array ? array : new Uint16Array(array)
+    this.itemSize = itemSize
+  }
+}
+
 export interface BoundingSphere {
   cx: number
   cy: number
@@ -22,6 +32,8 @@ export class BufferGeometry {
   normals: Float32Array | null = null
   uvs: Float32Array | null = null
   colors: Float32Array | null = null
+  skinIndices: Float32Array | null = null
+  skinWeights: Float32Array | null = null
   indices: Uint16Array | Uint32Array | null = null
 
   /** Bounding sphere in local (geometry) space. Computed lazily on first access. */
@@ -37,6 +49,8 @@ export class BufferGeometry {
   _device: GPUDevice | null = null
   /** Whether the GPU vertex buffer includes per-vertex color data. */
   _hasVertexColors = false
+  /** Whether the GPU vertex buffer includes skinning data (joints + weights). */
+  _hasSkinning = false
 
   // Wireframe index buffer (lazily generated from triangle indices)
   _wireframeIndexBuffer: GPUBuffer | null = null
@@ -44,16 +58,27 @@ export class BufferGeometry {
   _wireframeIndexFormat: GPUIndexFormat = 'uint16'
   _wireframeDirty = true
 
-  setAttribute(name: string, attribute: Float32BufferAttribute) {
+  setAttribute(name: string, attribute: Float32BufferAttribute | Uint16BufferAttribute) {
     if (name === 'position') {
-      this.positions = attribute.array
+      this.positions = attribute.array instanceof Float32Array ? attribute.array : new Float32Array(attribute.array)
       this.boundingSphere = null
     } else if (name === 'normal') {
-      this.normals = attribute.array
+      this.normals = attribute.array instanceof Float32Array ? attribute.array : new Float32Array(attribute.array)
     } else if (name === 'uv') {
-      this.uvs = attribute.array
+      this.uvs = attribute.array instanceof Float32Array ? attribute.array : new Float32Array(attribute.array)
     } else if (name === 'color') {
-      this.colors = attribute.array
+      this.colors = attribute.array instanceof Float32Array ? attribute.array : new Float32Array(attribute.array)
+    } else if (name === 'skinIndex') {
+      // Accept Uint16BufferAttribute or Float32BufferAttribute; store as Float32Array
+      if (attribute.array instanceof Float32Array) {
+        this.skinIndices = attribute.array
+      } else {
+        const f = new Float32Array(attribute.array.length)
+        for (let i = 0; i < attribute.array.length; i++) f[i] = attribute.array[i]
+        this.skinIndices = f
+      }
+    } else if (name === 'skinWeight') {
+      this.skinWeights = attribute.array instanceof Float32Array ? attribute.array : new Float32Array(attribute.array)
     }
     this._gpuDirty = true
     this._wireframeDirty = true
@@ -112,16 +137,20 @@ export class BufferGeometry {
     const normals = this.normals
     const uvs = this.uvs
     const colors = this.colors
+    const skinIdx = this.skinIndices
+    const skinWt = this.skinWeights
     const vertexCount = positions.length / 3
     this._vertexCount = vertexCount
     this._hasVertexColors = colors !== null && colors.length >= vertexCount * 3
+    this._hasSkinning = skinIdx !== null && skinWt !== null
 
-    // Interleave: position(3) + normal(3) + uv(2) [+ color(3)] = 8 or 11 floats per vertex
-    const stride = this._hasVertexColors ? 11 : 8
+    // Interleave: pos(3)+norm(3)+uv(2) = 8, +color(3) = 11, +joints(4)+weights(4) = 16
+    const stride = this._hasSkinning ? 16 : this._hasVertexColors ? 11 : 8
     const interleaved = new Float32Array(vertexCount * stride)
     for (let i = 0; i < vertexCount; i++) {
       const i3 = i * 3
       const i2 = i * 2
+      const i4 = i * 4
       const base = i * stride
       interleaved[base] = positions[i3]
       interleaved[base + 1] = positions[i3 + 1]
@@ -135,7 +164,16 @@ export class BufferGeometry {
         interleaved[base + 6] = uvs[i2]
         interleaved[base + 7] = uvs[i2 + 1]
       }
-      if (this._hasVertexColors) {
+      if (this._hasSkinning) {
+        interleaved[base + 8] = skinIdx![i4]
+        interleaved[base + 9] = skinIdx![i4 + 1]
+        interleaved[base + 10] = skinIdx![i4 + 2]
+        interleaved[base + 11] = skinIdx![i4 + 3]
+        interleaved[base + 12] = skinWt![i4]
+        interleaved[base + 13] = skinWt![i4 + 1]
+        interleaved[base + 14] = skinWt![i4 + 2]
+        interleaved[base + 15] = skinWt![i4 + 3]
+      } else if (this._hasVertexColors) {
         interleaved[base + 8] = colors![i3]
         interleaved[base + 9] = colors![i3 + 1]
         interleaved[base + 10] = colors![i3 + 2]

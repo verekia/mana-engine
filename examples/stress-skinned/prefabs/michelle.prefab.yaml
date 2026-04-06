@@ -1,0 +1,7 @@
+entity:
+  id: michelle
+  name: Michelle
+  type: model
+  model: { src: models/michelle.glb }
+  castShadow: true
+  scripts: [{ name: play-animation, params: { name: 'mixamo.com' } }]

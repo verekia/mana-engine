@@ -208,6 +208,8 @@ export function createBuildConfig(
   entryFile: string,
   aliases: Record<string, string>,
   tailwindPath: string,
+  dracoDir?: string,
+  basisDir?: string,
 ): InlineConfig {
   const assetsDir = resolve(gameDir, 'assets')
   const scenesDir = resolve(gameDir, 'scenes')
@@ -220,6 +222,8 @@ export function createBuildConfig(
       tailwindcss(),
       manaAssetsPlugin(assetsDir, scenesDir, gameDir),
       cssInlinePlugin(),
+      ...(dracoDir ? [dracoCopyPlugin(dracoDir, outDir)] : []),
+      ...(basisDir ? [basisCopyPlugin(basisDir, outDir)] : []),
     ],
     build: {
       lib: {
@@ -249,7 +253,8 @@ export function createDevConfig(
   root: string,
   aliases: Record<string, string>,
   tailwindPath: string,
-  threePath: string,
+  basisDir: string,
+  dracoDir?: string,
 ): InlineConfig {
   const assetsDir = resolve(gameDir, 'assets')
   return {
@@ -260,7 +265,8 @@ export function createDevConfig(
       react(),
       tailwindcss(),
       assetsApiPlugin(assetsDir),
-      basisTranscoderPlugin(threePath),
+      basisTranscoderPlugin(basisDir),
+      ...(dracoDir ? [dracoPlugin(dracoDir)] : []),
     ],
     resolve: {
       alias: aliases,
@@ -481,8 +487,7 @@ function prefabApiPlugin(prefabsDir: string): Plugin {
   }
 }
 
-function basisTranscoderPlugin(threePath: string): Plugin {
-  const basisDir = resolve(threePath, 'examples/jsm/libs/basis')
+function basisTranscoderPlugin(basisDir: string): Plugin {
   return {
     name: 'mana-basis-transcoder',
     configureServer(server) {
@@ -515,6 +520,74 @@ function basisTranscoderPlugin(threePath: string): Plugin {
           res.end('Failed to read file')
         }
       })
+    },
+  }
+}
+
+function dracoPlugin(dracoDir: string): Plugin {
+  return {
+    name: 'mana-draco',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url?.startsWith('/__mana/draco/')) return next()
+        const fileName = req.url.replace('/__mana/draco/', '')
+        if (!/^[a-zA-Z0-9._-]+$/.test(fileName)) {
+          res.writeHead(400)
+          res.end('Invalid filename')
+          return
+        }
+        const filePath = resolve(dracoDir, fileName)
+        if (!filePath.startsWith(dracoDir + '/')) {
+          res.writeHead(400)
+          res.end('Invalid filename')
+          return
+        }
+        if (!existsSync(filePath)) {
+          res.writeHead(404)
+          res.end('Not found')
+          return
+        }
+        try {
+          const contentType = fileName.endsWith('.wasm') ? 'application/wasm' : 'application/javascript'
+          res.writeHead(200, { 'Content-Type': contentType })
+          res.end(readFileSync(filePath))
+        } catch {
+          res.writeHead(500)
+          res.end('Failed to read file')
+        }
+      })
+    },
+  }
+}
+
+function dracoCopyPlugin(dracoDir: string, outDir: string): Plugin {
+  return {
+    name: 'mana-draco-copy',
+    closeBundle() {
+      const targetDir = resolve(outDir, 'draco')
+      mkdirSync(targetDir, { recursive: true })
+      for (const file of ['draco_wasm_wrapper_gltf.js', 'draco_decoder_gltf.wasm']) {
+        const src = resolve(dracoDir, file)
+        if (existsSync(src)) {
+          writeFileSync(resolve(targetDir, file), readFileSync(src))
+        }
+      }
+    },
+  }
+}
+
+function basisCopyPlugin(basisDir: string, outDir: string): Plugin {
+  return {
+    name: 'mana-basis-copy',
+    closeBundle() {
+      const targetDir = resolve(outDir, 'basis')
+      mkdirSync(targetDir, { recursive: true })
+      for (const file of ['basis_transcoder.js', 'basis_transcoder.wasm']) {
+        const src = resolve(basisDir, file)
+        if (existsSync(src)) {
+          writeFileSync(resolve(targetDir, file), readFileSync(src))
+        }
+      }
     },
   }
 }
@@ -680,7 +753,8 @@ export function createEditorConfig(
   root: string,
   aliases: Record<string, string>,
   tailwindPath: string,
-  threePath: string,
+  basisDir: string,
+  dracoDir?: string,
 ): InlineConfig {
   const scenesDir = resolve(gameDir, 'scenes')
   const assetsDir = resolve(gameDir, 'assets')
@@ -695,7 +769,8 @@ export function createEditorConfig(
       sceneApiPlugin(scenesDir),
       prefabApiPlugin(prefabsDir),
       assetsApiPlugin(assetsDir, prefabsDir),
-      basisTranscoderPlugin(threePath),
+      basisTranscoderPlugin(basisDir),
+      ...(dracoDir ? [dracoPlugin(dracoDir)] : []),
     ],
     resolve: {
       alias: aliases,

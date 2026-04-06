@@ -1,0 +1,5 @@
+{
+  "renderer": "nanothree",
+  "physics": "none",
+  "coordinateSystem": "y-up"
+}

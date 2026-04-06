@@ -1,0 +1,23 @@
+background: '#1a1a2e'
+entities:
+  - id: camera
+    name: Camera
+    type: camera
+    transform: { position: [0, 15.386, 39.233], rotation: [-0.3, 0, 0], scale: [1, 1, 1] }
+    camera: { fov: 50, near: 0.1, far: 500 }
+  - id: sun
+    name: Sun
+    type: directional-light
+    transform: { position: [10, 20, 10] }
+    light: { color: '#ffffff', intensity: 2 }
+    castShadow: true
+  - id: ambient
+    name: Ambient Light
+    type: ambient-light
+    light: { color: '#ffffff', intensity: 0.4 }
+  - id: spawner
+    name: Spawner
+    type: mesh
+    transform: { position: [0, 0, 0], scale: [0.01, 0.01, 0.01] }
+    mesh: { geometry: box, material: { color: '#000000' } }
+    scripts: [{ name: skinned-spawner, params: { count: 600, spacing: 1.2 } }]

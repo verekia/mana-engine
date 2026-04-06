@@ -10,6 +10,24 @@ export function setAssetManifest(manifest: Record<string, string> | null) {
 }
 
 /**
+ * Returns the correct URL path for the Draco decoder files directory.
+ * In dev/editor mode: served by Vite middleware at /__mana/draco/
+ * In production: copied to /draco/ in the build output
+ */
+export function getDracoDecoderPath(): string {
+  return assetManifest ? '/draco/' : '/__mana/draco/'
+}
+
+/**
+ * Returns the correct URL path for the Basis Universal transcoder files directory.
+ * In dev/editor mode: served by Vite middleware at /__mana/basis/
+ * In production: copied to /basis/ in the build output
+ */
+export function getBasisTranscoderPath(): string {
+  return assetManifest ? '/basis/' : '/__mana/basis/'
+}
+
+/**
  * Resolve an asset path. In production, returns the hashed URL from the manifest.
  * In dev, returns the path prefixed with /assets/ for the dev server middleware.
  * Paths already starting with http/data/blob are returned as-is.

@@ -22,6 +22,7 @@ import type { Line } from './line'
 import type { MeshLambertMaterial } from './material'
 import type { Mesh } from './mesh'
 import type { Scene } from './scene'
+import type { SkinnedMesh } from './skinned-mesh'
 import type { Sprite } from './sprite'
 
 // ─── Shadow depth pass shader (vertex-only) ───────────────────────────
@@ -502,6 +503,193 @@ struct VSOut {
 }
 `
 
+// ─── Skinned mesh shader (Lambert + shadow + bone skinning) ──────────
+
+const SKINNED_MESH_SHADER = /* wgsl */ `
+struct Scene {
+  viewProj: mat4x4f,
+  lightDir: vec4f,
+  ambient: vec4f,
+  lightColor: vec4f,
+  lightViewProj: mat4x4f,
+  shadowParams: vec4f,
+}
+
+struct ObjectData { model: mat4x4f, color: vec4f }
+
+@group(0) @binding(0) var<uniform> scene: Scene;
+@group(0) @binding(1) var shadowMap: texture_depth_2d;
+@group(0) @binding(2) var shadowSampler: sampler_comparison;
+@group(1) @binding(0) var<storage, read> objectData: ObjectData;
+@group(2) @binding(0) var<storage, read> boneMatrices: array<mat4x4f>;
+
+struct VSOut {
+  @builtin(position) pos: vec4f,
+  @location(0) normal: vec3f,
+  @location(1) color: vec3f,
+  @location(2) shadowCoord: vec3f,
+}
+
+@vertex fn vs(
+  @location(0) position: vec3f,
+  @location(1) normal: vec3f,
+  @location(2) _uv: vec2f,
+  @location(3) joints: vec4f,
+  @location(4) weights: vec4f,
+) -> VSOut {
+  let j = vec4u(joints);
+  let skinMatrix =
+    weights.x * boneMatrices[j.x] +
+    weights.y * boneMatrices[j.y] +
+    weights.z * boneMatrices[j.z] +
+    weights.w * boneMatrices[j.w];
+  let skinnedPos = skinMatrix * vec4f(position, 1.0);
+  let skinnedNorm = normalize((skinMatrix * vec4f(normal, 0.0)).xyz);
+  let worldPos = objectData.model * skinnedPos;
+  let lightClip = scene.lightViewProj * worldPos;
+  var out: VSOut;
+  out.pos = scene.viewProj * worldPos;
+  out.normal = normalize((objectData.model * vec4f(skinnedNorm, 0.0)).xyz);
+  out.color = objectData.color.rgb;
+  out.shadowCoord = vec3f(
+    lightClip.x * 0.5 + 0.5,
+    lightClip.y * -0.5 + 0.5,
+    lightClip.z,
+  );
+  return out;
+}
+
+@fragment fn fs(in: VSOut) -> @location(0) vec4f {
+  let n = normalize(in.normal);
+  let light = max(dot(n, scene.lightDir.xyz), 0.0);
+
+  var shadow = 1.0;
+  if (scene.shadowParams.x > 0.0) {
+    let bias = scene.shadowParams.y;
+    let texel = scene.shadowParams.z;
+    let c = in.shadowCoord;
+    shadow = (
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f(-texel, -texel), c.z - bias) +
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f( texel, -texel), c.z - bias) +
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f(-texel,  texel), c.z - bias) +
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f( texel,  texel), c.z - bias)
+    ) * 0.25;
+  }
+
+  let color = in.color * (scene.ambient.rgb + scene.lightColor.rgb * light * shadow);
+  return vec4f(color, 1.0);
+}
+`
+
+// ─── Skinned textured mesh shader (Lambert + shadow + bone skinning + albedo) ─
+
+const SKINNED_TEXTURED_MESH_SHADER = /* wgsl */ `
+struct Scene {
+  viewProj: mat4x4f,
+  lightDir: vec4f,
+  ambient: vec4f,
+  lightColor: vec4f,
+  lightViewProj: mat4x4f,
+  shadowParams: vec4f,
+}
+
+struct ObjectData { model: mat4x4f, color: vec4f }
+
+@group(0) @binding(0) var<uniform> scene: Scene;
+@group(0) @binding(1) var shadowMap: texture_depth_2d;
+@group(0) @binding(2) var shadowSampler: sampler_comparison;
+@group(1) @binding(0) var<storage, read> objectData: ObjectData;
+@group(2) @binding(0) var<storage, read> boneMatrices: array<mat4x4f>;
+@group(3) @binding(0) var albedoTexture: texture_2d<f32>;
+@group(3) @binding(1) var albedoSampler: sampler;
+
+struct VSOut {
+  @builtin(position) pos: vec4f,
+  @location(0) normal: vec3f,
+  @location(1) color: vec3f,
+  @location(2) shadowCoord: vec3f,
+  @location(3) uv: vec2f,
+}
+
+@vertex fn vs(
+  @location(0) position: vec3f,
+  @location(1) normal: vec3f,
+  @location(2) uv: vec2f,
+  @location(3) joints: vec4f,
+  @location(4) weights: vec4f,
+) -> VSOut {
+  let j = vec4u(joints);
+  let skinMatrix =
+    weights.x * boneMatrices[j.x] +
+    weights.y * boneMatrices[j.y] +
+    weights.z * boneMatrices[j.z] +
+    weights.w * boneMatrices[j.w];
+  let skinnedPos = skinMatrix * vec4f(position, 1.0);
+  let skinnedNorm = normalize((skinMatrix * vec4f(normal, 0.0)).xyz);
+  let worldPos = objectData.model * skinnedPos;
+  let lightClip = scene.lightViewProj * worldPos;
+  var out: VSOut;
+  out.pos = scene.viewProj * worldPos;
+  out.normal = normalize((objectData.model * vec4f(skinnedNorm, 0.0)).xyz);
+  out.color = objectData.color.rgb;
+  out.shadowCoord = vec3f(
+    lightClip.x * 0.5 + 0.5,
+    lightClip.y * -0.5 + 0.5,
+    lightClip.z,
+  );
+  out.uv = uv;
+  return out;
+}
+
+@fragment fn fs(in: VSOut) -> @location(0) vec4f {
+  let n = normalize(in.normal);
+  let light = max(dot(n, scene.lightDir.xyz), 0.0);
+
+  var shadow = 1.0;
+  if (scene.shadowParams.x > 0.0) {
+    let bias = scene.shadowParams.y;
+    let texel = scene.shadowParams.z;
+    let c = in.shadowCoord;
+    shadow = (
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f(-texel, -texel), c.z - bias) +
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f( texel, -texel), c.z - bias) +
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f(-texel,  texel), c.z - bias) +
+      textureSampleCompare(shadowMap, shadowSampler, c.xy + vec2f( texel,  texel), c.z - bias)
+    ) * 0.25;
+  }
+
+  let texColor = textureSample(albedoTexture, albedoSampler, in.uv);
+  let color = in.color * texColor.rgb * (scene.ambient.rgb + scene.lightColor.rgb * light * shadow);
+  return vec4f(color, texColor.a);
+}
+`
+
+// ─── Skinned shadow depth shader ─────────────────────────────────────
+
+const SKINNED_SHADOW_SHADER = /* wgsl */ `
+@group(0) @binding(0) var<uniform> lightViewProj: mat4x4f;
+
+struct ObjectData { model: mat4x4f, color: vec4f }
+@group(1) @binding(0) var<storage, read> objectData: ObjectData;
+@group(2) @binding(0) var<storage, read> boneMatrices: array<mat4x4f>;
+
+@vertex fn vs(
+  @location(0) position: vec3f,
+  @location(1) _normal: vec3f,
+  @location(2) _uv: vec2f,
+  @location(3) joints: vec4f,
+  @location(4) weights: vec4f,
+) -> @builtin(position) vec4f {
+  let j = vec4u(joints);
+  let skinMatrix =
+    weights.x * boneMatrices[j.x] +
+    weights.y * boneMatrices[j.y] +
+    weights.z * boneMatrices[j.z] +
+    weights.w * boneMatrices[j.w];
+  return lightViewProj * objectData.model * skinMatrix * vec4f(position, 1.0);
+}
+`
+
 // ─── Constants ────────────────────────────────────────────────────────
 
 const OBJECT_FLOATS = 20
@@ -519,6 +707,18 @@ const VERTEX_BUFFER_LAYOUT: GPUVertexBufferLayout = {
     { shaderLocation: 0, offset: 0, format: 'float32x3' as GPUVertexFormat },
     { shaderLocation: 1, offset: 12, format: 'float32x3' as GPUVertexFormat },
     { shaderLocation: 2, offset: 24, format: 'float32x2' as GPUVertexFormat },
+  ],
+}
+
+// Vertex buffer layout with skinning: position(3) + normal(3) + uv(2) + joints(4) + weights(4) = 16 floats = 64 bytes
+const SKINNED_VERTEX_BUFFER_LAYOUT: GPUVertexBufferLayout = {
+  arrayStride: 64,
+  attributes: [
+    { shaderLocation: 0, offset: 0, format: 'float32x3' as GPUVertexFormat },
+    { shaderLocation: 1, offset: 12, format: 'float32x3' as GPUVertexFormat },
+    { shaderLocation: 2, offset: 24, format: 'float32x2' as GPUVertexFormat },
+    { shaderLocation: 3, offset: 32, format: 'float32x4' as GPUVertexFormat },
+    { shaderLocation: 4, offset: 48, format: 'float32x4' as GPUVertexFormat },
   ],
 }
 
@@ -599,6 +799,18 @@ export class WebGPURenderer {
   private textureSampler!: GPUSampler
   /** Cache of texture bind groups keyed by GPUTextureView. */
   private textureBindGroups = new Map<GPUTextureView, GPUBindGroup>()
+
+  // Skinned mesh pipelines (Lambert + bone skinning)
+  private skinnedMeshPipeline!: GPURenderPipeline
+  private skinnedMeshPipelineFront!: GPURenderPipeline
+  private skinnedMeshPipelineDouble!: GPURenderPipeline
+  private skinnedTexturedMeshPipeline!: GPURenderPipeline
+  private skinnedTexturedMeshPipelineFront!: GPURenderPipeline
+  private skinnedTexturedMeshPipelineDouble!: GPURenderPipeline
+  private skinnedShadowPipeline!: GPURenderPipeline
+  private skinnedPipelineLayout!: GPUPipelineLayout
+  private skinnedTexturedPipelineLayout!: GPUPipelineLayout
+  private skinnedShadowPipelineLayout!: GPUPipelineLayout
   /** 1×1 white texture used as fallback while textures load. */
   private whiteTexture!: GPUTexture
   private whiteTextureView!: GPUTextureView
@@ -769,6 +981,17 @@ export class WebGPURenderer {
       bindGroupLayouts: [this.sceneLayout, this.objectLayout, this.instanceLayout],
     })
     this.instancedShadowPipelineLayout = this.device.createPipelineLayout({
+      bindGroupLayouts: [this.shadowSceneLayout, this.objectLayout, this.instanceLayout],
+    })
+
+    // Skinned mesh pipeline layouts (reuse instanceLayout for bone storage buffer)
+    this.skinnedPipelineLayout = this.device.createPipelineLayout({
+      bindGroupLayouts: [this.sceneLayout, this.objectLayout, this.instanceLayout],
+    })
+    this.skinnedTexturedPipelineLayout = this.device.createPipelineLayout({
+      bindGroupLayouts: [this.sceneLayout, this.objectLayout, this.instanceLayout, this.textureLayout],
+    })
+    this.skinnedShadowPipelineLayout = this.device.createPipelineLayout({
       bindGroupLayouts: [this.shadowSceneLayout, this.objectLayout, this.instanceLayout],
     })
   }
@@ -1043,6 +1266,61 @@ struct ObjectData { model: mat4x4f, color: vec4f }
     this.texturedMeshPipeline = this.device.createRenderPipeline(texturedDesc('back'))
     this.texturedMeshPipelineFront = this.device.createRenderPipeline(texturedDesc('front'))
     this.texturedMeshPipelineDouble = this.device.createRenderPipeline(texturedDesc('none'))
+
+    // Skinned mesh pipelines (Lambert + bone skinning)
+    const skinnedShader = this.device.createShaderModule({ code: SKINNED_MESH_SHADER })
+    const skinnedDesc = (cullMode: GPUCullMode) => ({
+      layout: this.skinnedPipelineLayout,
+      vertex: { module: skinnedShader, entryPoint: 'vs', buffers: [SKINNED_VERTEX_BUFFER_LAYOUT] },
+      fragment: { module: skinnedShader, entryPoint: 'fs', targets: [{ format: this.format }] },
+      primitive: { topology: 'triangle-list' as GPUPrimitiveTopology, cullMode },
+      depthStencil: DEPTH_STENCIL,
+    })
+    this.skinnedMeshPipeline = this.device.createRenderPipeline(skinnedDesc('back'))
+    this.skinnedMeshPipelineFront = this.device.createRenderPipeline(skinnedDesc('front'))
+    this.skinnedMeshPipelineDouble = this.device.createRenderPipeline(skinnedDesc('none'))
+
+    // Skinned textured mesh pipelines
+    const skinnedTexShader = this.device.createShaderModule({ code: SKINNED_TEXTURED_MESH_SHADER })
+    const skinnedTexDesc = (cullMode: GPUCullMode) => ({
+      layout: this.skinnedTexturedPipelineLayout,
+      vertex: { module: skinnedTexShader, entryPoint: 'vs', buffers: [SKINNED_VERTEX_BUFFER_LAYOUT] },
+      fragment: {
+        module: skinnedTexShader,
+        entryPoint: 'fs',
+        targets: [
+          {
+            format: this.format,
+            blend: {
+              color: {
+                srcFactor: 'src-alpha' as GPUBlendFactor,
+                dstFactor: 'one-minus-src-alpha' as GPUBlendFactor,
+                operation: 'add' as GPUBlendOperation,
+              },
+              alpha: {
+                srcFactor: 'one' as GPUBlendFactor,
+                dstFactor: 'one-minus-src-alpha' as GPUBlendFactor,
+                operation: 'add' as GPUBlendOperation,
+              },
+            },
+          },
+        ],
+      },
+      primitive: { topology: 'triangle-list' as GPUPrimitiveTopology, cullMode },
+      depthStencil: DEPTH_STENCIL,
+    })
+    this.skinnedTexturedMeshPipeline = this.device.createRenderPipeline(skinnedTexDesc('back'))
+    this.skinnedTexturedMeshPipelineFront = this.device.createRenderPipeline(skinnedTexDesc('front'))
+    this.skinnedTexturedMeshPipelineDouble = this.device.createRenderPipeline(skinnedTexDesc('none'))
+
+    // Skinned shadow pipeline
+    const skinnedShadowShader = this.device.createShaderModule({ code: SKINNED_SHADOW_SHADER })
+    this.skinnedShadowPipeline = this.device.createRenderPipeline({
+      layout: this.skinnedShadowPipelineLayout,
+      vertex: { module: skinnedShadowShader, entryPoint: 'vs', buffers: [SKINNED_VERTEX_BUFFER_LAYOUT] },
+      primitive: { topology: 'triangle-list', cullMode: 'back' },
+      depthStencil: SHADOW_DEPTH_STENCIL,
+    })
   }
 
   private getOrCreateCustomPipeline(material: ShaderMaterial): GPURenderPipeline {
@@ -1188,6 +1466,15 @@ struct ObjectData { model: mat4x4f, color: vec4f }
     }
     for (let i = 0; i < scene.lines.length; i++) lines.push(scene.lines[i])
 
+    // Classify skinned meshes (solid vs textured)
+    const skinnedSolid: SkinnedMesh[] = []
+    const skinnedTextured: SkinnedMesh[] = []
+    for (let i = 0; i < scene.skinnedMeshes.length; i++) {
+      const sm = scene.skinnedMeshes[i]
+      if ((sm.material as MeshLambertMaterial).hasTexture) skinnedTextured.push(sm)
+      else skinnedSolid.push(sm)
+    }
+
     // Split transparent sprites by blending mode (opaque sprites are ignored for now)
     const normalSprites: Sprite[] = []
     const additiveSprites: Sprite[] = []
@@ -1200,6 +1487,8 @@ struct ObjectData { model: mat4x4f, color: vec4f }
 
     const solidCount = solidMeshes.length
     const texturedCount = texturedMeshes.length
+    const skinnedSolidCount = skinnedSolid.length
+    const skinnedTexturedCount = skinnedTextured.length
     const vcCount = vertexColorMeshes.length
     const vcBasicCount = vertexColorBasicMeshes.length
     const instancedMeshes = scene.instancedMeshes
@@ -1215,6 +1504,8 @@ struct ObjectData { model: mat4x4f, color: vec4f }
     const totalCount =
       solidCount +
       texturedCount +
+      skinnedSolidCount +
+      skinnedTexturedCount +
       vcCount +
       vcBasicCount +
       instancedCount +
@@ -1291,6 +1582,14 @@ struct ObjectData { model: mat4x4f, color: vec4f }
     }
     for (let i = 0; i < texturedCount; i++, idx++) {
       const m = texturedMeshes[i]
+      this.writeObjectData(idx, m._worldMatrix, m.material.color.r, m.material.color.g, m.material.color.b)
+    }
+    for (let i = 0; i < skinnedSolidCount; i++, idx++) {
+      const m = skinnedSolid[i]
+      this.writeObjectData(idx, m._worldMatrix, m.material.color.r, m.material.color.g, m.material.color.b)
+    }
+    for (let i = 0; i < skinnedTexturedCount; i++, idx++) {
+      const m = skinnedTextured[i]
       this.writeObjectData(idx, m._worldMatrix, m.material.color.r, m.material.color.g, m.material.color.b)
     }
     for (let i = 0; i < vcCount; i++, idx++) {
@@ -1382,6 +1681,14 @@ struct ObjectData { model: mat4x4f, color: vec4f }
     for (let i = 0; i < instancedCount; i++) instancedMeshes[i]._ensureGPU(this.device, this.instanceLayout)
     for (let i = 0; i < instancedSpriteCount; i++) instancedSprites[i]._ensureGPU(this.device, this.instanceLayout)
 
+    // Update skinned mesh bone matrices and GPU buffers
+    const allSkinned = skinnedSolid.concat(skinnedTextured)
+    for (let i = 0; i < allSkinned.length; i++) {
+      const sm = allSkinned[i]
+      sm._updateBoneMatrices()
+      sm._ensureBoneGPU(this.device, this.instanceLayout)
+    }
+
     const encoder = this.device.createCommandEncoder()
 
     // ── Shadow depth pass ───────────────────────────────────────
@@ -1423,11 +1730,36 @@ struct ObjectData { model: mat4x4f, color: vec4f }
         this.info.triangles += (geo._indexCount / 3) | 0
       }
 
+      // Skinned mesh shadows (different vertex buffer layout + bone matrices)
+      if (skinnedSolidCount + skinnedTexturedCount > 0) {
+        sp.setPipeline(this.skinnedShadowPipeline)
+        curGeo = null
+        const skBase = solidCount + texturedCount
+        for (let i = 0; i < skinnedSolidCount + skinnedTexturedCount; i++) {
+          const sm = i < skinnedSolidCount ? skinnedSolid[i] : skinnedTextured[i - skinnedSolidCount]
+          if (!sm.castShadow) continue
+          const geo = sm.geometry
+          if (geo !== curGeo) {
+            curGeo = geo
+            geo._ensureGPU(this.device)
+            sp.setVertexBuffer(0, geo._vertexBuffer!)
+            sp.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
+          }
+          sp.setBindGroup(1, this.objectBindGroup, [(skBase + i) * this.objectStride])
+          sp.setBindGroup(2, sm._boneBindGroup!)
+          sp.drawIndexed(geo._indexCount)
+          this.info.drawCalls++
+          this.info.triangles += (geo._indexCount / 3) | 0
+        }
+        sp.setPipeline(this.shadowPipeline)
+        curGeo = null
+      }
+
       // Vertex-colored mesh shadows (different vertex buffer layout)
       if (vcCount + vcBasicCount > 0) {
         sp.setPipeline(this.vertexColorShadowPipeline)
         curGeo = null
-        const vcBase = solidCount + texturedCount
+        const vcBase = solidCount + texturedCount + skinnedSolidCount + skinnedTexturedCount
         for (let i = 0; i < vcCount; i++) {
           if (!vertexColorMeshes[i].castShadow) continue
           const geo = vertexColorMeshes[i].geometry
@@ -1463,7 +1795,7 @@ struct ObjectData { model: mat4x4f, color: vec4f }
       // Instanced mesh shadows
       if (instancedCount > 0) {
         sp.setPipeline(this.instancedShadowPipeline)
-        const instBase = solidCount + texturedCount + vcCount + vcBasicCount
+        const instBase = solidCount + texturedCount + skinnedSolidCount + skinnedTexturedCount + vcCount + vcBasicCount
         for (let i = 0; i < instancedCount; i++) {
           const im = instancedMeshes[i]
           if (!im.castShadow) continue
@@ -1483,7 +1815,16 @@ struct ObjectData { model: mat4x4f, color: vec4f }
         sp.setPipeline(this.shadowPipeline)
       }
 
-      const customBase = solidCount + texturedCount + vcCount + vcBasicCount + instancedCount + basicCount + wireCount
+      const customBase =
+        solidCount +
+        texturedCount +
+        skinnedSolidCount +
+        skinnedTexturedCount +
+        vcCount +
+        vcBasicCount +
+        instancedCount +
+        basicCount +
+        wireCount
       for (let i = 0; i < customCount; i++) {
         const mesh = customMeshes[i]
         if (!mesh.castShadow || (mesh.material as ShaderMaterial).wireframe) continue
@@ -1572,11 +1913,80 @@ struct ObjectData { model: mat4x4f, color: vec4f }
       }
     }
 
-    // 2b: vertex-colored meshes (Lambert + per-vertex color)
-    if (vcCount > 0) {
+    // 2b: skinned meshes (Lambert + bone skinning, solid)
+    if (skinnedSolidCount > 0) {
       let curPipeline: GPURenderPipeline | null = null
       let curGeo: BufferGeometry | null = null
       const base = solidCount + texturedCount
+      for (let i = 0; i < skinnedSolidCount; i++) {
+        const sm = skinnedSolid[i]
+        const mat = sm.material as MeshLambertMaterial
+        const pipeline =
+          mat.side === BackSide
+            ? this.skinnedMeshPipelineFront
+            : mat.side === DoubleSide
+              ? this.skinnedMeshPipelineDouble
+              : this.skinnedMeshPipeline
+        if (pipeline !== curPipeline) {
+          curPipeline = pipeline
+          pass.setPipeline(pipeline)
+          curGeo = null
+        }
+        const geo = sm.geometry
+        if (geo !== curGeo) {
+          curGeo = geo
+          geo._ensureGPU(this.device)
+          pass.setVertexBuffer(0, geo._vertexBuffer!)
+          pass.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
+        }
+        pass.setBindGroup(1, this.objectBindGroup, [(base + i) * this.objectStride])
+        pass.setBindGroup(2, sm._boneBindGroup!)
+        pass.drawIndexed(geo._indexCount)
+        this.info.drawCalls++
+        this.info.triangles += (geo._indexCount / 3) | 0
+      }
+    }
+
+    // 2c: skinned textured meshes (Lambert + bone skinning + albedo texture)
+    if (skinnedTexturedCount > 0) {
+      let curPipeline: GPURenderPipeline | null = null
+      let curGeo: BufferGeometry | null = null
+      const base = solidCount + texturedCount + skinnedSolidCount
+      for (let i = 0; i < skinnedTexturedCount; i++) {
+        const sm = skinnedTextured[i]
+        const mat = sm.material as MeshLambertMaterial
+        const pipeline =
+          mat.side === BackSide
+            ? this.skinnedTexturedMeshPipelineFront
+            : mat.side === DoubleSide
+              ? this.skinnedTexturedMeshPipelineDouble
+              : this.skinnedTexturedMeshPipeline
+        if (pipeline !== curPipeline) {
+          curPipeline = pipeline
+          pass.setPipeline(pipeline)
+          curGeo = null
+        }
+        const geo = sm.geometry
+        if (geo !== curGeo) {
+          curGeo = geo
+          geo._ensureGPU(this.device)
+          pass.setVertexBuffer(0, geo._vertexBuffer!)
+          pass.setIndexBuffer(geo._indexBuffer!, geo._indexFormat)
+        }
+        pass.setBindGroup(1, this.objectBindGroup, [(base + i) * this.objectStride])
+        pass.setBindGroup(2, sm._boneBindGroup!)
+        pass.setBindGroup(3, this.getTextureBindGroup(mat.map!))
+        pass.drawIndexed(geo._indexCount)
+        this.info.drawCalls++
+        this.info.triangles += (geo._indexCount / 3) | 0
+      }
+    }
+
+    // 2d: vertex-colored meshes (Lambert + per-vertex color)
+    if (vcCount > 0) {
+      let curPipeline: GPURenderPipeline | null = null
+      let curGeo: BufferGeometry | null = null
+      const base = solidCount + texturedCount + skinnedSolidCount + skinnedTexturedCount
       for (let i = 0; i < vcCount; i++) {
         const mat = vertexColorMeshes[i].material as MeshLambertMaterial
         const pipeline =
@@ -1604,11 +2014,11 @@ struct ObjectData { model: mat4x4f, color: vec4f }
       }
     }
 
-    // 2c: vertex-colored basic (unlit) meshes
+    // 2e: vertex-colored basic (unlit) meshes
     if (vcBasicCount > 0) {
       let curPipeline: GPURenderPipeline | null = null
       let curGeo: BufferGeometry | null = null
-      const base = solidCount + texturedCount + vcCount
+      const base = solidCount + texturedCount + skinnedSolidCount + skinnedTexturedCount + vcCount
       for (let i = 0; i < vcBasicCount; i++) {
         const mat = vertexColorBasicMeshes[i].material as MeshBasicMaterial
         const pipeline =
@@ -1638,7 +2048,7 @@ struct ObjectData { model: mat4x4f, color: vec4f }
 
     // 3: instanced meshes (one draw call per InstancedMesh, N instances each)
     if (instancedCount > 0) {
-      const base = solidCount + texturedCount + vcCount + vcBasicCount
+      const base = solidCount + texturedCount + skinnedSolidCount + skinnedTexturedCount + vcCount + vcBasicCount
       for (let i = 0; i < instancedCount; i++) {
         const im = instancedMeshes[i]
         const mat = im.material as MeshLambertMaterial
@@ -1665,7 +2075,8 @@ struct ObjectData { model: mat4x4f, color: vec4f }
     if (basicCount > 0) {
       let curPipeline: GPURenderPipeline | null = null
       let curGeo: BufferGeometry | null = null
-      const base = solidCount + texturedCount + vcCount + vcBasicCount + instancedCount
+      const base =
+        solidCount + texturedCount + skinnedSolidCount + skinnedTexturedCount + vcCount + vcBasicCount + instancedCount
       for (let i = 0; i < basicCount; i++) {
         const mat = basicMeshes[i].material as MeshBasicMaterial
         const pipeline =
@@ -1696,7 +2107,15 @@ struct ObjectData { model: mat4x4f, color: vec4f }
     // 4: wireframe meshes
     if (wireCount > 0) {
       pass.setPipeline(this.wireframePipeline)
-      const base = solidCount + texturedCount + vcCount + vcBasicCount + instancedCount + basicCount
+      const base =
+        solidCount +
+        texturedCount +
+        skinnedSolidCount +
+        skinnedTexturedCount +
+        vcCount +
+        vcBasicCount +
+        instancedCount +
+        basicCount
       let curGeo: BufferGeometry | null = null
       for (let i = 0; i < wireCount; i++) {
         const geo = wireframeMeshes[i].geometry
@@ -1714,7 +2133,16 @@ struct ObjectData { model: mat4x4f, color: vec4f }
 
     // 5: custom shader meshes
     if (customCount > 0) {
-      const base = solidCount + texturedCount + vcCount + vcBasicCount + instancedCount + basicCount + wireCount
+      const base =
+        solidCount +
+        texturedCount +
+        skinnedSolidCount +
+        skinnedTexturedCount +
+        vcCount +
+        vcBasicCount +
+        instancedCount +
+        basicCount +
+        wireCount
       let curPipeline: GPURenderPipeline | null = null
       let curGeo: BufferGeometry | null = null
       for (let i = 0; i < customCount; i++) {
@@ -1752,7 +2180,16 @@ struct ObjectData { model: mat4x4f, color: vec4f }
     if (lineCount > 0) {
       pass.setPipeline(this.linePipeline)
       const base =
-        solidCount + texturedCount + vcCount + vcBasicCount + instancedCount + basicCount + wireCount + customCount
+        solidCount +
+        texturedCount +
+        skinnedSolidCount +
+        skinnedTexturedCount +
+        vcCount +
+        vcBasicCount +
+        instancedCount +
+        basicCount +
+        wireCount +
+        customCount
       let curGeo: BufferGeometry | null = null
       for (let i = 0; i < lineCount; i++) {
         const geo = lines[i].geometry
@@ -1780,6 +2217,8 @@ struct ObjectData { model: mat4x4f, color: vec4f }
       const spriteBase =
         solidCount +
         texturedCount +
+        skinnedSolidCount +
+        skinnedTexturedCount +
         vcCount +
         vcBasicCount +
         instancedCount +
@@ -1818,6 +2257,8 @@ struct ObjectData { model: mat4x4f, color: vec4f }
       const iSpriteBase =
         solidCount +
         texturedCount +
+        skinnedSolidCount +
+        skinnedTexturedCount +
         instancedCount +
         basicCount +
         wireCount +

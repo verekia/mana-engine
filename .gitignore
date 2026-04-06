@@ -3,3 +3,4 @@ dist
 .mana
 **/public/game-assets
 tsconfig.tsbuildinfo
+.DS_Store

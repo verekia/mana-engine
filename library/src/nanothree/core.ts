@@ -1,6 +1,6 @@
 // Core scene graph types for nanothree
 
-import { mat4Perspective, mat4Ortho, mat4Multiply, mat4ComposeTRS, mat4Invert } from './math'
+import { mat4Perspective, mat4Ortho, mat4Multiply, mat4ComposeTRS, mat4ComposeTQS, mat4Invert } from './math'
 
 export class Color {
   r: number
@@ -94,6 +94,12 @@ export class Object3D {
   castShadow = false
   receiveShadow = false
 
+  /**
+   * When set, this quaternion (x, y, z, w) is used instead of euler rotation
+   * for world matrix composition. Used by skeletal animation to avoid gimbal lock.
+   */
+  _quaternion: [number, number, number, number] | null = null
+
   parent: Object3D | null = null
   readonly children: Object3D[] = []
   readonly _worldMatrix = new Float32Array(16)
@@ -114,37 +120,70 @@ export class Object3D {
     }
   }
 
-  /** Compute _worldMatrix from local TRS and parent's world matrix. */
+  /** Compute _worldMatrix from local TRS (or TQS if quaternion set) and parent's world matrix. */
   _updateWorldMatrix(parentWorldMatrix: Float32Array | null) {
+    const q = this._quaternion
     if (parentWorldMatrix) {
       // Has parent: compute local into temp, then multiply parent × local
-      mat4ComposeTRS(
-        _localMat,
-        this.position.x,
-        this.position.y,
-        this.position.z,
-        this.rotation.x,
-        this.rotation.y,
-        this.rotation.z,
-        this.scale.x,
-        this.scale.y,
-        this.scale.z,
-      )
+      if (q) {
+        mat4ComposeTQS(
+          _localMat,
+          this.position.x,
+          this.position.y,
+          this.position.z,
+          q[0],
+          q[1],
+          q[2],
+          q[3],
+          this.scale.x,
+          this.scale.y,
+          this.scale.z,
+        )
+      } else {
+        mat4ComposeTRS(
+          _localMat,
+          this.position.x,
+          this.position.y,
+          this.position.z,
+          this.rotation.x,
+          this.rotation.y,
+          this.rotation.z,
+          this.scale.x,
+          this.scale.y,
+          this.scale.z,
+        )
+      }
       mat4Multiply(this._worldMatrix, parentWorldMatrix, _localMat)
     } else {
-      // No parent: compute TRS directly into world matrix (fast path)
-      mat4ComposeTRS(
-        this._worldMatrix,
-        this.position.x,
-        this.position.y,
-        this.position.z,
-        this.rotation.x,
-        this.rotation.y,
-        this.rotation.z,
-        this.scale.x,
-        this.scale.y,
-        this.scale.z,
-      )
+      // No parent: compute directly into world matrix (fast path)
+      if (q) {
+        mat4ComposeTQS(
+          this._worldMatrix,
+          this.position.x,
+          this.position.y,
+          this.position.z,
+          q[0],
+          q[1],
+          q[2],
+          q[3],
+          this.scale.x,
+          this.scale.y,
+          this.scale.z,
+        )
+      } else {
+        mat4ComposeTRS(
+          this._worldMatrix,
+          this.position.x,
+          this.position.y,
+          this.position.z,
+          this.rotation.x,
+          this.rotation.y,
+          this.rotation.z,
+          this.scale.x,
+          this.scale.y,
+          this.scale.z,
+        )
+      }
     }
   }
 }

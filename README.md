@@ -43,7 +43,7 @@ bun editor
 - **8 geometry types** — `box`, `sphere`, `plane`, `capsule`, `cone`, `cylinder`, `torus`, `tetrahedron`
 - **PBR material** (Three.js) — Physically-based rendering with metalness/roughness workflow: color, albedo map, emissive map/color, normal map, roughness map, metalness map
 - **Lambert material** (VoidCore) — Diffuse color, albedo texture map, emissive texture map
-- **GLTF/GLB model loading** — Import 3D models as `model` entities (Three.js and VoidCore)
+- **GLTF/GLB model loading** — Import 3D models as `model` entities (Three.js, VoidCore, nanothree) with Draco mesh decompression support (nanothree)
 
 ### Lighting & Shadows
 
@@ -168,7 +168,7 @@ The engine is decoupled from any specific 3D renderer or physics library. Choose
 | **Geometries**        | box, sphere, plane, capsule, cone, cylinder, torus, tetrahedron | box, sphere, plane, capsule, cone, cylinder, tetrahedron | box, sphere, plane, capsule, cone, cylinder, torus, tetrahedron |
 | **Materials**         | Lambert (color, map, emissiveMap)                               | Lambert (color only)                                     | Lambert (color, albedo map)                                     |
 | **Textures**          | PNG, JPG, KTX2 (basis transcoder)                               | —                                                        | PNG, JPG (albedo only)                                          |
-| **GLTF/GLB models**   | Yes (GLTFLoader)                                                | Yes (loadGLTF)                                           | Yes (custom GLTFLoader)                                         |
+| **GLTF/GLB models**   | Yes (GLTFLoader)                                                | Yes (loadGLTF)                                           | Yes (custom GLTFLoader + Draco)                                 |
 | **Camera**            | PerspectiveCamera                                               | PerspectiveCamera                                        | PerspectiveCamera                                               |
 | **Directional light** | Yes + shadows                                                   | Yes + shadows                                            | Yes + shadows (PCF)                                             |
 | **Ambient light**     | Yes                                                             | Yes                                                      | Yes                                                             |

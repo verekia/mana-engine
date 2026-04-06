@@ -46,6 +46,18 @@ function resolvePackagePath(name: string): string {
   }
 }
 
+function getManaRoot(): string {
+  return resolve(dirname(new URL(import.meta.url).pathname), '..')
+}
+
+function getDracoDir(): string {
+  return resolve(getManaRoot(), 'third-party/draco-1.5.7')
+}
+
+function getBasisDir(): string {
+  return resolve(getManaRoot(), 'third-party/basis-1.50')
+}
+
 function getManaAliases(): { aliases: Record<string, string>; threePath: string } {
   const threePath = resolvePackagePath('three')
   return {
@@ -243,7 +255,17 @@ async function runBuild() {
 
   const { aliases } = getManaAliases()
   console.log(`Building game from ${config.gameDir}...`)
-  await build(createBuildConfig(gameDir, outDir, entryFile, aliases, resolvePackagePath('tailwindcss')))
+  await build(
+    createBuildConfig(
+      gameDir,
+      outDir,
+      entryFile,
+      aliases,
+      resolvePackagePath('tailwindcss'),
+      getDracoDir(),
+      getBasisDir(),
+    ),
+  )
 
   // Generate index.html that mounts the game fullscreen
   writeFileSync(
@@ -365,9 +387,9 @@ async function runDev() {
 `,
   )
 
-  const { aliases, threePath } = getManaAliases()
+  const { aliases } = getManaAliases()
   const server = await createServer(
-    createDevConfig(gameDir, manaDir, aliases, resolvePackagePath('tailwindcss'), threePath),
+    createDevConfig(gameDir, manaDir, aliases, resolvePackagePath('tailwindcss'), getBasisDir(), getDracoDir()),
   )
   await server.listen()
   server.printUrls()
@@ -383,7 +405,7 @@ async function runEditor() {
   mkdirSync(manaDir, { recursive: true })
 
   // Resolve path to the editor source within the mana-engine package
-  const manaRoot = resolve(dirname(new URL(import.meta.url).pathname), '..')
+  const manaRoot = getManaRoot()
   const editorComponent = resolve(manaRoot, 'src/editor/Editor.tsx')
 
   const game = discoverGame(gameDir)
@@ -423,9 +445,17 @@ async function runEditor() {
 `,
   )
 
-  const { aliases, threePath } = getManaAliases()
+  const { aliases } = getManaAliases()
   const server = await createServer(
-    createEditorConfig(manaRoot, gameDir, manaDir, aliases, resolvePackagePath('tailwindcss'), threePath),
+    createEditorConfig(
+      manaRoot,
+      gameDir,
+      manaDir,
+      aliases,
+      resolvePackagePath('tailwindcss'),
+      getBasisDir(),
+      getDracoDir(),
+    ),
   )
   await server.listen()
   server.printUrls()

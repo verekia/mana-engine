@@ -7,7 +7,8 @@
 // - AnimationAction: controls a single clip's playback state (play, stop, fade, loop)
 //
 // Supports: translation, rotation (quaternion→euler), scale tracks
-// Does not support: skeletal/skinned animation, morph targets, cubic interpolation
+// Skeletal animation works via Bone nodes (Object3D subclass) driven by these tracks
+// Does not support: morph targets, cubic interpolation
 
 import type { Object3D } from './core'
 
@@ -280,19 +281,18 @@ export class AnimationMixer {
     }
   }
 
-  /** Build a flat index→Object3D map by traversing the root's children in order. */
+  /** Build a GLTF-node-index → Object3D map by traversing the tree and reading `_gltfNodeIndex`. */
   private _buildNodeMap(): Map<number, Object3D> {
     const map = new Map<number, Object3D>()
-    // GLTF node indices map to the flat traversal order of the loaded scene graph.
-    // The root Group from GLTFLoader contains nodes at their original indices.
-    let index = 0
     const walk = (obj: Object3D) => {
-      map.set(index++, obj)
+      const idx = (obj as any)._gltfNodeIndex
+      if (idx !== undefined) {
+        map.set(idx as number, obj)
+      }
       for (const child of obj.children) {
         walk(child)
       }
     }
-    // Walk each child of root (the GLTF scene group is typically the first child)
     for (const child of this.root.children) {
       walk(child)
     }
@@ -345,11 +345,34 @@ export class AnimationMixer {
         }
         case 'rotation': {
           slerp(_tempQuat, values, off1, values, off2, alpha)
-          const [rx, ry, rz] = quatToEulerXYZ(_tempQuat[0], _tempQuat[1], _tempQuat[2], _tempQuat[3])
           if (w >= 1) {
-            node.rotation.set(rx, ry, rz)
+            node._quaternion = [_tempQuat[0], _tempQuat[1], _tempQuat[2], _tempQuat[3]]
           } else {
-            node.rotation.set(lerp(node.rotation.x, rx, w), lerp(node.rotation.y, ry, w), lerp(node.rotation.z, rz, w))
+            // Weight blending: slerp from current quaternion toward target
+            const cur = node._quaternion ?? [0, 0, 0, 1]
+            const blended: [number, number, number, number] = [0, 0, 0, 1]
+            // Use slerp for weight blending
+            let dot = cur[0] * _tempQuat[0] + cur[1] * _tempQuat[1] + cur[2] * _tempQuat[2] + cur[3] * _tempQuat[3]
+            const sign = dot < 0 ? -1 : 1
+            dot = Math.abs(dot)
+            if (dot > 0.9999) {
+              blended[0] = lerp(cur[0], _tempQuat[0] * sign, w)
+              blended[1] = lerp(cur[1], _tempQuat[1] * sign, w)
+              blended[2] = lerp(cur[2], _tempQuat[2] * sign, w)
+              blended[3] = lerp(cur[3], _tempQuat[3] * sign, w)
+            } else {
+              const theta = Math.acos(dot)
+              const sinTheta = Math.sin(theta)
+              const wa = Math.sin((1 - w) * theta) / sinTheta
+              const wb = Math.sin(w * theta) / sinTheta
+              blended[0] = cur[0] * wa + _tempQuat[0] * sign * wb
+              blended[1] = cur[1] * wa + _tempQuat[1] * sign * wb
+              blended[2] = cur[2] * wa + _tempQuat[2] * sign * wb
+              blended[3] = cur[3] * wa + _tempQuat[3] * sign * wb
+            }
+            // Normalize
+            const len = Math.sqrt(blended[0] ** 2 + blended[1] ** 2 + blended[2] ** 2 + blended[3] ** 2) || 1
+            node._quaternion = [blended[0] / len, blended[1] / len, blended[2] / len, blended[3] / len]
           }
           break
         }

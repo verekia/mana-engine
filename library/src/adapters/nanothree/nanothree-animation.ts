@@ -11,6 +11,8 @@ export class NanothreeAnimationHelper {
   readonly entityClips = new Map<string, AnimationClip[]>()
   /** Active AnimationMixers per entity. */
   private entityMixers = new Map<string, AnimationMixer>()
+  /** Pending playAnimation calls queued before clips were loaded. */
+  private pendingPlay = new Map<string, { name: string; options?: { loop?: boolean; crossFadeDuration?: number } }>()
   private entityObjects: Map<string, Object3D>
 
   constructor(entityObjects: Map<string, Object3D>) {
@@ -20,12 +22,20 @@ export class NanothreeAnimationHelper {
   /** Callback for passing to createNanothreeEntity's onAnimationClips option. */
   onAnimationClips = (id: string, clips: AnimationClip[]): void => {
     this.entityClips.set(id, clips)
+    const pending = this.pendingPlay.get(id)
+    if (pending) {
+      this.pendingPlay.delete(id)
+      this.playAnimation(id, pending.name, pending.options)
+    }
   }
 
   playAnimation(entityId: string, name: string, options?: { loop?: boolean; crossFadeDuration?: number }): void {
     const clips = this.entityClips.get(entityId)
     const obj = this.entityObjects.get(entityId)
-    if (!clips || !obj) return
+    if (!clips || !obj) {
+      this.pendingPlay.set(entityId, { name, options })
+      return
+    }
 
     const clip = AnimationClip.findByName(clips, name)
     if (!clip) {
@@ -82,5 +92,6 @@ export class NanothreeAnimationHelper {
       this.entityMixers.delete(entityId)
     }
     this.entityClips.delete(entityId)
+    this.pendingPlay.delete(entityId)
   }
 }

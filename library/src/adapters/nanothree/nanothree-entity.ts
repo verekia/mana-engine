@@ -1,4 +1,4 @@
-import { resolveAsset } from '../../assets.ts'
+import { getBasisTranscoderPath, getDracoDecoderPath, resolveAsset } from '../../assets.ts'
 import {
   AmbientLight,
   BoxGeometry,
@@ -144,6 +144,8 @@ export function createNanothreeEntity(entity: SceneEntity, parent: Object3D, sta
       const modelSrc = entity.model?.src
       if (modelSrc) {
         const loader = new GLTFLoader()
+        loader.setDracoDecoderPath(getDracoDecoderPath())
+        loader.setBasisTranscoderPath(getBasisTranscoderPath())
         loader.load(
           resolveAsset(modelSrc),
           gltf => {

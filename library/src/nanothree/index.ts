@@ -11,6 +11,7 @@ export {
   TorusGeometry,
   TetrahedronGeometry,
   Float32BufferAttribute,
+  Uint16BufferAttribute,
 } from './geometry'
 export {
   MeshLambertMaterial,
@@ -28,6 +29,7 @@ export type { GLTFResult } from './gltf-loader'
 export { AnimationClip, AnimationMixer, AnimationAction, KeyframeTrack } from './animation'
 export { ShaderMaterial, SHADER_PREAMBLE } from './shader-material'
 export { Mesh } from './mesh'
+export { Bone, Skeleton, SkinnedMesh } from './skinned-mesh'
 export { InstancedMesh } from './instanced-mesh'
 export { InstancedSprite } from './instanced-sprite'
 export type { MeshMaterial } from './mesh'

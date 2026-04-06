@@ -11,11 +11,13 @@ import type { InstancedSprite } from './instanced-sprite'
 import type { AmbientLight, DirectionalLight } from './light'
 import type { Line } from './line'
 import type { Mesh } from './mesh'
+import type { SkinnedMesh } from './skinned-mesh'
 import type { Sprite } from './sprite'
 
 export class Scene extends Object3D {
   // Flat lists rebuilt each frame by updateMatrixWorld()
   readonly meshes: Mesh[] = []
+  readonly skinnedMeshes: SkinnedMesh[] = []
   readonly instancedMeshes: InstancedMesh[] = []
   readonly instancedSprites: InstancedSprite[] = []
   readonly lines: Line[] = []
@@ -45,6 +47,7 @@ export class Scene extends Object3D {
    */
   updateMatrixWorld(viewProjection?: Float32Array) {
     this.meshes.length = 0
+    this.skinnedMeshes.length = 0
     this.instancedMeshes.length = 0
     this.instancedSprites.length = 0
     this.lines.length = 0
@@ -81,6 +84,9 @@ export class Scene extends Object3D {
           if (!sphereInFrustum(this._frustumPlanes, m[12], m[13], m[14], 0)) continue
         }
         this.sprites.push(child as unknown as Sprite)
+      } else if ((child as any).isSkinnedMesh) {
+        if (this._frustumCulling && !this._meshInFrustum(child as unknown as Mesh)) continue
+        this.skinnedMeshes.push(child as unknown as SkinnedMesh)
       } else if ((child as any).isMesh) {
         if (this._frustumCulling && !this._meshInFrustum(child as Mesh)) continue
         this.meshes.push(child as Mesh)

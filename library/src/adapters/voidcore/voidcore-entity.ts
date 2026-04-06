@@ -15,7 +15,7 @@ import {
   loadGLTF,
 } from 'voidcore'
 
-import { resolveAsset } from '../../assets.ts'
+import { getBasisTranscoderPath, getDracoDecoderPath, resolveAsset } from '../../assets.ts'
 import { applyTransform, createColliderWireframe, eulerToQuat, hexToRgb } from './voidcore-utils.ts'
 
 import type { AnimationClip, Skeleton } from 'voidcore'
@@ -121,7 +121,10 @@ export function createVoidcoreEntity(entity: SceneEntity, parent: Node, state: V
       if (modelSrc) {
         const entityId = entity.id
         const url = resolveAsset(modelSrc)
-        loadGLTF(url).then(gltf => {
+        loadGLTF(url, {
+          draco: { decoderPath: getDracoDecoderPath() },
+          ktx2: { transcoderPath: getBasisTranscoderPath() },
+        }).then(gltf => {
           // Check entity hasn't been removed while loading
           if (!state.entityNodes.has(entityId)) return
           group.add(gltf.scene)
